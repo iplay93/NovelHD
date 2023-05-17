@@ -4,7 +4,7 @@ import os
 import numpy as np
 from datetime import datetime
 import argparse
-from dataloader.dataloader import splitting_data
+from data_preprocessing.dataloader import splitting_data
 from utils import _logger, set_requires_grad
 from trainer.trainer import Trainer, model_evaluate
 from models.TC import TC
