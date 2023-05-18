@@ -54,6 +54,15 @@ class Config(object):
         # Specify loss objective ("arc1","arc2","mix","no_reconstruction", or "distance")
         self.loss_type = 'distance'
 
+        """New hyperparameters"""
+        self.TSlength_aligned = 598
+        self.lr_f = self.lr
+        self.target_batch_size = 64#  84
+        self.increased_dim = 1
+        self.final_out_channels = 128
+        self.num_classes_target = 4
+        self.features_len_f = self.features_len
+        self.CNNoutput_channel = 28#  104
 
 
 

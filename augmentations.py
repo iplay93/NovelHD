@@ -33,6 +33,7 @@ def DataTransform_TD(sample, config):
     return aug
 
 
+
 def DataTransform_TD_bank(sample, config):
     """Augmentation bank that includes four augmentations and randomly select one as the positive sample.
     You may use this one the replace the above DataTransform_TD function."""

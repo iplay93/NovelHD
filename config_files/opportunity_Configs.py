@@ -25,6 +25,16 @@ class Config(object):
         self.Context_Cont = Context_Cont_configs()
         self.TC = TC()
         self.augmentation = augmentations()
+        
+        """New hyperparameters"""
+        self.TSlength_aligned = 598
+        self.lr_f = self.lr
+        self.target_batch_size = 64#  84
+        self.increased_dim = 1
+        self.final_out_channels = 128
+        self.num_classes_target = 4
+        self.features_len_f = self.features_len
+        self.CNNoutput_channel = 28#  104
 
 
 class augmentations(object):

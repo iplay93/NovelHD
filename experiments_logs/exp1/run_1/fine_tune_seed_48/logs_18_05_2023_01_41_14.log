@@ -1,0 +1,413 @@
+=============================================
+Dataset: casas
+Method:  Novel Human Activity
+Mode:    fine_tune
+=============================================
+Data loaded ...
+Training started ....
+
+Epoch : 1
+Train Loss     : 2.7051	 | 	Train Accuracy     : 0.0703
+Valid Loss     : 2.6354	 | 	Valid Accuracy     : 0.0698 | 	Valid F1-score      : 0.0132
+
+Epoch : 2
+Train Loss     : 2.5904	 | 	Train Accuracy     : 0.1517
+Valid Loss     : 2.5463	 | 	Valid Accuracy     : 0.2672 | 	Valid F1-score      : 0.1956
+
+Epoch : 3
+Train Loss     : 2.4813	 | 	Train Accuracy     : 0.3340
+Valid Loss     : 2.4601	 | 	Valid Accuracy     : 0.3609 | 	Valid F1-score      : 0.2679
+
+Epoch : 4
+Train Loss     : 2.3791	 | 	Train Accuracy     : 0.4603
+Valid Loss     : 2.3451	 | 	Valid Accuracy     : 0.4689 | 	Valid F1-score      : 0.4029
+
+Epoch : 5
+Train Loss     : 2.2701	 | 	Train Accuracy     : 0.5892
+Valid Loss     : 2.2333	 | 	Valid Accuracy     : 0.5387 | 	Valid F1-score      : 0.5018
+
+Epoch : 6
+Train Loss     : 2.1570	 | 	Train Accuracy     : 0.6393
+Valid Loss     : 2.1159	 | 	Valid Accuracy     : 0.6274 | 	Valid F1-score      : 0.5862
+
+Epoch : 7
+Train Loss     : 2.0321	 | 	Train Accuracy     : 0.7272
+Valid Loss     : 2.0185	 | 	Valid Accuracy     : 0.6435 | 	Valid F1-score      : 0.6010
+
+Epoch : 8
+Train Loss     : 1.9247	 | 	Train Accuracy     : 0.7591
+Valid Loss     : 1.9310	 | 	Valid Accuracy     : 0.7096 | 	Valid F1-score      : 0.6606
+
+Epoch : 9
+Train Loss     : 1.8082	 | 	Train Accuracy     : 0.7904
+Valid Loss     : 1.8355	 | 	Valid Accuracy     : 0.7255 | 	Valid F1-score      : 0.7066
+
+Epoch : 10
+Train Loss     : 1.7093	 | 	Train Accuracy     : 0.8105
+Valid Loss     : 1.7271	 | 	Valid Accuracy     : 0.7824 | 	Valid F1-score      : 0.7651
+
+Epoch : 11
+Train Loss     : 1.6007	 | 	Train Accuracy     : 0.8516
+Valid Loss     : 1.6713	 | 	Valid Accuracy     : 0.7678 | 	Valid F1-score      : 0.7273
+
+Epoch : 12
+Train Loss     : 1.5079	 | 	Train Accuracy     : 0.8548
+Valid Loss     : 1.5769	 | 	Valid Accuracy     : 0.7756 | 	Valid F1-score      : 0.7407
+
+Epoch : 13
+Train Loss     : 1.4396	 | 	Train Accuracy     : 0.8561
+Valid Loss     : 1.4957	 | 	Valid Accuracy     : 0.8017 | 	Valid F1-score      : 0.7552
+
+Epoch : 14
+Train Loss     : 1.3626	 | 	Train Accuracy     : 0.8600
+Valid Loss     : 1.4670	 | 	Valid Accuracy     : 0.8063 | 	Valid F1-score      : 0.7729
+
+Epoch : 15
+Train Loss     : 1.2879	 | 	Train Accuracy     : 0.8743
+Valid Loss     : 1.4018	 | 	Valid Accuracy     : 0.7914 | 	Valid F1-score      : 0.7450
+
+Epoch : 16
+Train Loss     : 1.2142	 | 	Train Accuracy     : 0.8887
+Valid Loss     : 1.3620	 | 	Valid Accuracy     : 0.7953 | 	Valid F1-score      : 0.7728
+
+Epoch : 17
+Train Loss     : 1.1568	 | 	Train Accuracy     : 0.8913
+Valid Loss     : 1.2832	 | 	Valid Accuracy     : 0.8369 | 	Valid F1-score      : 0.7905
+
+Epoch : 18
+Train Loss     : 1.1098	 | 	Train Accuracy     : 0.9017
+Valid Loss     : 1.2444	 | 	Valid Accuracy     : 0.8371 | 	Valid F1-score      : 0.8199
+
+Epoch : 19
+Train Loss     : 1.0562	 | 	Train Accuracy     : 0.9069
+Valid Loss     : 1.1937	 | 	Valid Accuracy     : 0.8677 | 	Valid F1-score      : 0.8542
+
+Epoch : 20
+Train Loss     : 1.0103	 | 	Train Accuracy     : 0.9141
+Valid Loss     : 1.1761	 | 	Valid Accuracy     : 0.8491 | 	Valid F1-score      : 0.8139
+
+Epoch : 21
+Train Loss     : 0.9403	 | 	Train Accuracy     : 0.9382
+Valid Loss     : 1.1391	 | 	Valid Accuracy     : 0.8564 | 	Valid F1-score      : 0.7938
+
+Epoch : 22
+Train Loss     : 0.9074	 | 	Train Accuracy     : 0.9342
+Valid Loss     : 1.1028	 | 	Valid Accuracy     : 0.8452 | 	Valid F1-score      : 0.8163
+
+Epoch : 23
+Train Loss     : 0.8662	 | 	Train Accuracy     : 0.9453
+Valid Loss     : 1.0611	 | 	Valid Accuracy     : 0.8723 | 	Valid F1-score      : 0.8363
+
+Epoch : 24
+Train Loss     : 0.8240	 | 	Train Accuracy     : 0.9635
+Valid Loss     : 1.0349	 | 	Valid Accuracy     : 0.8496 | 	Valid F1-score      : 0.8166
+
+Epoch : 25
+Train Loss     : 0.7783	 | 	Train Accuracy     : 0.9668
+Valid Loss     : 0.9895	 | 	Valid Accuracy     : 0.8948 | 	Valid F1-score      : 0.8820
+
+Epoch : 26
+Train Loss     : 0.7455	 | 	Train Accuracy     : 0.9746
+Valid Loss     : 0.9536	 | 	Valid Accuracy     : 0.8757 | 	Valid F1-score      : 0.8555
+
+Epoch : 27
+Train Loss     : 0.7177	 | 	Train Accuracy     : 0.9694
+Valid Loss     : 0.9418	 | 	Valid Accuracy     : 0.8913 | 	Valid F1-score      : 0.8727
+
+Epoch : 28
+Train Loss     : 0.6773	 | 	Train Accuracy     : 0.9746
+Valid Loss     : 0.9280	 | 	Valid Accuracy     : 0.8723 | 	Valid F1-score      : 0.8147
+
+Epoch : 29
+Train Loss     : 0.6645	 | 	Train Accuracy     : 0.9648
+Valid Loss     : 0.9281	 | 	Valid Accuracy     : 0.8806 | 	Valid F1-score      : 0.8519
+
+Epoch : 30
+Train Loss     : 0.6300	 | 	Train Accuracy     : 0.9824
+Valid Loss     : 0.8752	 | 	Valid Accuracy     : 0.8835 | 	Valid F1-score      : 0.8588
+
+Epoch : 31
+Train Loss     : 0.5864	 | 	Train Accuracy     : 0.9824
+Valid Loss     : 0.8490	 | 	Valid Accuracy     : 0.8916 | 	Valid F1-score      : 0.8619
+
+Epoch : 32
+Train Loss     : 0.5680	 | 	Train Accuracy     : 0.9792
+Valid Loss     : 0.8443	 | 	Valid Accuracy     : 0.8874 | 	Valid F1-score      : 0.8647
+
+Epoch : 33
+Train Loss     : 0.5458	 | 	Train Accuracy     : 0.9863
+Valid Loss     : 0.7984	 | 	Valid Accuracy     : 0.8989 | 	Valid F1-score      : 0.8921
+
+Epoch : 34
+Train Loss     : 0.5177	 | 	Train Accuracy     : 0.9863
+Valid Loss     : 0.8007	 | 	Valid Accuracy     : 0.8952 | 	Valid F1-score      : 0.8756
+
+Epoch : 35
+Train Loss     : 0.4888	 | 	Train Accuracy     : 0.9922
+Valid Loss     : 0.7851	 | 	Valid Accuracy     : 0.8872 | 	Valid F1-score      : 0.8921
+
+Epoch : 36
+Train Loss     : 0.4745	 | 	Train Accuracy     : 0.9844
+Valid Loss     : 0.7632	 | 	Valid Accuracy     : 0.8911 | 	Valid F1-score      : 0.8702
+
+Epoch : 37
+Train Loss     : 0.4527	 | 	Train Accuracy     : 0.9941
+Valid Loss     : 0.7632	 | 	Valid Accuracy     : 0.8916 | 	Valid F1-score      : 0.8836
+
+Epoch : 38
+Train Loss     : 0.4331	 | 	Train Accuracy     : 0.9902
+Valid Loss     : 0.7268	 | 	Valid Accuracy     : 0.8913 | 	Valid F1-score      : 0.8744
+
+Epoch : 39
+Train Loss     : 0.4139	 | 	Train Accuracy     : 0.9902
+Valid Loss     : 0.7066	 | 	Valid Accuracy     : 0.8911 | 	Valid F1-score      : 0.8830
+
+Epoch : 40
+Train Loss     : 0.3994	 | 	Train Accuracy     : 0.9922
+Valid Loss     : 0.6754	 | 	Valid Accuracy     : 0.8987 | 	Valid F1-score      : 0.9057
+
+Epoch : 41
+Train Loss     : 0.3786	 | 	Train Accuracy     : 0.9941
+Valid Loss     : 0.6831	 | 	Valid Accuracy     : 0.8952 | 	Valid F1-score      : 0.8753
+
+Epoch : 42
+Train Loss     : 0.3679	 | 	Train Accuracy     : 0.9961
+Valid Loss     : 0.6950	 | 	Valid Accuracy     : 0.8881 | 	Valid F1-score      : 0.8734
+
+Epoch : 43
+Train Loss     : 0.3529	 | 	Train Accuracy     : 0.9889
+Valid Loss     : 0.6864	 | 	Valid Accuracy     : 0.8840 | 	Valid F1-score      : 0.8725
+
+Epoch : 44
+Train Loss     : 0.3360	 | 	Train Accuracy     : 0.9922
+Valid Loss     : 0.7114	 | 	Valid Accuracy     : 0.8574 | 	Valid F1-score      : 0.8352
+
+Epoch : 45
+Train Loss     : 0.3313	 | 	Train Accuracy     : 0.9980
+Valid Loss     : 0.6839	 | 	Valid Accuracy     : 0.8574 | 	Valid F1-score      : 0.8303
+
+Epoch : 46
+Train Loss     : 0.3184	 | 	Train Accuracy     : 0.9922
+Valid Loss     : 0.6428	 | 	Valid Accuracy     : 0.8957 | 	Valid F1-score      : 0.8685
+
+Epoch : 47
+Train Loss     : 0.2968	 | 	Train Accuracy     : 0.9961
+Valid Loss     : 0.6486	 | 	Valid Accuracy     : 0.8796 | 	Valid F1-score      : 0.8742
+
+Epoch : 48
+Train Loss     : 0.2948	 | 	Train Accuracy     : 0.9941
+Valid Loss     : 0.6446	 | 	Valid Accuracy     : 0.8645 | 	Valid F1-score      : 0.8377
+
+Epoch : 49
+Train Loss     : 0.2783	 | 	Train Accuracy     : 0.9941
+Valid Loss     : 0.6218	 | 	Valid Accuracy     : 0.8913 | 	Valid F1-score      : 0.8685
+
+Epoch : 50
+Train Loss     : 0.2722	 | 	Train Accuracy     : 0.9941
+Valid Loss     : 0.6339	 | 	Valid Accuracy     : 0.8677 | 	Valid F1-score      : 0.8500
+
+Epoch : 51
+Train Loss     : 0.2611	 | 	Train Accuracy     : 0.9961
+Valid Loss     : 0.6308	 | 	Valid Accuracy     : 0.8532 | 	Valid F1-score      : 0.8372
+
+Epoch : 52
+Train Loss     : 0.2690	 | 	Train Accuracy     : 0.9889
+Valid Loss     : 0.5875	 | 	Valid Accuracy     : 0.8877 | 	Valid F1-score      : 0.8696
+
+Epoch : 53
+Train Loss     : 0.2547	 | 	Train Accuracy     : 0.9909
+Valid Loss     : 0.6195	 | 	Valid Accuracy     : 0.8532 | 	Valid F1-score      : 0.8460
+
+Epoch : 54
+Train Loss     : 0.2513	 | 	Train Accuracy     : 0.9863
+Valid Loss     : 0.6109	 | 	Valid Accuracy     : 0.8571 | 	Valid F1-score      : 0.8452
+
+Epoch : 55
+Train Loss     : 0.2395	 | 	Train Accuracy     : 0.9922
+Valid Loss     : 0.5917	 | 	Valid Accuracy     : 0.8838 | 	Valid F1-score      : 0.8696
+
+Epoch : 56
+Train Loss     : 0.2223	 | 	Train Accuracy     : 0.9961
+Valid Loss     : 0.5721	 | 	Valid Accuracy     : 0.8794 | 	Valid F1-score      : 0.8717
+
+Epoch : 57
+Train Loss     : 0.2114	 | 	Train Accuracy     : 0.9941
+Valid Loss     : 0.5811	 | 	Valid Accuracy     : 0.8610 | 	Valid F1-score      : 0.8211
+
+Epoch : 58
+Train Loss     : 0.2031	 | 	Train Accuracy     : 0.9961
+Valid Loss     : 0.5635	 | 	Valid Accuracy     : 0.8759 | 	Valid F1-score      : 0.8618
+
+Epoch : 59
+Train Loss     : 0.1938	 | 	Train Accuracy     : 0.9980
+Valid Loss     : 0.5730	 | 	Valid Accuracy     : 0.8725 | 	Valid F1-score      : 0.8534
+
+Epoch : 60
+Train Loss     : 0.1892	 | 	Train Accuracy     : 0.9980
+Valid Loss     : 0.5661	 | 	Valid Accuracy     : 0.8606 | 	Valid F1-score      : 0.8605
+
+Epoch : 61
+Train Loss     : 0.1803	 | 	Train Accuracy     : 0.9941
+Valid Loss     : 0.5703	 | 	Valid Accuracy     : 0.8374 | 	Valid F1-score      : 0.7961
+
+Epoch : 62
+Train Loss     : 0.1751	 | 	Train Accuracy     : 0.9980
+Valid Loss     : 0.5094	 | 	Valid Accuracy     : 0.8833 | 	Valid F1-score      : 0.8440
+
+Epoch : 63
+Train Loss     : 0.1681	 | 	Train Accuracy     : 0.9961
+Valid Loss     : 0.5468	 | 	Valid Accuracy     : 0.8801 | 	Valid F1-score      : 0.8753
+
+Epoch : 64
+Train Loss     : 0.1651	 | 	Train Accuracy     : 1.0000
+Valid Loss     : 0.5404	 | 	Valid Accuracy     : 0.8603 | 	Valid F1-score      : 0.8476
+
+Epoch : 65
+Train Loss     : 0.1642	 | 	Train Accuracy     : 0.9941
+Valid Loss     : 0.5191	 | 	Valid Accuracy     : 0.8796 | 	Valid F1-score      : 0.8772
+
+Epoch : 66
+Train Loss     : 0.1554	 | 	Train Accuracy     : 0.9980
+Valid Loss     : 0.5199	 | 	Valid Accuracy     : 0.8681 | 	Valid F1-score      : 0.8476
+
+Epoch : 67
+Train Loss     : 0.1489	 | 	Train Accuracy     : 0.9961
+Valid Loss     : 0.5931	 | 	Valid Accuracy     : 0.8454 | 	Valid F1-score      : 0.8168
+
+Epoch : 68
+Train Loss     : 0.1508	 | 	Train Accuracy     : 0.9928
+Valid Loss     : 0.5472	 | 	Valid Accuracy     : 0.8408 | 	Valid F1-score      : 0.8330
+
+Epoch : 69
+Train Loss     : 0.1488	 | 	Train Accuracy     : 0.9922
+Valid Loss     : 0.5572	 | 	Valid Accuracy     : 0.8642 | 	Valid F1-score      : 0.8696
+
+Epoch : 70
+Train Loss     : 0.1421	 | 	Train Accuracy     : 0.9961
+Valid Loss     : 0.5691	 | 	Valid Accuracy     : 0.8452 | 	Valid F1-score      : 0.8156
+
+Epoch : 71
+Train Loss     : 0.1395	 | 	Train Accuracy     : 0.9961
+Valid Loss     : 0.6007	 | 	Valid Accuracy     : 0.8185 | 	Valid F1-score      : 0.8161
+
+Epoch : 72
+Train Loss     : 0.1345	 | 	Train Accuracy     : 0.9961
+Valid Loss     : 0.5456	 | 	Valid Accuracy     : 0.8686 | 	Valid F1-score      : 0.8487
+
+Epoch : 73
+Train Loss     : 0.1272	 | 	Train Accuracy     : 0.9980
+Valid Loss     : 0.5239	 | 	Valid Accuracy     : 0.8679 | 	Valid F1-score      : 0.8591
+
+Epoch : 74
+Train Loss     : 0.1221	 | 	Train Accuracy     : 1.0000
+Valid Loss     : 0.5055	 | 	Valid Accuracy     : 0.8723 | 	Valid F1-score      : 0.8478
+
+Epoch : 75
+Train Loss     : 0.1156	 | 	Train Accuracy     : 0.9980
+Valid Loss     : 0.4974	 | 	Valid Accuracy     : 0.8681 | 	Valid F1-score      : 0.8296
+
+Epoch : 76
+Train Loss     : 0.1123	 | 	Train Accuracy     : 0.9980
+Valid Loss     : 0.4948	 | 	Valid Accuracy     : 0.8757 | 	Valid F1-score      : 0.8625
+
+Epoch : 77
+Train Loss     : 0.1079	 | 	Train Accuracy     : 1.0000
+Valid Loss     : 0.5150	 | 	Valid Accuracy     : 0.8454 | 	Valid F1-score      : 0.8264
+
+Epoch : 78
+Train Loss     : 0.1053	 | 	Train Accuracy     : 1.0000
+Valid Loss     : 0.5152	 | 	Valid Accuracy     : 0.8496 | 	Valid F1-score      : 0.8100
+
+Epoch : 79
+Train Loss     : 0.1027	 | 	Train Accuracy     : 1.0000
+Valid Loss     : 0.4538	 | 	Valid Accuracy     : 0.8716 | 	Valid F1-score      : 0.8646
+
+Epoch : 80
+Train Loss     : 0.0973	 | 	Train Accuracy     : 0.9980
+Valid Loss     : 0.4785	 | 	Valid Accuracy     : 0.8640 | 	Valid F1-score      : 0.8347
+
+Epoch : 81
+Train Loss     : 0.0917	 | 	Train Accuracy     : 1.0000
+Valid Loss     : 0.4671	 | 	Valid Accuracy     : 0.8757 | 	Valid F1-score      : 0.8555
+
+Epoch : 82
+Train Loss     : 0.0919	 | 	Train Accuracy     : 0.9980
+Valid Loss     : 0.4597	 | 	Valid Accuracy     : 0.8679 | 	Valid F1-score      : 0.8438
+
+Epoch : 83
+Train Loss     : 0.0868	 | 	Train Accuracy     : 0.9980
+Valid Loss     : 0.4804	 | 	Valid Accuracy     : 0.8603 | 	Valid F1-score      : 0.8452
+
+Epoch : 84
+Train Loss     : 0.0881	 | 	Train Accuracy     : 1.0000
+Valid Loss     : 0.5226	 | 	Valid Accuracy     : 0.8535 | 	Valid F1-score      : 0.8394
+
+Epoch : 85
+Train Loss     : 0.0812	 | 	Train Accuracy     : 1.0000
+Valid Loss     : 0.4734	 | 	Valid Accuracy     : 0.8679 | 	Valid F1-score      : 0.8290
+
+Epoch : 86
+Train Loss     : 0.0795	 | 	Train Accuracy     : 1.0000
+Valid Loss     : 0.4749	 | 	Valid Accuracy     : 0.8532 | 	Valid F1-score      : 0.8416
+
+Epoch : 87
+Train Loss     : 0.0781	 | 	Train Accuracy     : 1.0000
+Valid Loss     : 0.4927	 | 	Valid Accuracy     : 0.8720 | 	Valid F1-score      : 0.8601
+
+Epoch : 88
+Train Loss     : 0.0736	 | 	Train Accuracy     : 1.0000
+Valid Loss     : 0.4699	 | 	Valid Accuracy     : 0.8723 | 	Valid F1-score      : 0.8209
+
+Epoch : 89
+Train Loss     : 0.0713	 | 	Train Accuracy     : 1.0000
+Valid Loss     : 0.4583	 | 	Valid Accuracy     : 0.8757 | 	Valid F1-score      : 0.8019
+
+Epoch : 90
+Train Loss     : 0.0703	 | 	Train Accuracy     : 1.0000
+Valid Loss     : 0.4984	 | 	Valid Accuracy     : 0.8567 | 	Valid F1-score      : 0.8260
+
+Epoch : 91
+Train Loss     : 0.0693	 | 	Train Accuracy     : 0.9980
+Valid Loss     : 0.4813	 | 	Valid Accuracy     : 0.8649 | 	Valid F1-score      : 0.8362
+
+Epoch : 92
+Train Loss     : 0.0683	 | 	Train Accuracy     : 0.9980
+Valid Loss     : 0.4566	 | 	Valid Accuracy     : 0.8606 | 	Valid F1-score      : 0.8532
+
+Epoch : 93
+Train Loss     : 0.0645	 | 	Train Accuracy     : 1.0000
+Valid Loss     : 0.4184	 | 	Valid Accuracy     : 0.8752 | 	Valid F1-score      : 0.8452
+
+Epoch : 94
+Train Loss     : 0.0615	 | 	Train Accuracy     : 1.0000
+Valid Loss     : 0.4908	 | 	Valid Accuracy     : 0.8569 | 	Valid F1-score      : 0.8226
+
+Epoch : 95
+Train Loss     : 0.0628	 | 	Train Accuracy     : 1.0000
+Valid Loss     : 0.4763	 | 	Valid Accuracy     : 0.8530 | 	Valid F1-score      : 0.8258
+
+Epoch : 96
+Train Loss     : 0.0579	 | 	Train Accuracy     : 1.0000
+Valid Loss     : 0.4356	 | 	Valid Accuracy     : 0.8679 | 	Valid F1-score      : 0.8557
+
+Epoch : 97
+Train Loss     : 0.0560	 | 	Train Accuracy     : 1.0000
+Valid Loss     : 0.4656	 | 	Valid Accuracy     : 0.8681 | 	Valid F1-score      : 0.8429
+
+Epoch : 98
+Train Loss     : 0.0551	 | 	Train Accuracy     : 1.0000
+Valid Loss     : 0.4448	 | 	Valid Accuracy     : 0.8757 | 	Valid F1-score      : 0.8800
+
+Epoch : 99
+Train Loss     : 0.0544	 | 	Train Accuracy     : 1.0000
+Valid Loss     : 0.4055	 | 	Valid Accuracy     : 0.8870 | 	Valid F1-score      : 0.8716
+
+Epoch : 100
+Train Loss     : 0.0569	 | 	Train Accuracy     : 0.9980
+Valid Loss     : 0.4380	 | 	Valid Accuracy     : 0.8642 | 	Valid F1-score      : 0.8421
+
+Evaluate on the Test set:
+Test loss      :0.4205	 | Test Accuracy      : 0.8833	 | Test F1-score      : 0.8529
+
+################## Training is Done! #########################
+Training time is : 0:00:28.801797

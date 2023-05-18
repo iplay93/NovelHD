@@ -46,29 +46,33 @@ class NTXentLoss(torch.nn.Module):
         return v
 
     def forward(self, zis, zjs):
-        print("0:", zis.shape)
-        print("0:", zjs.shape)
-        representations = torch.cat([zjs, zis], dim=0)
 
-        print("1:", representations.shape)
+        representations = torch.cat([zjs, zis], dim=0)
         similarity_matrix = self.similarity_function(representations, representations)
-        print("2:", similarity_matrix.shape)
+  
         # filter out the scores from the positive samples
         l_pos = torch.diag(similarity_matrix, self.batch_size)
         r_pos = torch.diag(similarity_matrix, -self.batch_size)
         positives = torch.cat([l_pos, r_pos]).view(2 * self.batch_size, 1)
-        print("3:", l_pos.shape, r_pos.shape)
-        print("4:", positives.shape)
+
         negatives = similarity_matrix[self.mask_samples_from_same_repr].view(2 * self.batch_size, -1)
-        print("5:", negatives.shape)
+
         logits = torch.cat((positives, negatives), dim=1)
-        print("6:", negatives.shape)
         logits /= self.temperature
 
         labels = torch.zeros(2 * self.batch_size).to(self.device).long()
-        loss = self.criterion(logits, labels)
+        CE = self.criterion(logits, labels)
 
-        return loss / (2 * self.batch_size)
+        onehot_label = torch.cat((torch.ones(2 * self.batch_size, 1),torch.zeros(2 * self.batch_size, negatives.shape[-1])),dim=-1).to(self.device).long()
+        # Add poly loss
+        pt = torch.mean(onehot_label* torch.nn.functional.softmax(logits,dim=-1))
+
+        epsilon = self.batch_size
+        # loss = CE/ (2 * self.batch_size) + epsilon*(1-pt) # replace 1 by 1/self.batch_size
+        loss = CE / (2 * self.batch_size) + epsilon * (1/self.batch_size - pt)
+        # loss = CE / (2 * self.batch_size)
+
+        return loss
 
 class Sup_NTXentLoss(torch.nn.Module):
 
