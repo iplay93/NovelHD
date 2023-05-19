@@ -1,5 +1,6 @@
 =============================================
-Dataset: lapras
-Method:  Novel Human Activity Detection
+Dataset: opportunity
+Method:  Novel Human Activity
 Mode:    fine_tune
 =============================================
+Data loaded ...

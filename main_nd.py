@@ -38,10 +38,14 @@ parser.add_argument('--device', default='cuda', type=str,
 parser.add_argument('--home_path', default=home_dir, type=str,
                     help='Project home directory')
 
-parser.add_argument('--padding', type=str, default='mean', help='choose one of them : no, max, mean')
-parser.add_argument('--timespan', type=int, default=10000, help='choose of the number of timespan between data points(1000 = 1sec, 60000 = 1min)')
-parser.add_argument('--min_seq', type=int, default=10, help='choose of the minimum number of data points in a example')
-parser.add_argument('--min_samples', type=int, default=20, help='choose of the minimum number of samples in each label')
+parser.add_argument('--padding', type=str, 
+                    default='mean', help='choose one of them : no, max, mean')
+parser.add_argument('--timespan', type=int, 
+                    default=10000, help='choose of the number of timespan between data points(1000 = 1sec, 60000 = 1min)')
+parser.add_argument('--min_seq', type=int, 
+                    default=10, help='choose of the minimum number of data points in a example')
+parser.add_argument('--min_samples', type=int, 
+                    default=20, help='choose of the minimum number of samples in each label')
 parser.add_argument('--arg_ood', type=int, default=-1, help='choose of label number that wants to delete')
 parser.add_argument('--version', type=str, default='CL', help='choose of version want to do : ND or CL')
 parser.add_argument('--print_freq', type=int, default=1, help='print frequency')

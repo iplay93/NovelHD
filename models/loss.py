@@ -61,18 +61,9 @@ class NTXentLoss(torch.nn.Module):
         logits /= self.temperature
 
         labels = torch.zeros(2 * self.batch_size).to(self.device).long()
-        CE = self.criterion(logits, labels)
+        loss = self.criterion(logits, labels)
 
-        onehot_label = torch.cat((torch.ones(2 * self.batch_size, 1),torch.zeros(2 * self.batch_size, negatives.shape[-1])),dim=-1).to(self.device).long()
-        # Add poly loss
-        pt = torch.mean(onehot_label* torch.nn.functional.softmax(logits,dim=-1))
-
-        epsilon = self.batch_size
-        # loss = CE/ (2 * self.batch_size) + epsilon*(1-pt) # replace 1 by 1/self.batch_size
-        loss = CE / (2 * self.batch_size) + epsilon * (1/self.batch_size - pt)
-        # loss = CE / (2 * self.batch_size)
-
-        return loss
+        return loss / (2 * self.batch_size)
 
 class Sup_NTXentLoss(torch.nn.Module):
 

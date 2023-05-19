@@ -37,50 +37,30 @@ parser.add_argument('--device', default='cuda', type=str,
 parser.add_argument('--home_path', default=home_dir, type=str,
                     help='Project home directory')
 
-parser.add_argument('--padding', type=str,
-                    default='mean', help='choose one of them : no, max, mean')
-parser.add_argument('--timespan', type=int, 
-                    default=10000, help='choose of the number of timespan between data points(1000 = 1sec, 60000 = 1min)')
-parser.add_argument('--min_seq', type=int, 
-                    default=10, help='choose of the minimum number of data points in a example')
-parser.add_argument('--min_samples', type=int, 
-                    default=20, help='choose of the minimum number of samples in each label')
-parser.add_argument('--arg_ood', type=int, 
-                    default=-1, help='choose of label number that wants to delete')
-parser.add_argument('--version', type=str, 
-                    default='CL', help='choose of version want to do : ND or CL')
-parser.add_argument('--print_freq', type=int, 
-                    default=1, help='print frequency')
-parser.add_argument('--save_freq', type=int, 
-                    default=50, help='save frequency')
-parser.add_argument('--data_folder', type=str, 
-                    default=None, help='path to custom dataset')
+parser.add_argument('--padding', type=str, default='mean', help='choose one of them : no, max, mean')
+parser.add_argument('--timespan', type=int, default=10000, help='choose of the number of timespan between data points(1000 = 1sec, 60000 = 1min)')
+parser.add_argument('--min_seq', type=int, default=10, help='choose of the minimum number of data points in a example')
+parser.add_argument('--min_samples', type=int, default=20, help='choose of the minimum number of samples in each label')
+parser.add_argument('--arg_ood', type=int, default=-1, help='choose of label number that wants to delete')
+parser.add_argument('--version', type=str, default='CL', help='choose of version want to do : ND or CL')
+parser.add_argument('--print_freq', type=int, default=1, help='print frequency')
+parser.add_argument('--save_freq', type=int, default=50, help='save frequency')
+parser.add_argument('--data_folder', type=str, default=None, help='path to custom dataset')
     
-parser.add_argument('--aug_method', type=str, 
-                    default='AddNoise', help='choose the data augmentation method')
-parser.add_argument('--aug_wise', type=str, 
-                    default='Temporal', help='choose the data augmentation wise')
+parser.add_argument('--aug_method', type=str, default='AddNoise', help='choose the data augmentation method')
+parser.add_argument('--aug_wise', type=str, default='Temporal', help='choose the data augmentation wise')
 
-parser.add_argument('--test_ratio', type=float, 
-                    default=0.3, help='choose the number of test ratio')
-parser.add_argument('--valid_ratio', type=float, 
-                    default=0.1, help='choose the number of vlaidation ratio')
-parser.add_argument('--overlapped_ratio', type=int, 
-                    default= 50, help='choose the number of windows''overlapped ratio')
-parser.add_argument('--encoder', type=str, 
-                    default='SupCon', help='choose one of them: simple, transformer')
+parser.add_argument('--test_ratio', type=float, default=0.3, help='choose the number of test ratio')
+parser.add_argument('--valid_ratio', type=float, default=0.1, help='choose the number of vlaidation ratio')
+parser.add_argument('--overlapped_ratio', type=int, default= 50, help='choose the number of windows''overlapped ratio')
+parser.add_argument('--encoder', type=str, default='SupCon', help='choose one of them: simple, transformer')
 
     # for training   
-parser.add_argument('--loss', type=str, 
-                    default='SupCon', help='choose one of them: crossentropy loss, contrastive loss')
-parser.add_argument('--optimizer', type=str, 
-                    default='', help='choose one of them: adam')
-parser.add_argument('--epochs', type=int, 
-                    default= 20, help='choose the number of epochs')
-parser.add_argument('--patience', type=int, 
-                    default=20, help='choose the number of patience for early stopping')
-parser.add_argument('--batch_size', type=int, 
-                    default=128, help='choose the number of batch size')
+parser.add_argument('--loss', type=str, default='SupCon', help='choose one of them: crossentropy loss, contrastive loss')
+parser.add_argument('--optimizer', type=str, default='', help='choose one of them: adam')
+parser.add_argument('--epochs', type=int, default= 20, help='choose the number of epochs')
+parser.add_argument('--patience', type=int, default=20, help='choose the number of patience for early stopping')
+parser.add_argument('--batch_size', type=int, default=128, help='choose the number of batch size')
 parser.add_argument('--lr', type=float, default=3e-5, help='choose the number of learning rate')
 parser.add_argument('--gamma', type=float, default=0.7, help='choose the number of gamma')
 parser.add_argument('--temp', type=float, default=0.07, help='temperature for loss function')
