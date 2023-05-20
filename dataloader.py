@@ -7,7 +7,7 @@ from augmentations import DataTransform_FD, DataTransform_TD
 import torch.fft as fft
 from data_preprocessing.dataloader import splitting_data
 from augmentations import *
-
+import random
 
 def generate_freq(dataset, config):
     X_train = dataset["samples"]
@@ -186,20 +186,51 @@ def data_generator_nd(args, configs, training_mode):
 
     entire_list = entire_list.cpu()
     entire_label_list = entire_label_list.cpu()
-    
-    train_list = train_list[np.where(train_label_list == args.one_class_idx)]
-    train_label_list = train_label_list[np.where(train_label_list == args.one_class_idx)]
 
-    valid_list = test_list[np.where(test_label_list == args.one_class_idx)]
-    valid_label_list =test_label_list[np.where(test_label_list == args.one_class_idx)]
+    if(args.one_class_idx != -1):    
+        train_list = train_list[np.where(train_label_list == args.one_class_idx)]
+        train_label_list = train_label_list[np.where(train_label_list == args.one_class_idx)]
 
-    # only use for testing novelty
-    test_list = entire_list[np.where(entire_label_list != args.abnormal_class)]
-    test_label_list = entire_label_list[np.where(entire_label_list != args.one_class_idx)]
-    
-    print(train_label_list)
-    print(valid_label_list)
-    print(test_label_list)
+        valid_list = test_list[np.where(test_label_list == args.one_class_idx)]
+        valid_label_list =test_label_list[np.where(test_label_list == args.one_class_idx)]
+
+        # only use for testing novelty
+        test_list = entire_list[np.where(entire_label_list != args.one_class_idx)]
+        test_label_list = entire_label_list[np.where(entire_label_list != args.one_class_idx)]
+
+    else:
+        sup_class_idx = num_classes
+        print(sup_class_idx)
+        known_class_idx = random.sample(sup_class_idx, (int)(len(num_classes)/2))
+        print(known_class_idx)
+        novel_class_idx = [item for item in sup_class_idx if item not in set(known_class_idx)]
+
+        for k in range(len(novel_class_idx)):  
+            one_class_idx = novel_class_idx[k]
+            train_list = train_list[np.where(train_label_list != one_class_idx)]
+            train_label_list = train_label_list[np.where(train_label_list != one_class_idx)]
+            if k == 0:
+                valid_list = test_list[np.where(test_label_list != one_class_idx)]
+                valid_label_list =test_label_list[np.where(test_label_list != one_class_idx)]
+            else: 
+                valid_list = valid_list[np.where(valid_label_list != one_class_idx)]
+                valid_label_list =valid_label_list[np.where(valid_label_list != one_class_idx)]
+
+
+        for k in range(len(known_class_idx)):
+            one_class_idx = known_class_idx[k]
+            if k == 0:
+            # only use for testing novelty
+                test_list = entire_list[np.where(entire_label_list != one_class_idx)]
+                test_label_list = entire_label_list[np.where(entire_label_list != one_class_idx)]
+            else:
+                test_list = test_list[np.where(test_label_list != one_class_idx)]
+                test_label_list = test_label_list[np.where(test_label_list != one_class_idx)]
+
+        print(train_label_list)
+        print(valid_label_list)
+        print(test_label_list)        
+        
 
     """In pre-training: 
     train_dataset: [371055, 1, 178] from SleepEEG.    
