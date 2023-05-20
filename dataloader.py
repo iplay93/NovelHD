@@ -206,7 +206,7 @@ def data_generator_nd(args, configs, training_mode):
         novel_class_idx = [item for item in sup_class_idx if item not in set(known_class_idx)]
 
         for k in range(len(novel_class_idx)):  
-            one_class_idx = novel_class_idx[k]
+            one_class_idx = novel_class_idx[k]-1
             train_list = train_list[np.where(train_label_list != one_class_idx)]
             train_label_list = train_label_list[np.where(train_label_list != one_class_idx)]
             if k == 0:
@@ -218,7 +218,7 @@ def data_generator_nd(args, configs, training_mode):
 
 
         for k in range(len(known_class_idx)):
-            one_class_idx = known_class_idx[k]
+            one_class_idx = known_class_idx[k]-1
             if k == 0:
             # only use for testing novelty
                 test_list = entire_list[np.where(entire_label_list != one_class_idx)]

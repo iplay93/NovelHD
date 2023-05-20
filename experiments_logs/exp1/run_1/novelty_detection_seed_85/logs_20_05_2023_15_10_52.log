@@ -1,0 +1,39 @@
+=============================================
+Dataset: lapras
+Method:  Novel Human Activity
+Mode:    novelty_detection
+=============================================
+Data loaded ...
+Training started ....
+
+Epoch : 1
+Train Loss     : nan	 | 	Train Accuracy     : 0.0000
+Valid Loss     : 1.8678	 | 	Valid Accuracy     : 0.0000 | 	Valid F1-score      : 0.0000
+
+Epoch : 2
+Train Loss     : nan	 | 	Train Accuracy     : 0.0000
+Valid Loss     : 1.8611	 | 	Valid Accuracy     : 0.0000 | 	Valid F1-score      : 0.0000
+
+Epoch : 3
+Train Loss     : nan	 | 	Train Accuracy     : 0.0000
+Valid Loss     : 1.8750	 | 	Valid Accuracy     : 0.0000 | 	Valid F1-score      : 0.0000
+
+Epoch : 4
+Train Loss     : nan	 | 	Train Accuracy     : 0.0000
+Valid Loss     : 1.8680	 | 	Valid Accuracy     : 0.0000 | 	Valid F1-score      : 0.0000
+
+Epoch : 5
+Train Loss     : nan	 | 	Train Accuracy     : 0.0000
+Valid Loss     : 1.8630	 | 	Valid Accuracy     : 0.0000 | 	Valid F1-score      : 0.0000
+
+Epoch : 6
+Train Loss     : nan	 | 	Train Accuracy     : 0.0000
+Valid Loss     : 1.8932	 | 	Valid Accuracy     : 0.0000 | 	Valid F1-score      : 0.0000
+
+Epoch : 7
+Train Loss     : nan	 | 	Train Accuracy     : 0.0000
+Valid Loss     : 1.8744	 | 	Valid Accuracy     : 0.0000 | 	Valid F1-score      : 0.0000
+
+Epoch : 8
+Train Loss     : nan	 | 	Train Accuracy     : 0.0000
+Valid Loss     : 1.8701	 | 	Valid Accuracy     : 0.0000 | 	Valid F1-score      : 0.0000
