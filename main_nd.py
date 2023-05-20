@@ -47,7 +47,7 @@ parser.add_argument('--min_seq', type=int,
 parser.add_argument('--min_samples', type=int, default=20, 
                     help='choose of the minimum number of samples in each label')
 parser.add_argument('--one_class_idx', type=int, default=0, 
-                    help='choose of one class label number that wants to deal with')
+                    help='choose of one class label number that wants to deal with. -1 is for multi-classification')
 parser.add_argument('--version', type=str, default='CL', help='choose of version want to do : ND or CL')
 parser.add_argument('--print_freq', type=int, default=1, help='print frequency')
 parser.add_argument('--save_freq', type=int, default=50, help='save frequency')

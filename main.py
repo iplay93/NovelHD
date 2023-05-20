@@ -6,11 +6,12 @@ from datetime import datetime
 import argparse
 from data_preprocessing.dataloader import splitting_data
 from utils import _logger, set_requires_grad
-from trainer.trainer import Trainer, model_evaluate
+#from trainer.trainer import Trainer, model_evaluate
+from trainer.trainer_TFC import Trainer, model_evaluate
 from models.TC import TC
 from utils import _calc_metrics, copy_Files
-from models.model import base_Model
-from dataloader import data_generator_2
+from models.TFC import TFC, target_classifier
+from dataloader import data_generator,data_generator_nd
 
     
 # Args selections
@@ -37,11 +38,16 @@ parser.add_argument('--device', default='cuda', type=str,
 parser.add_argument('--home_path', default=home_dir, type=str,
                     help='Project home directory')
 
-parser.add_argument('--padding', type=str, default='mean', help='choose one of them : no, max, mean')
-parser.add_argument('--timespan', type=int, default=10000, help='choose of the number of timespan between data points(1000 = 1sec, 60000 = 1min)')
-parser.add_argument('--min_seq', type=int, default=10, help='choose of the minimum number of data points in a example')
-parser.add_argument('--min_samples', type=int, default=20, help='choose of the minimum number of samples in each label')
-parser.add_argument('--arg_ood', type=int, default=-1, help='choose of label number that wants to delete')
+parser.add_argument('--padding', type=str, 
+                    default='mean', help='choose one of them : no, max, mean')
+parser.add_argument('--timespan', type=int, 
+                    default=10000, help='choose of the number of timespan between data points(1000 = 1sec, 60000 = 1min)')
+parser.add_argument('--min_seq', type=int, 
+                    default=10, help='choose of the minimum number of data points in a example')
+parser.add_argument('--min_samples', type=int, default=20, 
+                    help='choose of the minimum number of samples in each label')
+parser.add_argument('--one_class_idx', type=int, default=0, 
+                    help='choose of one class label number that wants to deal with')
 parser.add_argument('--version', type=str, default='CL', help='choose of version want to do : ND or CL')
 parser.add_argument('--print_freq', type=int, default=1, help='print frequency')
 parser.add_argument('--save_freq', type=int, default=50, help='save frequency')
@@ -112,12 +118,15 @@ logger.debug("=" * 45)
 
 # Load datasets
 data_path = f"./data/{data_type}"
-train_dl, valid_dl, test_dl = data_generator_2(args, configs, training_mode)
+if training_mode != "novelty_detection":
+    train_dl, valid_dl, test_dl = data_generator(args, configs, training_mode)
+else:
+    train_dl, valid_dl, test_dl = data_generator_nd(args, configs, training_mode)
 logger.debug("Data loaded ...")
 
 # Load Model
-model = base_Model(configs).to(device)
-temporal_contr_model = TC(configs, device).to(device)
+model = TFC(configs).to(device)
+classifier = target_classifier(configs).to(device)
 
 if training_mode == "fine_tune":
     # load saved model of this experiment
@@ -169,17 +178,18 @@ if training_mode == "random_init":
 
 
 model_optimizer = torch.optim.Adam(model.parameters(), lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
-temporal_contr_optimizer = torch.optim.Adam(temporal_contr_model.parameters(), lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
+classifier_optimizer = torch.optim.Adam(classifier.parameters(), lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
 
 if training_mode == "self_supervised":  # to do it only once
     copy_Files(os.path.join(logs_save_dir, experiment_description, run_description), data_type)
 
 # Trainer
-Trainer(model, temporal_contr_model, model_optimizer, temporal_contr_optimizer, train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode)
+Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode)
+
 
 if training_mode != "self_supervised":
     # Testing
-    outs = model_evaluate(model, temporal_contr_model, test_dl, device, training_mode)
+    outs = model_evaluate(model, classifier, test_dl, device, training_mode)
     total_loss, total_acc, total_f1, pred_labels, true_labels = outs
     _calc_metrics(pred_labels, true_labels, experiment_log_dir, args.home_path)
 
