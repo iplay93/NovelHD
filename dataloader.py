@@ -225,12 +225,7 @@ def data_generator_nd(args, configs, training_mode):
                 test_label_list = entire_label_list[np.where(entire_label_list != one_class_idx)]
             else:
                 test_list = test_list[np.where(test_label_list != one_class_idx)]
-                test_label_list = test_label_list[np.where(test_label_list != one_class_idx)]
-
-        print(train_label_list)
-        print(valid_label_list)
-        print(test_label_list)        
-        
+                test_label_list = test_label_list[np.where(test_label_list != one_class_idx)         
 
     """In pre-training: 
     train_dataset: [371055, 1, 178] from SleepEEG.    
