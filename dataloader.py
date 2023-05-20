@@ -183,6 +183,9 @@ def data_generator_nd(args, configs, training_mode):
 
     test_list = test_list.cpu()
     test_label_list = test_label_list.cpu()
+
+    entire_list = entire_list.cpu()
+    entire_label_list = entire_label_list.cpu()
     
     train_list = train_list[np.where(train_label_list == args.one_class_idx)]
     train_label_list = train_label_list[np.where(train_label_list == args.one_class_idx)]
@@ -194,9 +197,9 @@ def data_generator_nd(args, configs, training_mode):
     test_list = entire_list[np.where(entire_label_list != args.abnormal_class)]
     test_label_list = entire_label_list[np.where(entire_label_list != args.one_class_idx)]
     
-    print(train_list)
-    print(valid_list)
-    print(test_list)
+    print(train_label_list)
+    print(valid_label_list)
+    print(test_label_list)
 
     """In pre-training: 
     train_dataset: [371055, 1, 178] from SleepEEG.    

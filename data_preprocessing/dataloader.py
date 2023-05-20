@@ -440,8 +440,8 @@ def splitting_data(dataset, test_ratio, valid_ratio, padding, seed, timespan, mi
     if valid_ratio!=0:
         train_list, valid_list, train_label_list, valid_label_list = train_test_split(train_list, train_label_list, test_size=valid_ratio, stratify=train_label_list, random_state=seed)
     if valid_ratio ==0:
-        valid_list =[]
-        valid_label_list = []
+        valid_list = torch.Tensor(np.array([]))
+        valid_label_list = torch.Tensor(np.array([]))
 
     print(f"Train Data: {len(train_list)} --------------")
     count_label_labellist(train_label_list)
