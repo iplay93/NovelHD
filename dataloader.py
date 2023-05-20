@@ -105,7 +105,7 @@ class Load_Dataset(Dataset):
 
     def __getitem__(self, index):
         if self.training_mode == "pre_train":
-            return self.x_data[index], self.y_data[index], self.aug1[index], self.x_data_f[index], self.aug1_f[index]
+            return self.x_data[index], self.y_data[index], self.aug1[index], self.x_data_f[index], fft.fft(self.aug1[index]).abs()
         else:
             return self.x_data[index], self.y_data[index], self.x_data[index], self.x_data_f[index], self.x_data_f[index]
 
@@ -115,7 +115,7 @@ class Load_Dataset(Dataset):
 def data_generator(args, configs, training_mode):
     num_classes, entire_list, train_list, valid_list, test_list, entire_label_list, train_label_list, valid_label_list, test_label_list \
     = splitting_data(args.selected_dataset, args.test_ratio, args.valid_ratio, args.padding, args.seed, \
-                     args.timespan, args.min_seq, args.min_samples, args.aug_method, args.aug_wise, args.arg_ood, args.version)
+                     args.timespan, args.min_seq, args.min_samples, args.aug_method, args.aug_wise)
     
     train_list = train_list.cpu()
     train_label_list = train_label_list.cpu()
@@ -145,7 +145,7 @@ def data_generator(args, configs, training_mode):
 def data_generator_2(args, configs, training_mode):
     num_classes, entire_list, train_list, valid_list, test_list, entire_label_list, train_label_list, valid_label_list, test_label_list \
     = splitting_data(args.selected_dataset, args.test_ratio, args.valid_ratio, args.padding, args.seed, \
-                     args.timespan, args.min_seq, args.min_samples, args.aug_method, args.aug_wise, args.arg_ood, args.version)
+                     args.timespan, args.min_seq, args.min_samples, args.aug_method)
     
     train_list = train_list.cpu()
     train_label_list = train_label_list.cpu()
@@ -167,6 +167,49 @@ def data_generator_2(args, configs, training_mode):
     finetune_loader = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
 
     dataset = Load_Dataset_2(test_list,test_label_list, configs, training_mode)
+    test_loader = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
+
+
+    return train_loader, finetune_loader, test_loader
+
+
+def data_generator_nd(args, configs, training_mode):
+    num_classes, entire_list, train_list, valid_list, test_list, entire_label_list, train_label_list, valid_label_list, test_label_list \
+    = splitting_data(args.selected_dataset, args.test_ratio, 0, args.padding, args.seed, \
+                     args.timespan, args.min_seq, args.min_samples, args.aug_method, args.aug_wise)
+    
+    train_list = train_list.cpu()
+    train_label_list = train_label_list.cpu()
+
+    test_list = test_list.cpu()
+    test_label_list = test_label_list.cpu()
+    
+    train_list = train_list[np.where(train_label_list == args.one_class_idx)]
+    train_label_list = train_label_list[np.where(train_label_list == args.one_class_idx)]
+
+    valid_list = test_list[np.where(test_label_list == args.one_class_idx)]
+    valid_label_list =test_label_list[np.where(test_label_list == args.one_class_idx)]
+
+    # only use for testing novelty
+    test_list = entire_list[np.where(entire_label_list != args.abnormal_class)]
+    test_label_list = entire_label_list[np.where(entire_label_list != args.one_class_idx)]
+    
+    print(train_list)
+    print(valid_list)
+    print(test_list)
+
+    """In pre-training: 
+    train_dataset: [371055, 1, 178] from SleepEEG.    
+    finetune_dataset: [60, 1, 178], test_dataset: [11420, 1, 178] from Epilepsy"""
+   
+    # build data loader
+    dataset = Load_Dataset(train_list,train_label_list, configs, training_mode)    
+    train_loader = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
+
+    dataset = Load_Dataset(valid_list,valid_label_list, configs, training_mode)
+    finetune_loader = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
+
+    dataset = Load_Dataset(test_list,test_label_list, configs, training_mode)
     test_loader = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
 
 
