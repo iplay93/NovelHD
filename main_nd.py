@@ -12,7 +12,7 @@ from models.TC import TC
 from utils import _calc_metrics, copy_Files
 from models.TFC import TFC, target_classifier
 from dataloader import data_generator,data_generator_nd
-
+from eval import eval_ood_detection
     
 # Args selections
 start_time = datetime.now()
@@ -48,6 +48,12 @@ parser.add_argument('--min_samples', type=int, default=20,
                     help='choose of the minimum number of samples in each label')
 parser.add_argument('--one_class_idx', type=int, default=0, 
                     help='choose of one class label number that wants to deal with. -1 is for multi-classification')
+
+parser.add_argument("--ood_score", help='score function for OOD detection',
+                        default=['norm_mean'], nargs="+", type=str)
+parser.add_argument("--print_score", help='print quantiles of ood score',
+                        action='store_true')
+
 parser.add_argument('--version', type=str, default='CL', help='choose of version want to do : ND or CL')
 parser.add_argument('--print_freq', type=int, default=1, help='print frequency')
 parser.add_argument('--save_freq', type=int, default=50, help='save frequency')
@@ -121,7 +127,7 @@ data_path = f"./data/{data_type}"
 if training_mode != "novelty_detection":
     train_dl, valid_dl, test_dl = data_generator(args, configs, training_mode)
 else:
-    train_dl, valid_dl, test_dl = data_generator_nd(args, configs, training_mode)
+    train_dl, valid_dl, test_dl, ood_test_loader = data_generator_nd(args, configs, training_mode)
 logger.debug("Data loaded ...")
 
 # Load Model
@@ -193,7 +199,37 @@ if training_mode != "self_supervised" and training_mode!="novelty_detection":
     total_loss, total_acc, total_f1, pred_labels, true_labels = outs
     _calc_metrics(pred_labels, true_labels, experiment_log_dir, args.home_path)
 
-if training_mode == "novelty_detection"
+    if training_mode == "novelty_detection":  
+    
+    # Evlauation
+        with torch.no_grad():
+        auroc_dict = eval_ood_detection(args, model, valid_dl, test_dl, args.ood_score,
+#                                         train_loader=train_dl, simclr_aug=simclr_aug)
+        
+#         mean_dict = dict()
+#         for ood_score in args.ood_score:
+#             mean = 0
+#             for ood in auroc_dict.keys():
+#                 mean += auroc_dict[ood][ood_score]
+#             mean_dict[ood_score] = mean / len(auroc_dict.keys())
+#         auroc_dict['one_class_mean'] = mean_dict
+
+#     bests = []
+#     for ood in auroc_dict.keys():
+#         message = ''
+#         best_auroc = 0
+#         for ood_score, auroc in auroc_dict[ood].items():
+#             message += '[%s %s %.4f] ' % (ood, ood_score, auroc)
+#             if auroc > best_auroc:
+#                 best_auroc = auroc
+#         message += '[%s %s %.4f] ' % (ood, 'best', best_auroc)
+#         if args.print_score:
+#             print(message)
+#         bests.append(best_auroc)
+
+#     bests = map('{:.4f}'.format, bests)
+#     print('\t'.join(bests))
+
 
 logger.debug(f"Training time is : {datetime.now()-start_time}")
 

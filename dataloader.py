@@ -187,7 +187,11 @@ def data_generator_nd(args, configs, training_mode):
     entire_list = entire_list.cpu()
     entire_label_list = entire_label_list.cpu()
 
-    if(args.one_class_idx != -1):    
+    if(args.one_class_idx != -1):
+        sup_class_idx = [x - 1 for x in num_classes]
+        known_class_idx = [args.one_class_idx]
+        novel_class_idx = [item for item in sup_class_idx if item not in set(known_class_idx)]
+        
         train_list = train_list[np.where(train_label_list == args.one_class_idx)]
         train_label_list = train_label_list[np.where(train_label_list == args.one_class_idx)]
 
@@ -199,14 +203,14 @@ def data_generator_nd(args, configs, training_mode):
         test_label_list = entire_label_list[np.where(entire_label_list != args.one_class_idx)]
 
     else:
-        sup_class_idx = num_classes
+        sup_class_idx = [x - 1 for x in num_classes]
         print(sup_class_idx)
         known_class_idx = random.sample(sup_class_idx, (int)(len(num_classes)/2))
         print(known_class_idx)
         novel_class_idx = [item for item in sup_class_idx if item not in set(known_class_idx)]
 
         for k in range(len(novel_class_idx)):  
-            one_class_idx = novel_class_idx[k]-1
+            one_class_idx = novel_class_idx[k]
             train_list = train_list[np.where(train_label_list != one_class_idx)]
             train_label_list = train_label_list[np.where(train_label_list != one_class_idx)]
             if k == 0:
@@ -218,7 +222,7 @@ def data_generator_nd(args, configs, training_mode):
 
 
         for k in range(len(known_class_idx)):
-            one_class_idx = known_class_idx[k]-1
+            one_class_idx = known_class_idx[k]
             if k == 0:
             # only use for testing novelty
                 test_list = entire_list[np.where(entire_label_list != one_class_idx)]
@@ -226,9 +230,20 @@ def data_generator_nd(args, configs, training_mode):
             else:
                 test_list = test_list[np.where(test_label_list != one_class_idx)]
                 test_label_list = test_label_list[np.where(test_label_list != one_class_idx)]
-     
-        
 
+        
+    ood_test_loader = dict()
+    for ood in novel_class_idx:
+        # one class idx exit
+        ood_test_set = Load_Dataset(test_list[np.where(test_label_list == ood)],
+                                        test_label_list[np.where(test_label_list == ood)], 
+                                        configs, training_mode)
+        ood = f'one_class_{ood}'  # change save name
+
+        ood_test_loader[ood] = DataLoader(ood_test_set, batch_size=configs.batch_size, shuffle=True)          
+    
+    print(novel_class_idx)
+    print(len(ood_test_loader))
     """In pre-training: 
     train_dataset: [371055, 1, 178] from SleepEEG.    
     finetune_dataset: [60, 1, 178], test_dataset: [11420, 1, 178] from Epilepsy"""
@@ -244,4 +259,4 @@ def data_generator_nd(args, configs, training_mode):
     test_loader = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
 
 
-    return train_loader, finetune_loader, test_loader
+    return train_loader, finetune_loader, test_loader, ood_test_loader

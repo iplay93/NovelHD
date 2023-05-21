@@ -23,7 +23,7 @@ def Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, 
     for epoch in range(1, configs.num_epoch + 1):
         # Train and validate
         train_loss, train_acc = model_train(model, model_optimizer, classifier, classifier_optimizer, criterion, train_dl, configs, device, training_mode)
-        valid_loss, valid_acc, valid_f1, _, _ = model_evaluate(model, classifier, test_dl, device, training_mode)
+        valid_loss, valid_acc, valid_f1, _, _ = model_evaluate(model, classifier, valid_dl, device, training_mode)
         if training_mode != 'self_supervised' and training_mode!="novelty_detection":  # use scheduler in all other modes.
             scheduler.step(valid_loss)
 

@@ -14,7 +14,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 hflip = TL.HorizontalFlipLayer().to(device)
 
 
-def eval_ood_detection(P, model, id_loader, ood_loaders, ood_scores, train_loader=None, simclr_aug=None):
+def eval_ood_detection(args, model, id_loader, ood_loaders, ood_scores, train_loader=None, simclr_aug=None):
     auroc_dict = dict()
     for ood in ood_loaders.keys():
         auroc_dict[ood] = dict()
