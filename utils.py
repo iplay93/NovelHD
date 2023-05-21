@@ -94,3 +94,38 @@ def copy_Files(destination, data_type):
     copy(f"models/model.py", os.path.join(destination_dir, f"model.py"))
     copy("models/loss.py", os.path.join(destination_dir, "loss.py"))
     copy("models/TC.py", os.path.join(destination_dir, "TC.py"))
+
+
+def save_checkpoint(epoch, model_state, optim_state, logdir):
+    last_model = os.path.join(logdir, 'last.model')
+    last_optim = os.path.join(logdir, 'last.optim')
+    last_config = os.path.join(logdir, 'last.config')
+
+    opt = {
+        'epoch': epoch,
+    }
+    torch.save(model_state, last_model)
+    torch.save(optim_state, last_optim)
+    with open(last_config, 'wb') as handle:
+        pickle.dump(opt, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+def load_linear_checkpoint(logdir, mode='last'):
+    if mode == 'last':
+        linear_optim_path = os.path.join(logdir, 'last.linear_optim')
+    elif mode == 'best':
+        linear_optim_path = os.path.join(logdir, 'best.linear_optim')
+    else:
+        raise NotImplementedError()
+
+    print("=> Loading linear optimizer checkpoint from '{}'".format(logdir))
+    if os.path.exists(linear_optim_path):
+        linear_optim_state = torch.load(linear_optim_path)
+        return linear_optim_state
+    else:
+        return None
+
+
+def save_linear_checkpoint(linear_optim_state, logdir):
+    last_linear_optim = os.path.join(logdir, 'last.linear_optim')
+    torch.save(linear_optim_state, last_linear_optim)

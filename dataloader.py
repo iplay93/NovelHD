@@ -101,11 +101,11 @@ class Load_Dataset(Dataset):
     
         if training_mode == "pre_train":  # no need to apply Augmentations in other modes
             self.aug1 = DataTransform_TD(self.x_data, config)
-            self.aug1_f = DataTransform_FD(self.x_data_f, config) # [7360, 1, 90]
-
+            #self.aug1_f = DataTransform_FD(self.x_data_f, config) # [7360, 1, 90]
+            self.aug1_f = fft.fft(self.aug1).abs() 
     def __getitem__(self, index):
         if self.training_mode == "pre_train":
-            return self.x_data[index], self.y_data[index], self.aug1[index], self.x_data_f[index], fft.fft(self.aug1[index]).abs()
+            return self.x_data[index], self.y_data[index], self.aug1[index], self.x_data_f[index], self.aug1_f[index]
         else:
             return self.x_data[index], self.y_data[index], self.x_data[index], self.x_data_f[index], self.x_data_f[index]
 

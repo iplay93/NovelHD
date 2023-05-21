@@ -27,15 +27,24 @@ class TFC(nn.Module):
             nn.Linear(256, 128)
         )
 
+        self.linear = nn.Linear(configs.TSlength_aligned * configs.input_channels, configs.num_classes)
+        self.shift_cls_layer = nn.Linear(configs.TSlength_aligned * configs.input_channels, 2)
 
-    def forward(self, x_in_t, x_in_f):
+
+
+    def forward(self, x_in_t, x_in_f, penultimate=False, shift=False):
+        _aux = {}
+        _return_aux = False
+        
         """Use Transformer"""
-
         x = self.transformer_encoder_t(x_in_t)
         h_time = x.reshape(x.shape[0], -1)
 
         """Cross-space projector"""
         z_time = self.projector_t(h_time)
+
+        """Shifted transformation classifier"""
+        s_time = self.shift_cls_layer(h_time)
 
         """Frequency-based contrastive encoder"""
         f = self.transformer_encoder_f(x_in_f)
@@ -44,7 +53,10 @@ class TFC(nn.Module):
         """Cross-space projector"""
         z_freq = self.projector_f(h_freq)
 
-        return h_time, z_time, h_freq, z_freq
+        """Shifted transformation classifier"""
+        s_freq =  self.shift_cls_layer(h_freq)
+
+        return h_time, z_time, s_time, h_freq, z_freq, s_freq
 
 
 """Downstream classifier only used in finetuning"""

@@ -180,18 +180,20 @@ if training_mode == "random_init":
 model_optimizer = torch.optim.Adam(model.parameters(), lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
 classifier_optimizer = torch.optim.Adam(classifier.parameters(), lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
 
-if training_mode == "self_supervised":  # to do it only once
+if training_mode == "self_supervised" and "novelty_detection":  # to do it only once
     copy_Files(os.path.join(logs_save_dir, experiment_description, run_description), data_type)
 
 # Trainer
 Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode)
 
 
-if training_mode != "self_supervised":
+if training_mode != "self_supervised" and training_mode!="novelty_detection":
     # Testing
     outs = model_evaluate(model, classifier, test_dl, device, training_mode)
     total_loss, total_acc, total_f1, pred_labels, true_labels = outs
     _calc_metrics(pred_labels, true_labels, experiment_log_dir, args.home_path)
+
+if training_mode == "novelty_detection"
 
 logger.debug(f"Training time is : {datetime.now()-start_time}")
 

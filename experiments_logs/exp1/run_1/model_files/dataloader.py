@@ -427,7 +427,7 @@ def change_label(label_list, deleted_label):
 
     return label_list
 
-def splitting_data(dataset, test_ratio, valid_ratio, padding, seed, timespan, min_seq, min_samples, aug_method, aug_wise, arg_ood, version): 
+def splitting_data(dataset, test_ratio, valid_ratio, padding, seed, timespan, min_seq, min_samples, aug_method, aug_wise): 
     
     datalist, labellist, num_classes = loading_data(dataset, padding, timespan, min_seq, min_samples, aug_method, aug_wise)
     
@@ -437,42 +437,21 @@ def splitting_data(dataset, test_ratio, valid_ratio, padding, seed, timespan, mi
 
     # Split train and valid dataset
     train_list, test_list, train_label_list, test_label_list = train_test_split(datalist, labellist, test_size=test_ratio, stratify= labellist, random_state=seed) 
-    train_list, valid_list, train_label_list, valid_label_list = train_test_split(train_list, train_label_list, test_size=valid_ratio, stratify=train_label_list, random_state=seed)
-
-    # for training without novel class
-    if(arg_ood > 0 and version != 'ND'):
-        train_list, train_label_list = delete_label(train_list, train_label_list, arg_ood)
-        valid_list, valid_label_list = delete_label(valid_list, valid_label_list, arg_ood)
-        test_list, test_label_list   = delete_label(test_list, test_label_list, arg_ood)
-        datalist, labellist          = delete_label(datalist, labellist, arg_ood)
-        num_classes, _               = count_label_labellist(labellist)
-
-    elif(arg_ood > 0 and version == 'ND'):
-        # count = 0
-        # while count < len(test_label_list):
-        #     if test_label_list[count] == (arg_ood-1):
-        #         test_list = torch.cat([test_list[0:count], test_list[count+1:]])
-        #         del test_label_list[count]
-        #         count = count-1
-        #     count = count+1
-        train_list, train_label_list = delete_label(train_list, train_label_list, arg_ood)
-        valid_label_list = change_label(valid_label_list, arg_ood)          
-        test_label_list = change_label(test_label_list, arg_ood)
-        labellist = change_label(labellist, arg_ood)
+    if valid_ratio!=0:
+        train_list, valid_list, train_label_list, valid_label_list = train_test_split(train_list, train_label_list, test_size=valid_ratio, stratify=train_label_list, random_state=seed)
+    if valid_ratio ==0:
+        valid_list = torch.Tensor(np.array([]))
+        valid_label_list = torch.Tensor(np.array([]))
 
     print(f"Train Data: {len(train_list)} --------------")
     count_label_labellist(train_label_list)
-
+    
     print(f"Validation Data: {len(valid_list)} --------------")    
     count_label_labellist(valid_label_list)
 
     print(f"Test Data: {len(test_list)} --------------")
     count_label_labellist(test_label_list) 
     
-        
-
-    #if(version == 'ND'):
-    #    test_label_list = change_label(test_label_list, arg_ood)
-    #    labellist = change_label(labellist, arg_ood)
+    
 
     return num_classes, datalist.cuda(), train_list.cuda(), valid_list.cuda(), test_list.cuda(), torch.tensor(labellist).cuda(), torch.tensor(train_label_list).cuda(), torch.tensor(valid_label_list).cuda(), torch.tensor(test_label_list).cuda()
