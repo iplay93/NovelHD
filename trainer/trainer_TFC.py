@@ -13,6 +13,8 @@ from sklearn.metrics import f1_score, roc_auc_score
 from tsaug import *
 import torch.fft as fft
 
+my_aug = (Drift(max_drift=0.7, n_drift_points=5))
+
 def Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode):
     # Start training
     logger.debug("Training started ....")
@@ -32,7 +34,7 @@ def Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, 
                      f'Valid Loss     : {valid_loss:.4f}\t | \tValid Accuracy     : {valid_acc:2.4f} | \tValid F1-score      : {valid_f1:0.4f}')
     if training_mode == "novelty_detection":
         os.makedirs(os.path.join(experiment_log_dir, "saved_models"), exist_ok=True)
-        chkpoint = {'model_state_dict': model_optimizer.state_dict(), 'classifier_state_dict': classifier_optimizer.state_dict()}
+        chkpoint = {'model_state_dict': model.state_dict(), 'classifier_state_dict': classifier.state_dict()}
         torch.save(chkpoint, os.path.join(experiment_log_dir, "saved_models", f'ckp_last.pt'))
     else:
         os.makedirs(os.path.join(experiment_log_dir, "saved_models"), exist_ok=True)
@@ -50,7 +52,7 @@ def Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, 
 def normalize(x, dim=1, eps=1e-8):
     return x / (x.norm(dim=dim, keepdim=True) + eps)
 
-my_aug = (Drift(max_drift=0.7, n_drift_points=5))
+
 
 def model_train(model, model_optimizer, classifier, classifier_optimizer, criterion, train_loader, configs, device, training_mode):
     total_loss = []
