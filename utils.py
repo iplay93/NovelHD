@@ -96,18 +96,6 @@ def copy_Files(destination, data_type):
     copy("models/TC.py", os.path.join(destination_dir, "TC.py"))
 
 
-def save_checkpoint(epoch, model_state, optim_state, logdir):
-    last_model = os.path.join(logdir, 'last.model')
-    last_optim = os.path.join(logdir, 'last.optim')
-    last_config = os.path.join(logdir, 'last.config')
-
-    opt = {
-        'epoch': epoch,
-    }
-    torch.save(model_state, last_model)
-    torch.save(optim_state, last_optim)
-    with open(last_config, 'wb') as handle:
-        pickle.dump(opt, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 def load_linear_checkpoint(logdir, mode='last'):

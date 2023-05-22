@@ -23,9 +23,9 @@ class NTXentLoss(torch.nn.Module):
             return self._dot_simililarity
 
     def _get_correlated_mask(self):
-        diag = np.eye(2 * self.batch_size)
-        l1 = np.eye((2 * self.batch_size), 2 * self.batch_size, k=-self.batch_size)
-        l2 = np.eye((2 * self.batch_size), 2 * self.batch_size, k=self.batch_size)
+        diag = np.eye(8* self.batch_size)
+        l1 = np.eye((8 * self.batch_size), 8 * self.batch_size, k=-self.batch_size)
+        l2 = np.eye((8 * self.batch_size), 8 * self.batch_size, k=self.batch_size)
         mask = torch.from_numpy((diag + l1 + l2))
         mask = (1 - mask).type(torch.bool)
         return mask.to(self.device)
@@ -53,17 +53,17 @@ class NTXentLoss(torch.nn.Module):
         # filter out the scores from the positive samples
         l_pos = torch.diag(similarity_matrix, self.batch_size)
         r_pos = torch.diag(similarity_matrix, -self.batch_size)
-        positives = torch.cat([l_pos, r_pos]).view(2 * self.batch_size, 1)
+        positives = torch.cat([l_pos, r_pos]).view(14 * self.batch_size, 1)
 
-        negatives = similarity_matrix[self.mask_samples_from_same_repr].view(2 * self.batch_size, -1)
+        negatives = similarity_matrix[self.mask_samples_from_same_repr].view(14 * self.batch_size, -1)
 
         logits = torch.cat((positives, negatives), dim=1)
         logits /= self.temperature
 
-        labels = torch.zeros(2 * self.batch_size).to(self.device).long()
+        labels = torch.zeros(14 * self.batch_size).to(self.device).long()
         loss = self.criterion(logits, labels)
 
-        return loss / (2 * self.batch_size)
+        return loss / (14 * self.batch_size)
 
 class Sup_NTXentLoss(torch.nn.Module):
 
@@ -109,6 +109,8 @@ class Sup_NTXentLoss(torch.nn.Module):
 
     def forward(self, zis, zjs):
         representations = torch.cat([zjs, zis], dim=0)
+        
+      
 
         similarity_matrix = self.similarity_function(representations, representations)
 

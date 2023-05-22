@@ -51,8 +51,13 @@ parser.add_argument('--one_class_idx', type=int, default=0,
 
 parser.add_argument("--ood_score", help='score function for OOD detection',
                         default=['norm_mean'], nargs="+", type=str)
+parser.add_argument("--ood_samples", help='number of samples to compute OOD score',
+                        default=1, type=int)
 parser.add_argument("--print_score", help='print quantiles of ood score',
                         action='store_true')
+parser.add_argument("--ood_layer", help='layer for OOD scores',
+                        choices=['penultimate', 'simclr', 'shift'],
+                        default=['simclr', 'shift'], nargs="+", type=str)
 
 parser.add_argument('--version', type=str, default='CL', help='choose of version want to do : ND or CL')
 parser.add_argument('--print_freq', type=int, default=1, help='print frequency')
@@ -127,7 +132,7 @@ data_path = f"./data/{data_type}"
 if training_mode != "novelty_detection":
     train_dl, valid_dl, test_dl = data_generator(args, configs, training_mode)
 else:
-    train_dl, valid_dl, test_dl, ood_test_loader = data_generator_nd(args, configs, training_mode)
+    train_dl, valid_dl, test_dl, ood_test_loader, novel_class = data_generator_nd(args, configs, training_mode)
 logger.debug("Data loaded ...")
 
 # Load Model
@@ -193,42 +198,50 @@ if training_mode == "self_supervised" and "novelty_detection":  # to do it only 
 Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode)
 
 
+
 if training_mode != "self_supervised" and training_mode!="novelty_detection":
     # Testing
     outs = model_evaluate(model, classifier, test_dl, device, training_mode)
     total_loss, total_acc, total_f1, pred_labels, true_labels = outs
     _calc_metrics(pred_labels, true_labels, experiment_log_dir, args.home_path)
 
-    if training_mode == "novelty_detection":  
+if training_mode == "novelty_detection":  
+    # load saved model of this experiment
+    path = os.path.join(os.path.join(logs_save_dir, experiment_description, 
+                        run_description, f"novelty_detection_seed_{args.seed}", "saved_models"))
+    chkpoint = torch.load(os.path.join(path, "ckp_last.pt"), map_location=device)
+    pretrained_dict = chkpoint["model_state_dict"]
+    model.load_state_dict(pretrained_dict)
     
     # Evlauation
-        with torch.no_grad():
-        auroc_dict = eval_ood_detection(args, model, valid_dl, test_dl, args.ood_score,
-#                                         train_loader=train_dl, simclr_aug=simclr_aug)
-        
-#         mean_dict = dict()
-#         for ood_score in args.ood_score:
-#             mean = 0
-#             for ood in auroc_dict.keys():
-#                 mean += auroc_dict[ood][ood_score]
-#             mean_dict[ood_score] = mean / len(auroc_dict.keys())
-#         auroc_dict['one_class_mean'] = mean_dict
+    with torch.no_grad():    
+        auroc_dict = eval_ood_detection(args, path, model,valid_dl, ood_test_loader, args.ood_score,
+                                         train_loader=train_dl)
+    
+    mean_dict = dict()
+    for ood_score in args.ood_score:
+        mean = 0
+        for ood in auroc_dict.keys():
+            mean += auroc_dict[ood][ood_score]
+        mean_dict[ood_score] = mean / len(auroc_dict.keys())
+    auroc_dict['one_class_mean'] = mean_dict
 
-#     bests = []
-#     for ood in auroc_dict.keys():
-#         message = ''
-#         best_auroc = 0
-#         for ood_score, auroc in auroc_dict[ood].items():
-#             message += '[%s %s %.4f] ' % (ood, ood_score, auroc)
-#             if auroc > best_auroc:
-#                 best_auroc = auroc
-#         message += '[%s %s %.4f] ' % (ood, 'best', best_auroc)
-#         if args.print_score:
-#             print(message)
-#         bests.append(best_auroc)
+    bests = []
+    for ood in auroc_dict.keys():
+        message = ''
+        best_auroc = 0
+        for ood_score, auroc in auroc_dict[ood].items():
+            message += '[%s %s %.4f] ' % (ood, ood_score, auroc)
+            if auroc > best_auroc:
+                best_auroc = auroc
+        message += '[%s %s %.4f] ' % (ood, 'best', best_auroc)
+        if args.print_score:
+            print(message)
+        bests.append(best_auroc)
 
-#     bests = map('{:.4f}'.format, bests)
-#     print('\t'.join(bests))
+    bests = map('{:.4f}'.format, bests)
+    print('\t'.join(bests))
+    print("novel_class:", novel_class)
 
 
 logger.debug(f"Training time is : {datetime.now()-start_time}")
