@@ -259,4 +259,4 @@ def data_generator_nd(args, configs, training_mode):
     test_loader = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
 
 
-    return train_loader, finetune_loader, test_loader, ood_test_loader
+    return train_loader, finetune_loader, test_loader, ood_test_loader, novel_class_idx
