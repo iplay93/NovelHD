@@ -99,12 +99,12 @@ class Load_Dataset(Dataset):
         self.x_data_f = fft.fft(self.x_data).abs() #/(window_length) # rfft for real value inputs.
         self.len = X_train.shape[0]
     
-        if training_mode == "pre_train":  # no need to apply Augmentations in other modes
+        if training_mode == "novelty_detection":  # no need to apply Augmentations in other modes
             self.aug1 = DataTransform_TD(self.x_data, config)
             #self.aug1_f = DataTransform_FD(self.x_data_f, config) # [7360, 1, 90]
             self.aug1_f = fft.fft(self.aug1).abs() 
     def __getitem__(self, index):
-        if self.training_mode == "pre_train":
+        if self.training_mode == "novelty_detection":
             return self.x_data[index], self.y_data[index], self.aug1[index], self.x_data_f[index], self.aug1_f[index]
         else:
             return self.x_data[index], self.y_data[index], self.x_data[index], self.x_data_f[index], self.x_data_f[index]
@@ -205,7 +205,9 @@ def data_generator_nd(args, configs, training_mode):
     else:
         sup_class_idx = [x - 1 for x in num_classes]
         print(sup_class_idx)
-        known_class_idx = random.sample(sup_class_idx, (int)(len(num_classes)/2))
+        #known_class_idx = random.sample(sup_class_idx, (int)(len(num_classes)/2))
+        known_class_idx = [x for x in range(0, (int)(len(sup_class_idx)/2))]
+        #known_class_idx = [0, 1]
         print(known_class_idx)
         novel_class_idx = [item for item in sup_class_idx if item not in set(known_class_idx)]
 

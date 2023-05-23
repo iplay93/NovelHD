@@ -132,7 +132,7 @@ data_path = f"./data/{data_type}"
 if training_mode != "novelty_detection":
     train_dl, valid_dl, test_dl = data_generator(args, configs, training_mode)
 else:
-    train_dl, valid_dl, test_dl, ood_test_loader, _ = data_generator_nd(args, configs, training_mode)
+    train_dl, valid_dl, test_dl, ood_test_loader, novel_class = data_generator_nd(args, configs, training_mode)
 logger.debug("Data loaded ...")
 
 # Load Model
@@ -164,6 +164,7 @@ if training_mode == "novelty_detection":
 
     bests = []
     for ood in auroc_dict.keys():
+        print(ood)
         message = ''
         best_auroc = 0
         for ood_score, auroc in auroc_dict[ood].items():

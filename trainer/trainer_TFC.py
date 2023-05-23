@@ -142,8 +142,8 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
 
         elif training_mode =="novelty_detection" and configs.batch_size == batch_size:
 
-            sim_lambda = 0.01
-            
+            # for temporal contrastive
+            sim_lambda = 0.01            
 
             simclr = normalize(z_t)  # normalize
             sim_matrix = get_similarity_matrix(simclr)            
@@ -151,29 +151,31 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
             
             loss_shift = criterion(s_t, shift_labels)
 
-            loss = loss_sim + loss_shift
+            loss_t = loss_sim  + loss_shift
 
-
-            sim_lambda_f = 0.1
+            # for frequency contrastive
+            sim_lambda_f = 0.01
             simclr_f = normalize(z_f)  # normalize
             sim_matrix_f = get_similarity_matrix(simclr_f)            
-            loss_sim_f = NT_xent(sim_matrix_f, temperature=0.5) * sim_lambda_f
+            loss_sim_f = NT_xent(sim_matrix_f, temperature=0.5) * sim_lambda_f 
             
             loss_shift_f = criterion(s_f, shift_labels)
-            loss_f = loss_sim_f +loss_shift_f
+            loss_f = loss_sim_f + loss_shift_f
 
-            print("Temporal", loss_sim.item(), loss_shift.item(), loss.item())
+            print("Temporal", loss_sim.item(), loss_shift.item(), loss_t.item())
             print("Frequent", loss_sim_f.item(), loss_shift_f.item(), loss_f.item())
 
             nt_xent_criterion = NTXentLoss(device, configs.batch_size, configs.Context_Cont.temperature,
                                            configs.Context_Cont.use_cosine_similarity)
             
-            print(simclr.shape, simclr_f.shape)
             
-            l_TF = nt_xent_criterion(simclr, simclr_f)
+            l_TF = nt_xent_criterion(z_t, z_f)
 
-            print("TF", l_TF)
+            print("TF", l_TF.item())
 
+            lam = 0.1
+            loss = (loss_t + lam*loss_f)
+            #loss = loss_t
 
             total_loss.append(loss.item())
             loss.backward()

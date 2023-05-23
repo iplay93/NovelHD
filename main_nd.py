@@ -64,7 +64,7 @@ parser.add_argument('--print_freq', type=int, default=1, help='print frequency')
 parser.add_argument('--save_freq', type=int, default=50, help='save frequency')
 parser.add_argument('--data_folder', type=str, default=None, help='path to custom dataset')
     
-parser.add_argument('--aug_method', type=str, default='AddNoise', help='choose the data augmentation method')
+parser.add_argument('--aug_method', type=str, default='Dropout', help='choose the data augmentation method')
 parser.add_argument('--aug_wise', type=str, default='Temporal', help='choose the data augmentation wise')
 
 parser.add_argument('--test_ratio', type=float, default=0.3, help='choose the number of test ratio')
@@ -215,7 +215,7 @@ if training_mode == "novelty_detection":
     
     # Evlauation
     with torch.no_grad():    
-        auroc_dict = eval_ood_detection(args, path, model,valid_dl, ood_test_loader, args.ood_score,
+        auroc_dict, aupr_dict, fpr_dict, f1_dict = eval_ood_detection(args, path, model,valid_dl, ood_test_loader, args.ood_score,
                                          train_loader=train_dl)
     
     mean_dict = dict()
@@ -228,6 +228,7 @@ if training_mode == "novelty_detection":
 
     bests = []
     for ood in auroc_dict.keys():
+        print(ood)
         message = ''
         best_auroc = 0
         for ood_score, auroc in auroc_dict[ood].items():
