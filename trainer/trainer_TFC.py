@@ -173,9 +173,11 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
 
             print("TF", l_TF.item())
 
-            lam = 0.1
-            loss = (loss_t + lam*loss_f)
+            lam = 0.01
+            #loss = (loss_t + lam*loss_f)
             #loss = loss_t
+            #loss = loss_f
+            loss = l_TF
 
             total_loss.append(loss.item())
             loss.backward()

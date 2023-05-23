@@ -8,6 +8,7 @@ import torch.fft as fft
 from data_preprocessing.dataloader import splitting_data
 from augmentations import *
 import random
+from tsaug import *
 
 def generate_freq(dataset, config):
     X_train = dataset["samples"]
@@ -82,7 +83,7 @@ class Load_Dataset(Dataset):
 
         X_train = data_list
         y_train = label_list
-
+        my_aug = (Dropout( p=0.1,fill=0))    
         if len(X_train.shape) < 3:
             X_train = X_train.unsqueeze(2)
 
@@ -100,7 +101,10 @@ class Load_Dataset(Dataset):
         self.len = X_train.shape[0]
     
         if training_mode == "novelty_detection":  # no need to apply Augmentations in other modes
-            self.aug1 = DataTransform_TD(self.x_data, config)
+            #self.aug1 = DataTransform_TD(self.x_data, config)
+            print(self.x_data.shape)
+            self.aug1 = torch.from_numpy(np.array(my_aug.augment(self.x_data.cpu().numpy())))
+            print(self.aug1.shape)
             #self.aug1_f = DataTransform_FD(self.x_data_f, config) # [7360, 1, 90]
             self.aug1_f = fft.fft(self.aug1).abs() 
     def __getitem__(self, index):
