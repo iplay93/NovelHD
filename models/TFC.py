@@ -28,8 +28,8 @@ class TFC(nn.Module):
         )
 
         self.linear = nn.Linear(configs.TSlength_aligned * configs.input_channels, configs.num_classes)
-        self.shift_cls_layer = nn.Linear(configs.TSlength_aligned * configs.input_channels, 2)
-
+        self.shift_cls_layer_t = nn.Linear(configs.TSlength_aligned * configs.input_channels, 2)
+        self.shift_cls_layer_f = nn.Linear(configs.TSlength_aligned * configs.input_channels, 2)
 
 
     def forward(self, x_in_t, x_in_f, penultimate=False, shift=False):
@@ -44,7 +44,7 @@ class TFC(nn.Module):
         z_time = self.projector_t(h_time)
 
         """Shifted transformation classifier"""
-        s_time = self.shift_cls_layer(h_time)
+        s_time = self.shift_cls_layer_t(h_time)
 
         """Frequency-based contrastive encoder"""
         f = self.transformer_encoder_f(x_in_f)
@@ -54,7 +54,7 @@ class TFC(nn.Module):
         z_freq = self.projector_f(h_freq)
 
         """Shifted transformation classifier"""
-        s_freq =  self.shift_cls_layer(h_freq)
+        s_freq =  self.shift_cls_layer_f(h_freq)
 
         return h_time, z_time, s_time, h_freq, z_freq, s_freq
 
