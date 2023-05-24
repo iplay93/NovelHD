@@ -12,7 +12,7 @@ from models.TC import TC
 from utils import _calc_metrics, copy_Files
 from models.TFC import TFC, target_classifier
 from dataloader import data_generator,data_generator_nd
-from eval import eval_ood_detection
+from eval_nd import eval_ood_detection
     
 # Args selections
 start_time = datetime.now()
@@ -50,14 +50,14 @@ parser.add_argument('--one_class_idx', type=int, default=0,
                     help='choose of one class label number that wants to deal with. -1 is for multi-classification')
 
 parser.add_argument("--ood_score", help='score function for OOD detection',
-                        default=['norm_mean'], nargs="+", type=str)
+                        default = ['norm_mean'], nargs="+", type=str)
 parser.add_argument("--ood_samples", help='number of samples to compute OOD score',
-                        default=1, type=int)
+                        default = 5, type=int)
 parser.add_argument("--print_score", help='print quantiles of ood score',
                         action='store_true')
 parser.add_argument("--ood_layer", help='layer for OOD scores',
-                        choices=['penultimate', 'simclr', 'shift'],
-                        default=['simclr', 'shift'], nargs="+", type=str)
+                        choices = ['penultimate', 'simclr', 'shift'],
+                        default = ['simclr', 'shift'], nargs="+", type=str)
 
 parser.add_argument('--version', type=str, default='CL', help='choose of version want to do : ND or CL')
 parser.add_argument('--print_freq', type=int, default=1, help='print frequency')

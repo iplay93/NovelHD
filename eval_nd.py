@@ -24,15 +24,15 @@ def normalize(x, dim=1, eps=1e-8):
     return x / (x.norm(dim=dim, keepdim=True) + eps)
 
 def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, train_loader=None):
-    auroc_dict = dict()
-    aupr_dict = dict()
-    fpr_dict = dict()
-    f1_dict = dict()
+    auroc_dict  = dict()
+    aupr_dict   = dict()
+    fpr_dict    = dict()
+    f1_dict     = dict()
     for ood in ood_loaders.keys():
         auroc_dict[ood] = dict()
-        aupr_dict[ood] = dict()
-        fpr_dict[ood] = dict()
-        f1_dict[ood] = dict()
+        aupr_dict[ood]  = dict()
+        fpr_dict[ood]   = dict()
+        f1_dict[ood]    = dict()
     assert len(ood_scores) == 1  # assume single ood_score for simplicity
     ood_score = ood_scores[0]
 
@@ -44,44 +44,62 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
 
     kwargs = {
         'sample_num': args.ood_samples,
-        'layers': args.ood_layer,
+        'layers': ['simclr_t', 'shift_t','simclr_f', 'shift_f'],
     }
 
     print('Pre-compute global statistics...')
-    feats_train = get_features(args, f'{args.selected_dataset}_train', model, train_loader, prefix=prefix, **kwargs)  # (M, T, d)
+    feats_train = get_features(args, f'{args.selected_dataset}_train', 
+                               model, train_loader, prefix=prefix, **kwargs)  # (M, T, d)
 
     args.axis = []
-    for f in feats_train['simclr'].chunk(2, dim=1):
+    for f in feats_train['simclr_t'].chunk(2, dim=1):
         axis = f.mean(dim=1)  # (M, d)
         args.axis.append(normalize(axis, dim=1).to(device))
     print('axis size: ' + ' '.join(map(lambda x: str(len(x)), args.axis)))
 
 
-    f_sim = [f.mean(dim=1) for f in feats_train['simclr'].chunk(2, dim=1)]  # list of (M, d)
-    f_shi = [f.mean(dim=1) for f in feats_train['shift'].chunk(2, dim=1)]  # list of (M, 4)
+    f_sim_t = [f.mean(dim=1) for f in feats_train['simclr_t'].chunk(2, dim=1)]  # list of (M, d)
+    f_shi_t = [f.mean(dim=1) for f in feats_train['shift_t'].chunk(2, dim=1)]  # list of (M, 4)
+    f_sim_f = [f.mean(dim=1) for f in feats_train['simclr_f'].chunk(2, dim=1)]  # list of (M, d)
+    f_shi_f = [f.mean(dim=1) for f in feats_train['shift_f'].chunk(2, dim=1)]  # list of (M, 4)
 
-    weight_sim = []
-    weight_shi = []
+    weight_sim_t = []
+    weight_shi_t = []
+    
+    weight_sim_f = []
+    weight_shi_f = []
     for shi in range(2):
-        sim_norm = f_sim[shi].norm(dim=1)  # (M)
-        shi_mean = f_shi[shi][:, shi]  # (M)
-        weight_sim.append(1 / sim_norm.mean().item())
-        weight_shi.append(1 / shi_mean.mean().item())
+        sim_norm_t = f_sim_t[shi].norm(dim=1)  # (M)
+        shi_mean_t = f_shi_t[shi][:, shi]  # (M)
+        weight_sim_t.append(1 / sim_norm_t.mean().item())
+        weight_shi_t.append(1 / shi_mean_t.mean().item())
+        
+        sim_norm_f = f_sim_f[shi].norm(dim=1)  # (M)
+        shi_mean_f = f_shi_f[shi][:, shi]  # (M)
+        weight_sim_f.append(1 / sim_norm_f.mean().item())
+        weight_shi_f.append(1 / shi_mean_f.mean().item())
 
     if ood_score == 'simclr':
-        args.weight_sim = [1, 1]
-        args.weight_shi = [0, 0]
+        args.weight_sim_t = [1, 1]
+        args.weight_shi_t = [0, 0]
+        args.weight_sim_f = [1, 1]
+        args.weight_shi_f = [0, 0]
     elif ood_score == 'CSI':
-        args.weight_sim = weight_sim
-        args.weight_shi = weight_shi
+        args.weight_sim_t = weight_sim_t
+        args.weight_shi_t = weight_shi_t
+        args.weight_sim_f = weight_sim_f
+        args.weight_shi_f = weight_shi_f
     else:
         raise ValueError()
 
-    print(f'weight_sim:\t' + '\t'.join(map('{:.4f}'.format, weight_sim)))
-    print(f'weight_shi:\t' + '\t'.join(map('{:.4f}'.format, weight_shi)))
+    print(f'weight_sim_t:\t' + '\t'.join(map('{:.4f}'.format, weight_sim_t)))
+    print(f'weight_shi_t:\t' + '\t'.join(map('{:.4f}'.format, weight_shi_t)))
+    print(f'weight_sim_f:\t' + '\t'.join(map('{:.4f}'.format, weight_sim_f)))
+    print(f'weight_shi_f:\t' + '\t'.join(map('{:.4f}'.format, weight_shi_f)))
 
     print('Pre-compute features...')
-    feats_id = get_features(args, args.selected_dataset, model, id_loader, prefix=prefix, **kwargs)  # (N, T, d)
+    feats_id = get_features(args, args.selected_dataset, 
+                            model, id_loader, prefix=prefix, **kwargs)  # (N, T, d)
     feats_ood = dict()
     for ood, ood_loader in ood_loaders.items():
         feats_ood[ood] = get_features(args, ood, model, ood_loader, prefix=prefix, **kwargs)
@@ -93,20 +111,20 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
         one_class_score = []
 
     for ood, feats in feats_ood.items():
-        scores_ood[ood] = get_scores(args, feats, ood_score).numpy()
-        auroc_dict[ood][ood_score] = get_auroc(scores_id, scores_ood[ood])
-        aupr_dict[ood][ood_score] = get_aupr(scores_id, scores_ood[ood])
-        fpr_dict[ood][ood_score] =get_aupr(scores_id, scores_ood[ood])
-        f1_dict[ood][ood_score]  = get_f1(scores_id, scores_ood[ood])
-        if args.one_class_idx != -1:
+        scores_ood[ood]             = get_scores(args, feats, ood_score).numpy()
+        auroc_dict[ood][ood_score]  = get_auroc(scores_id, scores_ood[ood])
+        aupr_dict[ood][ood_score]   = get_aupr(scores_id, scores_ood[ood])
+        fpr_dict[ood][ood_score]    = get_aupr(scores_id, scores_ood[ood])
+        f1_dict[ood][ood_score]     = get_f1(scores_id, scores_ood[ood])
+        if args.one_class_idx       != -1:
             one_class_score.append(scores_ood[ood])
 
     if args.one_class_idx != -1:
         one_class_score = np.concatenate(one_class_score)
         one_class_total = get_auroc(scores_id, one_class_score)
-        one_class_aupr = get_aupr(scores_id, one_class_score)
-        one_class_fpr = get_fpr(scores_id, one_class_score)
-        one_class_f1 =  get_f1(scores_id, one_class_score)
+        one_class_aupr  = get_aupr(scores_id, one_class_score)
+        one_class_fpr   = get_fpr(scores_id, one_class_score)
+        one_class_f1    = get_f1(scores_id, one_class_score)
         print(f'One_class_real_mean: {one_class_total}')
         print(f'One_class_aupr_mean: {one_class_aupr}')
         print(f'One_class_fpr_mean: {one_class_fpr}')
@@ -122,19 +140,25 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
 
 def get_scores(args, feats_dict, ood_score):
     # convert to gpu tensor
-    feats_sim = feats_dict['simclr'].to(device)
-    feats_shi = feats_dict['shift'].to(device)
-    N = feats_sim.size(0)
+    feats_sim_t = feats_dict['simclr_t'].to(device)
+    feats_shi_t = feats_dict['shift_t'].to(device)
+    feats_sim_f = feats_dict['simclr_f'].to(device)
+    feats_shi_f = feats_dict['shift_f'].to(device)
+    N = feats_sim_t.size(0)
 
     # compute scores
     scores = []
-    for f_sim, f_shi in zip(feats_sim, feats_shi):
-        f_sim = [f.mean(dim=0, keepdim=True) for f in f_sim.chunk(2)]  # list of (1, d)
-        f_shi = [f.mean(dim=0, keepdim=True) for f in f_shi.chunk(2)]  # list of (1, 4)
+    for f_sim_t, f_shi_t, f_sim_f, f_shi_f  in zip(feats_sim_t, feats_shi_t, feats_sim_f, feats_shi_f):
+        f_sim_t = [f.mean(dim=0, keepdim=True) for f in f_sim_t.chunk(2)]  # list of (1, d)
+        f_shi_t = [f.mean(dim=0, keepdim=True) for f in f_shi_t.chunk(2)]  # list of (1, 4)
+        f_sim_f = [f.mean(dim=0, keepdim=True) for f in f_sim_f.chunk(2)]  # list of (1, d)
+        f_shi_f = [f.mean(dim=0, keepdim=True) for f in f_shi_f.chunk(2)]  # list of (1, 4)
         score = 0
         for shi in range(2):
-            score += (f_sim[shi] * args.axis[shi]).sum(dim=1).max().item() * args.weight_sim[shi]
-            score += f_shi[shi][:, shi].item() * args.weight_shi[shi]
+            score += (f_sim_t[shi] * args.axis[shi]).sum(dim=1).max().item() * args.weight_sim_t[shi]
+            score += f_shi_t[shi][:, shi].item() * args.weight_shi_t[shi]
+            score += (f_sim_f[shi] * args.axis[shi]).sum(dim=1).max().item() * args.weight_sim_f[shi]
+            score += f_shi_f[shi][:, shi].item() * args.weight_shi_f[shi]
         score = score / 2
         scores.append(score)
     scores = torch.tensor(scores)
@@ -144,7 +168,7 @@ def get_scores(args, feats_dict, ood_score):
 
 
 def get_features(args, data_name, model, loader, prefix='',
-                sample_num=1, layers=('simclr', 'shift')):
+                sample_num=1, layers=('simclr_t', 'shift_t','simclr_f', 'shift_f')):
 
     if not isinstance(layers, (list, tuple)):
         layers = [layers]
@@ -169,7 +193,7 @@ def get_features(args, data_name, model, loader, prefix='',
     return feats_dict
 
 
-def _get_features(args, model, loader, sample_num=1, layers=('simclr', 'shift')):
+def _get_features(args, model, loader, sample_num=1, layers=('simclr_t', 'shift_t','simclr_f', 'shift_f')):
     output_aux = dict()
     if not isinstance(layers, (list, tuple)):
         layers = [layers]
@@ -179,10 +203,10 @@ def _get_features(args, model, loader, sample_num=1, layers=('simclr', 'shift'))
     feats_all = {layer: [] for layer in layers}  # initialize: empty list
     for i, (x, labels, aug1, x_f, aug1_f) in enumerate(loader):
 
-        x = x.to(device) 
-        x_f = x_f.to(device)
-        aug1 = aug1.to(device) 
-        aug1_f = aug1_f.to(device)# gpu tensor
+        x       = x.to(device) 
+        x_f     = x_f.to(device)
+        aug1    = aug1.to(device) 
+        aug1_f  = aug1_f.to(device)# gpu tensor
 
         # compute features in one batch
         feats_batch = {layer: [] for layer in layers}  # initialize: empty list
@@ -194,10 +218,10 @@ def _get_features(args, model, loader, sample_num=1, layers=('simclr', 'shift'))
                 temp_data = torch.from_numpy(np.array([my_aug.augment(x[k].cpu().numpy())]))
                 temp_aug1 = torch.from_numpy(np.array([my_aug.augment(aug1[k].cpu().numpy())]))
 
-                x = torch.cat((x, temp_data.to(device)), 0)
-                aug1 = torch.cat((aug1, temp_aug1.to(device)), 0)
-                x_f = torch.cat((x_f, fft.fft(temp_data).abs().to(device)), 0)
-                aug1_f = torch.cat((aug1_f, fft.fft(temp_aug1).abs().to(device)), 0)            
+                x       = torch.cat((x, temp_data.to(device)), 0)
+                aug1    = torch.cat((aug1, temp_aug1.to(device)), 0)
+                x_f     = torch.cat((x_f, fft.fft(temp_data).abs().to(device)), 0)
+                aug1_f  = torch.cat((aug1_f, fft.fft(temp_aug1).abs().to(device)), 0)            
 
             # compute augmented features
             with torch.no_grad():
