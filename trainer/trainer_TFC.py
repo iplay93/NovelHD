@@ -169,7 +169,7 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
                                            configs.Context_Cont.use_cosine_similarity)
             
             
-            l_TF = nt_xent_criterion(z_t, z_f)
+            l_TF = nt_xent_criterion(simclr, simclr_f)
 
             print("TF", l_TF.item())
 
