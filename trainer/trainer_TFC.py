@@ -175,10 +175,10 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
 
             lam = 0.01
             #loss = (loss_t + lam*loss_f)
-            loss = loss_t
+            #loss = loss_t
             #loss = loss_f
             #loss = l_TF
-            #loss = (loss_t + loss_f) + 0.1 * l_TF
+            loss = (loss_t + loss_f) + 0.1 * l_TF
             total_loss.append(loss.item())
             loss.backward()
             model_optimizer.step()
