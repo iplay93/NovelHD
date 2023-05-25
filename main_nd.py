@@ -52,7 +52,7 @@ parser.add_argument('--one_class_idx', type=int, default=0,
 parser.add_argument("--ood_score", help='score function for OOD detection',
                         default = ['norm_mean'], nargs="+", type=str)
 parser.add_argument("--ood_samples", help='number of samples to compute OOD score',
-                        default = 5, type=int)
+                        default = 1, type=int)
 parser.add_argument("--print_score", help='print quantiles of ood score',
                         action='store_true')
 parser.add_argument("--ood_layer", help='layer for OOD scores',

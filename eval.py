@@ -71,11 +71,10 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
     if ood_score == 'simclr':
         args.weight_sim = [1, 1]
         args.weight_shi = [0, 0]
-    elif ood_score == 'CSI':
+    else: #default - weighted
         args.weight_sim = weight_sim
-        args.weight_shi = weight_shi
-    else:
-        raise ValueError()
+        args.weight_shi = [0, 0]
+
 
     print(f'weight_sim:\t' + '\t'.join(map('{:.4f}'.format, weight_sim)))
     print(f'weight_shi:\t' + '\t'.join(map('{:.4f}'.format, weight_shi)))
@@ -107,17 +106,20 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
         one_class_aupr = get_aupr(scores_id, one_class_score)
         one_class_fpr = get_fpr(scores_id, one_class_score)
         one_class_f1 =  get_f1(scores_id, one_class_score)
-        print(f'One_class_real_mean: {one_class_total}')
-        print(f'One_class_aupr_mean: {one_class_aupr}')
-        print(f'One_class_fpr_mean: {one_class_fpr}')
-        print(f'One_class_f1_mean: {one_class_f1}')
+        #print(f'One_class_real_mean: {one_class_total:.3f}')
+        #print(f'One_class_aupr_mean: {one_class_aupr:.3f}')
+        #print(f'One_class_fpr_mean: {one_class_fpr:.3f}')
+        #print(f'One_class_f1_mean: {one_class_f1}')
+        print(f'{one_class_total:.3f}')
+        print(f'{one_class_aupr:.3f}')
+        print(f'{one_class_fpr:.3f}')
 
     if args.print_score:
         print_score(args.selected_dataset, scores_id)
         for ood, scores in scores_ood.items():
             print_score(ood, scores)
 
-    return auroc_dict, aupr_dict, fpr_dict, f1_dict
+    return auroc_dict, aupr_dict, fpr_dict, f1_dict, one_class_total, one_class_aupr, one_class_fpr
 
 
 def get_scores(args, feats_dict, ood_score):

@@ -85,10 +85,10 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
         args.weight_sim_f = [1, 1]
         args.weight_shi_f = [0, 0]
     elif ood_score == 'CSI':
-        args.weight_sim_t = weight_sim_t
-        args.weight_shi_t = weight_shi_t
+        args.weight_sim_t = weight_sim_t #weight_sim_t or [0,0]
+        args.weight_shi_t = weight_shi_t #weight_shi_t or [0,0]
         args.weight_sim_f = weight_sim_f
-        args.weight_shi_f = weight_shi_f
+        args.weight_shi_f = [0, 0]
     else:
         raise ValueError()
 
@@ -125,17 +125,21 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
         one_class_aupr  = get_aupr(scores_id, one_class_score)
         one_class_fpr   = get_fpr(scores_id, one_class_score)
         one_class_f1    = get_f1(scores_id, one_class_score)
-        print(f'One_class_real_mean: {one_class_total}')
-        print(f'One_class_aupr_mean: {one_class_aupr}')
-        print(f'One_class_fpr_mean: {one_class_fpr}')
-        print(f'One_class_f1_mean: {one_class_f1}')
+        #print(f'One_class_real_mean: {one_class_total:.3f}')
+        #print(f'One_class_aupr_mean: {one_class_aupr:.3f}')
+        #print(f'One_class_fpr_mean: {one_class_fpr:.3f}')
+        #print(f'One_class_f1_mean: {one_class_f1}')
+        print(f'{one_class_total:.3f}')
+        print(f'{one_class_aupr:.3f}')
+        print(f'{one_class_fpr:.3f}')
+
 
     if args.print_score:
         print_score(args.selected_dataset, scores_id)
         for ood, scores in scores_ood.items():
             print_score(ood, scores)
 
-    return auroc_dict, aupr_dict, fpr_dict, f1_dict
+    return auroc_dict, aupr_dict, fpr_dict, f1_dict, one_class_total, one_class_aupr, one_class_fpr
 
 
 def get_scores(args, feats_dict, ood_score):
@@ -154,11 +158,12 @@ def get_scores(args, feats_dict, ood_score):
         f_sim_f = [f.mean(dim=0, keepdim=True) for f in f_sim_f.chunk(2)]  # list of (1, d)
         f_shi_f = [f.mean(dim=0, keepdim=True) for f in f_shi_f.chunk(2)]  # list of (1, 4)
         score = 0
+        lam = 1
         for shi in range(2):
             score += (f_sim_t[shi] * args.axis[shi]).sum(dim=1).max().item() * args.weight_sim_t[shi]
             score += f_shi_t[shi][:, shi].item() * args.weight_shi_t[shi]
-            score += (f_sim_f[shi] * args.axis[shi]).sum(dim=1).max().item() * args.weight_sim_f[shi]
-            score += f_shi_f[shi][:, shi].item() * args.weight_shi_f[shi]
+            score += (f_sim_f[shi] * args.axis[shi]).sum(dim=1).max().item() * args.weight_sim_f[shi] * lam
+            score += f_shi_f[shi][:, shi].item() * args.weight_shi_f[shi] * lam
         score = score / 2
         scores.append(score)
     scores = torch.tensor(scores)
@@ -218,17 +223,19 @@ def _get_features(args, model, loader, sample_num=1, layers=('simclr_t', 'shift_
                 temp_data = torch.from_numpy(np.array([my_aug.augment(x[k].cpu().numpy())]))
                 temp_aug1 = torch.from_numpy(np.array([my_aug.augment(aug1[k].cpu().numpy())]))
 
-                x       = torch.cat((x, temp_data.to(device)), 0)
-                aug1    = torch.cat((aug1, temp_aug1.to(device)), 0)
-                x_f     = torch.cat((x_f, fft.fft(temp_data).abs().to(device)), 0)
-                aug1_f  = torch.cat((aug1_f, fft.fft(temp_aug1).abs().to(device)), 0)            
+                x        = torch.cat((x, temp_data.to(device)), 0)
+                aug1     = torch.cat((aug1, temp_aug1.to(device)), 0)
+                x_f      = torch.cat((x_f, fft.fft(temp_data).abs().to(device)), 0)
+                aug1_f   = torch.cat((aug1_f, fft.fft(temp_aug1).abs().to(device)), 0)            
 
             # compute augmented features
             with torch.no_grad():
                 kwargs = {layer: True for layer in layers}  # only forward selected layers
                 h_t, z_t, s_t, h_f, z_f, s_f  = model(x, x_f)
-                output_aux['simclr'] = z_t
-                output_aux['shift'] = s_t                 
+                output_aux['simclr_t'] = z_t
+                output_aux['shift_t'] = s_t
+                output_aux['simclr_f'] = z_f
+                output_aux['shift_f'] = s_f                 
 
             # add features in one batch
             for layer in layers:

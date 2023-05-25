@@ -142,7 +142,7 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
 
         elif training_mode =="novelty_detection" and configs.batch_size == batch_size:
 
-            # for temporal contrastive
+            # For temporal contrastive
             sim_lambda = 0.01            
 
             simclr = normalize(z_t)  # normalize
@@ -153,7 +153,7 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
 
             loss_t = loss_sim  + loss_shift
 
-            # for frequency contrastive
+            # For frequency contrastive
             sim_lambda_f = 0.01
             simclr_f = normalize(z_f)  # normalize
             sim_matrix_f = get_similarity_matrix(simclr_f)            
@@ -162,23 +162,24 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
             loss_shift_f = criterion(s_f, shift_labels)
             loss_f = loss_sim_f + loss_shift_f
 
-            print("Temporal", loss_sim.item(), loss_shift.item(), loss_t.item())
-            print("Frequent", loss_sim_f.item(), loss_shift_f.item(), loss_f.item())
-
             nt_xent_criterion = NTXentLoss(device, configs.batch_size, configs.Context_Cont.temperature,
                                            configs.Context_Cont.use_cosine_similarity)
-            
-            
-            l_TF = nt_xent_criterion(simclr, simclr_f)
+                        
+            l_TF = nt_xent_criterion(z_t, z_f)
 
+            print(f'Temporal: {loss_sim.item():.4f}, {loss_shift.item():.4f}, {loss_t.item():.4f}')
+            print(f'Frequency: {loss_sim_f.item():.4f}, {loss_shift_f.item():.4f}, {loss_f.item():.4f}')
             print("TF", l_TF.item())
 
             lam = 0.01
+            #loss
+            loss = loss_t + loss_sim_f
             #loss = (loss_t + lam*loss_f)
             #loss = loss_t
+            #loss = loss_t + loss_f
             #loss = loss_f
             #loss = l_TF
-            loss = (loss_t + loss_f) + 0.1 * l_TF
+            #loss = (loss_t + loss_f) + 0.1 * l_TF
             total_loss.append(loss.item())
             loss.backward()
             model_optimizer.step()
