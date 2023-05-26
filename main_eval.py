@@ -101,14 +101,19 @@ os.makedirs(logs_save_dir, exist_ok=True)
 exec(f'from config_files.{data_type}_Configs import Config as Configs')
 configs = Configs()
 
+final_auroc = []
+final_fpr   = []
+final_f1  = []
+
 # overall performance
 auroc_a = []
-aupr_a  = []
 fpr_a   = []
+f1_a  = []
 
-for test_num in [12, 24, 36, 48, 60]:
+# Training for five seed
+for test_num in [10, 30, 50, 70, 90]:
     # ##### fix random seeds for reproducibility ########
-    SEED = test_num
+    SEED = args.seed = test_num
     torch.manual_seed(SEED)
     torch.backends.cudnn.deterministic = False
     torch.backends.cudnn.benchmark = False
@@ -199,32 +204,31 @@ for test_num in [12, 24, 36, 48, 60]:
         copy_Files(os.path.join(logs_save_dir, experiment_description, run_description), data_type)
 
     # Trainer
-    Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode)
-
-
+    model = Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode)
 
     if training_mode != "self_supervised" and training_mode!="novelty_detection":
         # Testing
         outs = model_evaluate(model, classifier, test_dl, device, training_mode)
         total_loss, total_acc, total_f1, pred_labels, true_labels = outs
         _calc_metrics(pred_labels, true_labels, experiment_log_dir, args.home_path)
-
+    
     if training_mode == "novelty_detection":  
         # load saved model of this experiment
         path = os.path.join(os.path.join(logs_save_dir, experiment_description, 
                             run_description, f"novelty_detection_seed_{args.seed}", "saved_models"))
-        chkpoint = torch.load(os.path.join(path, "ckp_last.pt"), map_location=device)
-        pretrained_dict = chkpoint["model_state_dict"]
-        model.load_state_dict(pretrained_dict)
+        #chkpoint = torch.load(os.path.join(path, "ckp_last.pt"), map_location=device)
+        #pretrained_dict = chkpoint["model_state_dict"]
+        #model.load_state_dict(pretrained_dict)
         
         # Evlauation
         with torch.no_grad():    
-            auroc_dict, aupr_dict, fpr_dict, f1_dict, \
-            one_class_total, one_class_aupr, one_class_fpr \
-            = eval_ood_detection(args, path, model,valid_dl, ood_test_loader, args.ood_score,
-                                            train_loader=train_dl)
-        
-        # AUROC
+            auroc_dict, fpr_dict, f1_dict, one_class_total, one_class_fpr, one_class_f1\
+            = eval_ood_detection(args, path, model,valid_dl, ood_test_loader, args.ood_score, train_loader=train_dl)
+
+        auroc_a.append(one_class_total)        
+        fpr_a.append(one_class_fpr)
+        f1_a.append(one_class_f1)
+
         mean_dict = dict()
         for ood_score in args.ood_score:
             mean = 0
@@ -232,8 +236,7 @@ for test_num in [12, 24, 36, 48, 60]:
                 mean += auroc_dict[ood][ood_score]
             mean_dict[ood_score] = mean / len(auroc_dict.keys())
         auroc_dict['one_class_mean'] = mean_dict
-   
-        # best for each class
+
         bests = []
         for ood in auroc_dict.keys():
             print(ood)
@@ -250,26 +253,29 @@ for test_num in [12, 24, 36, 48, 60]:
 
         bests = map('{:.4f}'.format, bests)
         print('\t'.join(bests))
-
-        auroc_a.append(one_class_total)
-        aupr_a.append(one_class_aupr)
-        fpr_a.append(one_class_fpr)
-
-print("novel_class:", novel_class)
+        print("novel_class:", novel_class)
 
 # mean
 print(f'{np.mean(auroc_a):.3f}')
-print(f'{np.mean(aupr_a):.3f}')
 print(f'{np.mean(fpr_a):.3f}')
+print(f'{np.mean(f1_a):.3f}')
 # Standard deviation of list
 print(f'{np.std(auroc_a):.3f}')
-print(f'{np.std(aupr_a):.3f}')
 print(f'{np.std(fpr_a):.3f}')
+print(f'{np.std(f1_a):.3f}')
+final_auroc.append([np.mean(auroc_a), np.std(auroc_a)])
+final_fpr.append([np.mean(fpr_a), np.std(fpr_a)])
+final_f1.append([np.mean(f1_a), np.std(f1_a)])
 
 # overall
 print(f'{auroc_a}')
-print(f'{aupr_a}')
 print(f'{fpr_a}')
+print(f'{f1_a}')
+
+print(f'{final_auroc}')
+print(f'{final_fpr}')
+print(f'{final_f1}')
+
 
 logger.debug(f"Training time is : {datetime.now()-start_time}")
 

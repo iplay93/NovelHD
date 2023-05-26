@@ -13,7 +13,8 @@ from sklearn.metrics import f1_score, roc_auc_score
 from tsaug import *
 import torch.fft as fft
 
-my_aug = (Drift(max_drift=0.7, n_drift_points=5))
+my_aug = (Reverse())
+
 
 def Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode):
     # Start training
@@ -48,6 +49,7 @@ def Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, 
         logger.debug(f'Test loss      :{test_loss:0.4f}\t | Test Accuracy      : {test_acc:0.4f}\t | Test F1-score      : {test_f1:0.4f}')
 
     logger.debug("\n################## Training is Done! #########################")
+    return model
 
 def normalize(x, dim=1, eps=1e-8):
     return x / (x.norm(dim=dim, keepdim=True) + eps)
@@ -104,6 +106,12 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
             h_t, z_t, s_t, h_f, z_f, s_f  = model(sensor_pair, sensor_pair_f)
             
             #h_t_aug, z_t_aug, s_t_aug, h_f_aug, z_f_aug, s_f_aug = model(aug1, aug1_f)
+        elif training_mode == "ood_ness" and configs.batch_size == batch_size:
+            sensor_pair = torch.cat([data, aug1], dim=0)             
+            sensor_pair_f = torch.cat([data_f, aug1_f], dim=0)   
+            # original data and augmented data 
+            h_t, z_t, s_t, h_f, z_f, s_f  = model(sensor_pair, sensor_pair_f)            
+            shift_labels = torch.cat([torch.ones_like(labels) * k for k in range(2)], 0)   
 
         else:
             h_t, z_t, s_t, h_f, z_f, s_f  = model(data, data_f)
@@ -143,7 +151,7 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
         elif training_mode =="novelty_detection" and configs.batch_size == batch_size:
 
             # For temporal contrastive
-            sim_lambda = 0.01            
+            sim_lambda = 0.1          
 
             simclr = normalize(z_t)  # normalize
             sim_matrix = get_similarity_matrix(simclr)            
@@ -154,7 +162,7 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
             loss_t = loss_sim  + loss_shift
 
             # For frequency contrastive
-            sim_lambda_f = 0.01
+            sim_lambda_f = 0.1
             simclr_f = normalize(z_f)  # normalize
             sim_matrix_f = get_similarity_matrix(simclr_f)            
             loss_sim_f = NT_xent(sim_matrix_f, temperature=0.5) * sim_lambda_f 
@@ -173,13 +181,14 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
 
             lam = 0.01
             #loss
-            loss = loss_t + loss_sim_f
-            #loss = (loss_t + lam*loss_f)
+            #loss = loss_t 
+            #+ lam * loss_f
+            #loss = loss_t 
             #loss = loss_t
             #loss = loss_t + loss_f
             #loss = loss_f
             #loss = l_TF
-            #loss = (loss_t + loss_f) + 0.1 * l_TF
+            loss = (loss_t + 0.1*loss_f) + 0.2 * l_TF
             total_loss.append(loss.item())
             loss.backward()
             model_optimizer.step()
@@ -198,6 +207,15 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
             classifier_optimizer.zero_grad()
             loss_linear.backward()
             classifier_optimizer.step()
+
+        elif training_mode == "ood_ness" and configs.batch_size == batch_size:
+            loss = criterion(s_t, shift_labels)
+            total_acc.append(shift_labels.eq(s_t.detach().argmax(dim=1)).float().mean())
+
+            total_loss.append(loss.item())
+            loss.backward()
+            model_optimizer.step()
+
             
         elif training_mode != "self_supervised" and training_mode != "novelty_detection": # supervised training or fine tuining
             
@@ -225,24 +243,34 @@ def model_evaluate(model, classifier, test_dl, device, training_mode):
     total_loss = []
     total_acc = []
     total_f1 = []
+    total_auroc = []
 
     criterion = nn.CrossEntropyLoss()
     outs = np.array([])
     trgs = np.array([])
 
     with torch.no_grad():
-        for data, labels, _,data_f, _ in test_dl:
-            data, labels = data.float().to(device), labels.long().to(device)
-            data_f = data_f.float().to(device)
+        for (data, labels, aug1, data_f, aug1_f) in test_dl:
+        # send to device
+            data, labels = data.float().to(device), labels.long().to(device) # data: [128, 1, 178], labels: [128]
+            aug1 = aug1.float().to(device)  # aug1 = aug2 : [128, 1, 178]
+            data_f, aug1_f = data_f.float().to(device), aug1_f.float().to(device)  # aug1 = aug2 : [128, 1, 178]
 
             if training_mode == "self_supervised" or training_mode =="novelty_detection":
                 pass
+            elif training_mode == "ood_ness":
+                sensor_pair = torch.cat([data, aug1], dim=0)             
+                sensor_pair_f = torch.cat([data_f, aug1_f], dim=0)   
+                # original data and augmented data 
+                h_t, z_t, s_t, h_f, z_f, s_f  = model(sensor_pair, sensor_pair_f)            
+                shift_labels = torch.cat([torch.ones_like(labels) * k for k in range(2)], 0)    
+
             else:
                 h_t, z_t, h_f, z_f = model(data, data_f)
                 fea_concat = torch.cat((z_t, z_f), dim=1)                
 
             # compute loss
-            if training_mode != "self_supervised" and training_mode != "novelty_detection":
+            if training_mode != "self_supervised" and training_mode != "novelty_detection" and training_mode != "ood_ness":
                 predictions = classifier(fea_concat)
                 loss = criterion(predictions, labels)
                 total_acc.append(labels.eq(predictions.detach().argmax(dim=1)).float().mean())
@@ -250,7 +278,18 @@ def model_evaluate(model, classifier, test_dl, device, training_mode):
                 total_f1.append(f1_score(labels.cpu(), predictions.detach().argmax(dim=1).cpu(), average='macro'))
                 total_loss.append(loss.item())
 
-            if training_mode != "self_supervised" and training_mode != "novelty_detection":
+            elif training_mode == "ood_ness":
+                loss = criterion(s_t , shift_labels)
+                total_acc.append(shift_labels.eq(s_t.detach().argmax(dim=1)).float().mean())
+                total_auroc.append(roc_auc_score(shift_labels.cpu(), s_t.detach().argmax(dim=1).cpu()))
+                #print(labels, predictions.detach().argmax(dim=1))
+                total_f1.append(f1_score(shift_labels.cpu(), s_t.detach().argmax(dim=1).cpu(), average='macro'))
+                total_loss.append(loss.item())
+                pred = s_t.max(1, keepdim=True)[1]  # get the index of the max log-probability
+                outs = np.append(outs, pred.cpu().numpy())
+                trgs = np.append(trgs, shift_labels.data.cpu().numpy())
+
+            if training_mode != "self_supervised" and training_mode != "novelty_detection" and training_mode != "ood_ness":
                 pred = predictions.max(1, keepdim=True)[1]  # get the index of the max log-probability
                 outs = np.append(outs, pred.cpu().numpy())
                 trgs = np.append(trgs, labels.data.cpu().numpy())
@@ -267,5 +306,6 @@ def model_evaluate(model, classifier, test_dl, device, training_mode):
     else:
         total_acc = torch.tensor(total_acc).mean()  # average acc
         total_f1  = torch.tensor(total_f1).mean() # average f1
+        print("AUROC", torch.tensor(total_auroc).mean())
 
     return total_loss, total_acc, total_f1, outs, trgs

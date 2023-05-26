@@ -83,7 +83,9 @@ class Load_Dataset(Dataset):
 
         X_train = data_list
         y_train = label_list
-        my_aug = (Dropout( p=0.1,fill=0))    
+        # Give a positive transformation
+        my_aug = (Dropout( p=0.1,fill=0)) 
+
         if len(X_train.shape) < 3:
             X_train = X_train.unsqueeze(2)
 
@@ -100,7 +102,7 @@ class Load_Dataset(Dataset):
         self.x_data_f = fft.fft(self.x_data).abs() #/(window_length) # rfft for real value inputs.
         self.len = X_train.shape[0]
     
-        if training_mode == "novelty_detection":  # no need to apply Augmentations in other modes
+        if training_mode == "novelty_detection" or self.training_mode == "ood_ness":  # no need to apply Augmentations in other modes
             #self.aug1 = DataTransform_TD(self.x_data, config)
             print(self.x_data.shape)
             self.aug1 = torch.from_numpy(np.array(my_aug.augment(self.x_data.cpu().numpy())))
@@ -108,7 +110,7 @@ class Load_Dataset(Dataset):
             #self.aug1_f = DataTransform_FD(self.x_data_f, config) # [7360, 1, 90]
             self.aug1_f = fft.fft(self.aug1).abs() 
     def __getitem__(self, index):
-        if self.training_mode == "novelty_detection":
+        if self.training_mode == "novelty_detection" or self.training_mode == "ood_ness" :
             return self.x_data[index], self.y_data[index], self.aug1[index], self.x_data_f[index], self.aug1_f[index]
         else:
             return self.x_data[index], self.y_data[index], self.x_data[index], self.x_data_f[index], self.x_data_f[index]
