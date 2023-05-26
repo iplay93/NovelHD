@@ -265,10 +265,10 @@ def data_augmentation(dataset_list, aug_method, aug_wise):
                     dataset_list.append(ts_ds)
                     copy_count_label[types_label_list.index(dataset_list[i].label)] = copy_count_label[types_label_list.index(dataset_list[i].label)]-1   
         
-        for i in range(len(dataset_list)): 
-            aug = my_aug.augment(dataset_list[i].data.T)   
-            ts_ds = TSDataSet(aug.T, dataset_list[i].label, len(aug.T))
-            dataset_list.append(ts_ds)
+        # for i in range(len(dataset_list)): 
+        #     aug = my_aug.augment(dataset_list[i].data.T)   
+        #     ts_ds = TSDataSet(aug.T, dataset_list[i].label, len(aug.T))
+        #     dataset_list.append(ts_ds)
 
     if(aug_wise == 'Sensor'):
 # sensor aspect data augmentation

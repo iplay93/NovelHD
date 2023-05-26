@@ -12,7 +12,7 @@ from models.TC import TC
 from utils import _calc_metrics, copy_Files
 from models.TFC import TFC, target_classifier
 from dataloader import data_generator,data_generator_nd
-
+from eval_nd import eval_ood_detection
     
 # Args selections
 start_time = datetime.now()
@@ -47,13 +47,24 @@ parser.add_argument('--min_seq', type=int,
 parser.add_argument('--min_samples', type=int, default=20, 
                     help='choose of the minimum number of samples in each label')
 parser.add_argument('--one_class_idx', type=int, default=0, 
-                    help='choose of one class label number that wants to deal with')
+                    help='choose of one class label number that wants to deal with. -1 is for multi-classification')
+
+parser.add_argument("--ood_score", help='score function for OOD detection',
+                        default = ['norm_mean'], nargs="+", type=str)
+parser.add_argument("--ood_samples", help='number of samples to compute OOD score',
+                        default = 1, type=int)
+parser.add_argument("--print_score", help='print quantiles of ood score',
+                        action='store_true')
+parser.add_argument("--ood_layer", help='layer for OOD scores',
+                        choices = ['penultimate', 'simclr', 'shift'],
+                        default = ['simclr', 'shift'], nargs="+", type=str)
+
 parser.add_argument('--version', type=str, default='CL', help='choose of version want to do : ND or CL')
 parser.add_argument('--print_freq', type=int, default=1, help='print frequency')
 parser.add_argument('--save_freq', type=int, default=50, help='save frequency')
 parser.add_argument('--data_folder', type=str, default=None, help='path to custom dataset')
     
-parser.add_argument('--aug_method', type=str, default='AddNoise', help='choose the data augmentation method')
+parser.add_argument('--aug_method', type=str, default='Dropout', help='choose the data augmentation method')
 parser.add_argument('--aug_wise', type=str, default='Temporal', help='choose the data augmentation wise')
 
 parser.add_argument('--test_ratio', type=float, default=0.3, help='choose the number of test ratio')
@@ -121,77 +132,72 @@ data_path = f"./data/{data_type}"
 if training_mode != "novelty_detection":
     train_dl, valid_dl, test_dl = data_generator(args, configs, training_mode)
 else:
-    train_dl, valid_dl, test_dl = data_generator_nd(args, configs, training_mode)
+    train_dl, valid_dl, test_dl, ood_test_loader, novel_class = data_generator_nd(args, configs, training_mode)
 logger.debug("Data loaded ...")
 
 # Load Model
 model = TFC(configs).to(device)
 classifier = target_classifier(configs).to(device)
 
-if training_mode == "fine_tune":
-    # load saved model of this experiment
-    load_from = os.path.join(os.path.join(logs_save_dir, experiment_description, run_description, f"self_supervised_seed_{SEED}", "saved_models"))
-    chkpoint = torch.load(os.path.join(load_from, "ckp_last.pt"), map_location=device)
-    pretrained_dict = chkpoint["model_state_dict"]
-    model_dict = model.state_dict()
-    del_list = ['logits']
-    pretrained_dict_copy = pretrained_dict.copy()
-    for i in pretrained_dict_copy.keys():
-        for j in del_list:
-            if j in i:
-                del pretrained_dict[i]
-    model_dict.update(pretrained_dict)
-    model.load_state_dict(model_dict)
 
-if training_mode == "train_linear" or "tl" in training_mode:
-    load_from = os.path.join(os.path.join(logs_save_dir, experiment_description, run_description, f"self_supervised_seed_{SEED}", "saved_models"))
-    chkpoint = torch.load(os.path.join(load_from, "ckp_last.pt"), map_location=device)
-    pretrained_dict = chkpoint["model_state_dict"]
-    model_dict = model.state_dict()
-
-    # 1. filter out unnecessary keys
-    pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
-
-    # delete these parameters (Ex: the linear layer at the end)
-    del_list = ['logits']
-    pretrained_dict_copy = pretrained_dict.copy()
-    for i in pretrained_dict_copy.keys():
-        for j in del_list:
-            if j in i:
-                del pretrained_dict[i]
-
-    model_dict.update(pretrained_dict)
-    model.load_state_dict(model_dict)
-    set_requires_grad(model, pretrained_dict, requires_grad=False)  # Freeze everything except last layer.
-
-if training_mode == "random_init":
-    model_dict = model.state_dict()
-
-    # delete all the parameters except for logits
-    del_list = ['logits']
-    pretrained_dict_copy = model_dict.copy()
-    for i in pretrained_dict_copy.keys():
-        for j in del_list:
-            if j in i:
-                del model_dict[i]
-    set_requires_grad(model, model_dict, requires_grad=False)  # Freeze everything except last layer.
 
 
 model_optimizer = torch.optim.Adam(model.parameters(), lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
 classifier_optimizer = torch.optim.Adam(classifier.parameters(), lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
 
-if training_mode == "self_supervised":  # to do it only once
+if training_mode == "self_supervised" and "novelty_detection":  # to do it only once
     copy_Files(os.path.join(logs_save_dir, experiment_description, run_description), data_type)
 
 # Trainer
 Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode)
 
 
-if training_mode != "self_supervised":
+
+if training_mode != "self_supervised" and training_mode!="novelty_detection":
     # Testing
     outs = model_evaluate(model, classifier, test_dl, device, training_mode)
     total_loss, total_acc, total_f1, pred_labels, true_labels = outs
     _calc_metrics(pred_labels, true_labels, experiment_log_dir, args.home_path)
+
+if training_mode == "novelty_detection":  
+    # load saved model of this experiment
+    path = os.path.join(os.path.join(logs_save_dir, experiment_description, 
+                        run_description, f"novelty_detection_seed_{args.seed}", "saved_models"))
+    chkpoint = torch.load(os.path.join(path, "ckp_last.pt"), map_location=device)
+    pretrained_dict = chkpoint["model_state_dict"]
+    model.load_state_dict(pretrained_dict)
+    
+    # Evlauation
+    with torch.no_grad():    
+        auroc_dict, aupr_dict, fpr_dict, f1_dict, one_class_total, one_class_aupr, one_class_fpr \
+        = eval_ood_detection(args, path, model,valid_dl, ood_test_loader, args.ood_score, train_loader=train_dl)
+            
+    mean_dict = dict()
+    for ood_score in args.ood_score:
+        mean = 0
+        for ood in auroc_dict.keys():
+            mean += auroc_dict[ood][ood_score]
+        mean_dict[ood_score] = mean / len(auroc_dict.keys())
+    auroc_dict['one_class_mean'] = mean_dict
+
+    bests = []
+    for ood in auroc_dict.keys():
+        print(ood)
+        message = ''
+        best_auroc = 0
+        for ood_score, auroc in auroc_dict[ood].items():
+            message += '[%s %s %.4f] ' % (ood, ood_score, auroc)
+            if auroc > best_auroc:
+                best_auroc = auroc
+        message += '[%s %s %.4f] ' % (ood, 'best', best_auroc)
+        if args.print_score:
+            print(message)
+        bests.append(best_auroc)
+
+    bests = map('{:.4f}'.format, bests)
+    print('\t'.join(bests))
+    print("novel_class:", novel_class)
+
 
 logger.debug(f"Training time is : {datetime.now()-start_time}")
 

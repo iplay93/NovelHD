@@ -26,6 +26,44 @@ class Config(object):
         self.TC = TC()
         self.augmentation = augmentations()
 
+                #for ND
+        self.hidden_size = 64
+        self.num_layers = 3
+        self.project_channels = 20
+
+        self.freeze_length_epoch = 2
+        self.change_center_epoch = 1
+
+        self.center_eps = 0.1
+        self.omega1 = 1
+        self.omega2 = 0.1
+
+        # optimizer parameters
+        self.beta1 = 0.9
+        self.beta2 = 0.99
+        self.lr = 1e-4
+
+        # Anomaly Detection parameters
+        self.nu = 0.001
+        # Anomaly quantile of fixed threshold
+        self.detect_nu = 0.0015
+        # Methods for determining thresholds ("fix","floating","one-anomaly")
+        self.threshold_determine = 'floating'
+        # Specify COCA objective ("one-class" or "soft-boundary")
+        self.objective = 'one-class'
+        # Specify loss objective ("arc1","arc2","mix","no_reconstruction", or "distance")
+        self.loss_type = 'distance'
+
+        """New hyperparameters"""
+        self.TSlength_aligned = 24
+        self.lr_f = self.lr
+        self.target_batch_size = 64#  84
+        self.increased_dim = 1
+        self.final_out_channels = 128
+        self.num_classes_target = 27
+        self.features_len_f = self.features_len
+        self.CNNoutput_channel = 28#  104
+
 
 class augmentations(object):
     def __init__(self):

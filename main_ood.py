@@ -129,64 +129,15 @@ logger.debug("=" * 45)
 
 # Load datasets
 data_path = f"./data/{data_type}"
-if training_mode != "novelty_detection":
-    train_dl, valid_dl, test_dl = data_generator(args, configs, training_mode)
-else:
-    train_dl, valid_dl, test_dl, ood_test_loader, novel_class = data_generator_nd(args, configs, training_mode)
+
+train_dl, valid_dl, test_dl = data_generator(args, configs, training_mode)
+
+ 
 logger.debug("Data loaded ...")
 
 # Load Model
 model = TFC(configs).to(device)
 classifier = target_classifier(configs).to(device)
-
-if training_mode == "fine_tune":
-    # load saved model of this experiment
-    load_from = os.path.join(os.path.join(logs_save_dir, experiment_description, run_description, f"self_supervised_seed_{SEED}", "saved_models"))
-    chkpoint = torch.load(os.path.join(load_from, "ckp_last.pt"), map_location=device)
-    pretrained_dict = chkpoint["model_state_dict"]
-    model_dict = model.state_dict()
-    del_list = ['logits']
-    pretrained_dict_copy = pretrained_dict.copy()
-    for i in pretrained_dict_copy.keys():
-        for j in del_list:
-            if j in i:
-                del pretrained_dict[i]
-    model_dict.update(pretrained_dict)
-    model.load_state_dict(model_dict)
-
-if training_mode == "train_linear" or "tl" in training_mode:
-    load_from = os.path.join(os.path.join(logs_save_dir, experiment_description, run_description, f"self_supervised_seed_{SEED}", "saved_models"))
-    chkpoint = torch.load(os.path.join(load_from, "ckp_last.pt"), map_location=device)
-    pretrained_dict = chkpoint["model_state_dict"]
-    model_dict = model.state_dict()
-
-    # 1. filter out unnecessary keys
-    pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
-
-    # delete these parameters (Ex: the linear layer at the end)
-    del_list = ['logits']
-    pretrained_dict_copy = pretrained_dict.copy()
-    for i in pretrained_dict_copy.keys():
-        for j in del_list:
-            if j in i:
-                del pretrained_dict[i]
-
-    model_dict.update(pretrained_dict)
-    model.load_state_dict(model_dict)
-    set_requires_grad(model, pretrained_dict, requires_grad=False)  # Freeze everything except last layer.
-
-if training_mode == "random_init":
-    model_dict = model.state_dict()
-
-    # delete all the parameters except for logits
-    del_list = ['logits']
-    pretrained_dict_copy = model_dict.copy()
-    for i in pretrained_dict_copy.keys():
-        for j in del_list:
-            if j in i:
-                del model_dict[i]
-    set_requires_grad(model, model_dict, requires_grad=False)  # Freeze everything except last layer.
-
 
 model_optimizer = torch.optim.Adam(model.parameters(), lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
 classifier_optimizer = torch.optim.Adam(classifier.parameters(), lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
@@ -195,7 +146,7 @@ if training_mode == "self_supervised" or "novelty_detection":  # to do it only o
     copy_Files(os.path.join(logs_save_dir, experiment_description, run_description), data_type)
 
 # Trainer
-Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode)
+model = Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode)
 
 
 
@@ -204,48 +155,6 @@ if training_mode != "self_supervised" and training_mode!="novelty_detection":
     outs = model_evaluate(model, classifier, test_dl, device, training_mode)
     total_loss, total_acc, total_f1, pred_labels, true_labels = outs
     _calc_metrics(pred_labels, true_labels, experiment_log_dir, args.home_path)
-
-if training_mode == "novelty_detection":  
-    # load saved model of this experiment
-    path = os.path.join(os.path.join(logs_save_dir, experiment_description, 
-                        run_description, f"novelty_detection_seed_{args.seed}", "saved_models"))
-    chkpoint = torch.load(os.path.join(path, "ckp_last.pt"), map_location=device)
-    pretrained_dict = chkpoint["model_state_dict"]
-    model.load_state_dict(pretrained_dict)
-    
-    # Evlauation
-    with torch.no_grad():    
-        auroc_dict, fpr_dict, f1_dict, one_class_total, one_class_fpr, one_class_f1\
-        = eval_ood_detection(args, path, model,valid_dl, ood_test_loader, args.ood_score, train_loader=train_dl)
-            
-    mean_dict = dict()
-    for ood_score in args.ood_score:
-        mean = 0
-        for ood in auroc_dict.keys():
-            mean += auroc_dict[ood][ood_score]
-        mean_dict[ood_score] = mean / len(auroc_dict.keys())
-    auroc_dict['one_class_mean'] = mean_dict
-
-    bests = []
-    for ood in auroc_dict.keys():
-        print(ood)
-        message = ''
-        best_auroc = 0
-        for ood_score, auroc in auroc_dict[ood].items():
-            message += '[%s %s %.4f] ' % (ood, ood_score, auroc)
-            if auroc > best_auroc:
-                best_auroc = auroc
-        message += '[%s %s %.4f] ' % (ood, 'best', best_auroc)
-        if args.print_score:
-            print(message)
-        bests.append(best_auroc)
-
-    bests = map('{:.4f}'.format, bests)
-    print('\t'.join(bests))
-    print("novel_class:", novel_class)
-
-
-logger.debug(f"Training time is : {datetime.now()-start_time}")
 
 
 torch.cuda.empty_cache()
