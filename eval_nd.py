@@ -27,12 +27,12 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
     auroc_dict  = dict()
     aupr_dict   = dict()
     fpr_dict    = dict()
-    f1_dict     = dict()
+    de_dict     = dict()
     for ood in ood_loaders.keys():
         auroc_dict[ood] = dict()
         aupr_dict[ood]  = dict()
         fpr_dict[ood]   = dict()
-        f1_dict[ood]    = dict()
+        de_dict[ood]    = dict()
     assert len(ood_scores) == 1  # assume single ood_score for simplicity
     ood_score = ood_scores[0]
 
@@ -113,8 +113,9 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
     for ood, feats in feats_ood.items():
         scores_ood[ood]             = get_scores(args, feats, ood_score).numpy()
         auroc_dict[ood][ood_score]  = get_auroc(scores_id, scores_ood[ood])
+        aupr_dict[ood][ood_score]   = get_aupr(scores_id, scores_ood[ood])
         fpr_dict[ood][ood_score]    = get_fpr(scores_id, scores_ood[ood])
-        f1_dict[ood][ood_score]     = get_f1(scores_id, scores_ood[ood])
+        de_dict[ood][ood_score]     = get_de(scores_id, scores_ood[ood])
         #if args.one_class_idx       != -1:
         one_class_score.append(scores_ood[ood])
 
@@ -122,14 +123,14 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
     one_class_score = np.concatenate(one_class_score)
     one_class_total = get_auroc(scores_id, one_class_score)
     one_class_fpr   = get_fpr(scores_id, one_class_score)
-    one_class_f1    = get_f1(scores_id, one_class_score)
+    one_class_de    = get_de(scores_id, one_class_score)
         #print(f'One_class_real_mean: {one_class_total:.3f}')
         #print(f'One_class_aupr_mean: {one_class_aupr:.3f}')
         #print(f'One_class_fpr_mean: {one_class_fpr:.3f}')
         #print(f'One_class_f1_mean: {one_class_f1}')
     print(f'{one_class_total:.3f}')
     print(f'{one_class_fpr:.3f}')
-    print(f'{one_class_f1:.3f}')
+    print(f'{one_class_de:.3f}')
 
 
     if args.print_score:
@@ -281,6 +282,11 @@ def get_fpr(scores_id, scores_ood):
     scores = np.concatenate([scores_id, scores_ood])
     labels = np.concatenate([np.ones_like(scores_id), np.zeros_like(scores_ood)])
     return fpr_at_95_tpr(scores, labels)
+
+def get_de(scores_id, scores_ood):
+    scores = np.concatenate([scores_id, scores_ood])
+    labels = np.concatenate([np.ones_like(scores_id), np.zeros_like(scores_ood)])
+    return detection_error(scores, labels)
 
 
 def print_score(data_name, scores):
