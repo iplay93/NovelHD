@@ -122,6 +122,7 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
     #if args.one_class_idx != -1:
     one_class_score = np.concatenate(one_class_score)
     one_class_total = get_auroc(scores_id, one_class_score)
+    one_class_aupr  = get_aupr(scores_id, one_class_score)
     one_class_fpr   = get_fpr(scores_id, one_class_score)
     one_class_de    = get_de(scores_id, one_class_score)
         #print(f'One_class_real_mean: {one_class_total:.3f}')
@@ -129,6 +130,7 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
         #print(f'One_class_fpr_mean: {one_class_fpr:.3f}')
         #print(f'One_class_f1_mean: {one_class_f1}')
     print(f'{one_class_total:.3f}')
+    print(f'{one_class_aupr:.3f}')
     print(f'{one_class_fpr:.3f}')
     print(f'{one_class_de:.3f}')
 
@@ -138,7 +140,7 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
         for ood, scores in scores_ood.items():
             print_score(ood, scores)
 
-    return auroc_dict, fpr_dict, f1_dict, one_class_total, one_class_fpr, one_class_f1
+    return auroc_dict, aupr_dict, fpr_dict, de_dict, one_class_total, one_class_aupr, one_class_fpr, one_class_de
 
 
 def get_scores(args, feats_dict, ood_score):

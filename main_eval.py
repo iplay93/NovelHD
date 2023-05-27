@@ -102,13 +102,15 @@ exec(f'from config_files.{data_type}_Configs import Config as Configs')
 configs = Configs()
 
 final_auroc = []
+final_aupr = []
 final_fpr   = []
-final_f1  = []
+final_de  = []
 
 # overall performance
 auroc_a = []
+aupr_a  = []
 fpr_a   = []
-f1_a  = []
+de_a  = []
 
 # Training for five seed
 for test_num in [20, 40, 60, 80, 100]:
@@ -223,13 +225,14 @@ for test_num in [20, 40, 60, 80, 100]:
         #model.load_state_dict(pretrained_dict)
         
         # Evlauation
-        with torch.no_grad():    
-            auroc_dict, fpr_dict, f1_dict, one_class_total, one_class_fpr, one_class_f1\
+        with torch.no_grad():
+            auroc_dict, aupr_dict, fpr_dict, de_dict, one_class_total, one_class_aupr, one_class_fpr, one_class_de\
             = eval_ood_detection(args, path, model,valid_dl, ood_test_loader, args.ood_score, train_loader=train_dl)
 
-        auroc_a.append(one_class_total)        
+        auroc_a.append(one_class_total)     
+        aupr_a.append(one_class_aupr)   
         fpr_a.append(one_class_fpr)
-        f1_a.append(one_class_f1)
+        de_a.append(one_class_de)
 
         mean_dict = dict()
         for ood_score in args.ood_score:
@@ -259,24 +262,29 @@ for test_num in [20, 40, 60, 80, 100]:
 
 # mean
 print(f'{np.mean(auroc_a):.3f}')
+print(f'{np.mean(aupr_a):.3f}')
 print(f'{np.mean(fpr_a):.3f}')
-print(f'{np.mean(f1_a):.3f}')
+print(f'{np.mean(de_a):.3f}')
 # Standard deviation of list
 print(f'{np.std(auroc_a):.3f}')
+print(f'{np.std(aupr_a):.3f}')
 print(f'{np.std(fpr_a):.3f}')
-print(f'{np.std(f1_a):.3f}')
+print(f'{np.std(de_a):.3f}')
 final_auroc.append([np.mean(auroc_a), np.std(auroc_a)])
+final_aupr.append([np.mean(aupr_a), np.std(aupr_a)])
 final_fpr.append([np.mean(fpr_a), np.std(fpr_a)])
-final_f1.append([np.mean(f1_a), np.std(f1_a)])
+final_de.append([np.mean(de_a), np.std(de_a)])
 
 # overall
 print(f'{auroc_a}')
+print(f'{aupr_a}')
 print(f'{fpr_a}')
-print(f'{f1_a}')
+print(f'{de_a}')
 
 print(f'{final_auroc}')
+print(f'{final_aupr}')
 print(f'{final_fpr}')
-print(f'{final_f1}')
+print(f'{final_de}')
 
 
 logger.debug(f"Training time is : {datetime.now()-start_time}")
