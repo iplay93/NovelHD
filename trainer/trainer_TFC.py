@@ -13,8 +13,10 @@ from sklearn.metrics import f1_score, roc_auc_score
 from tsaug import *
 import torch.fft as fft
 
-my_aug = (Reverse())
 
+#data augmentation for negative pairs
+my_aug = (Drift(max_drift=0.7, n_drift_points=5))
+#my_aug = (TimeWarp(n_speed_change=5, max_speed_ratio=3))
 
 def Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode):
     # Start training
@@ -26,7 +28,7 @@ def Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, 
     for epoch in range(1, configs.num_epoch + 1):
         # Train and validate
         train_loss, train_acc = model_train(model, model_optimizer, classifier, classifier_optimizer, criterion, train_dl, configs, device, training_mode)
-        valid_loss, valid_acc, valid_f1, _, _ = model_evaluate(model, classifier, valid_dl, device, training_mode)
+        valid_loss, valid_acc, valid_f1, _, _, _ = model_evaluate(model, classifier, valid_dl, device, training_mode)
         if training_mode != 'self_supervised' and training_mode!="novelty_detection":  # use scheduler in all other modes.
             scheduler.step(valid_loss)
 
@@ -45,7 +47,7 @@ def Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, 
     if training_mode != "self_supervised" and training_mode != "novelty_detection":  # no need to run the evaluation for self-supervised mode.
         # evaluate on the test set
         logger.debug('\nEvaluate on the Test set:')
-        test_loss, test_acc, test_f1, _, _ = model_evaluate(model, classifier, test_dl, device, training_mode)
+        test_loss, test_acc, test_f1, _, _, _ = model_evaluate(model, classifier, test_dl, device, training_mode)
         logger.debug(f'Test loss      :{test_loss:0.4f}\t | Test Accuracy      : {test_acc:0.4f}\t | Test F1-score      : {test_f1:0.4f}')
 
     logger.debug("\n################## Training is Done! #########################")
@@ -119,8 +121,6 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
             fea_concat = torch.cat((z_t, z_f), dim=1)
             predictions = classifier(fea_concat)
 
-
-
         # compute loss
         if training_mode == "self_supervised" and configs.batch_size == batch_size:
             lambda1 = 0
@@ -184,11 +184,9 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
             #loss = loss_t 
             #+ lam * loss_f
             #loss = loss_t 
-            #loss = loss_t
             #loss = loss_t + loss_f
-            #loss = loss_f
             #loss = l_TF
-            loss = (loss_t + 0.1*loss_f) + 0.2 * l_TF
+            loss = (loss_t + loss_f) + 0.1 * l_TF
             total_loss.append(loss.item())
             loss.backward()
             model_optimizer.step()
@@ -215,10 +213,8 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
             total_loss.append(loss.item())
             loss.backward()
             model_optimizer.step()
-
             
-        elif training_mode != "self_supervised" and training_mode != "novelty_detection": # supervised training or fine tuining
-            
+        elif training_mode != "self_supervised" and training_mode != "novelty_detection":# supervised training or fine tuining
             loss = criterion(predictions, labels)
             total_acc.append(labels.eq(predictions.detach().argmax(dim=1)).float().mean())
 
@@ -302,10 +298,10 @@ def model_evaluate(model, classifier, test_dl, device, training_mode):
     if training_mode == "self_supervised" or training_mode == "novelty_detection":
         total_acc = 0
         total_f1  = 0
-        return total_loss, total_acc, total_f1, [], []
+        return total_loss, total_acc, total_f1, total_auroc, [], []
     else:
         total_acc = torch.tensor(total_acc).mean()  # average acc
         total_f1  = torch.tensor(total_f1).mean() # average f1
-        print("AUROC", torch.tensor(total_auroc).mean())
+        total_auroc = torch.tensor(total_auroc).mean() # average auroc
 
-    return total_loss, total_acc, total_f1, outs, trgs
+    return total_loss, total_acc, total_f1, total_auroc, outs, trgs

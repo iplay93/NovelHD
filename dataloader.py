@@ -10,6 +10,9 @@ from augmentations import *
 import random
 from tsaug import *
 
+# Give a positive transformation
+my_aug = (AddNoise(scale=0.01))
+
 def generate_freq(dataset, config):
     X_train = dataset["samples"]
     y_train = dataset['labels']
@@ -83,8 +86,6 @@ class Load_Dataset(Dataset):
 
         X_train = data_list
         y_train = label_list
-        # Give a positive transformation
-        my_aug = (Dropout( p=0.1,fill=0)) 
 
         if len(X_train.shape) < 3:
             X_train = X_train.unsqueeze(2)
@@ -192,8 +193,8 @@ def data_generator_nd(args, configs, training_mode):
 
     entire_list = entire_list.cpu()
     entire_label_list = entire_label_list.cpu()
-
-    if(args.one_class_idx != -1):
+ 
+    if(args.one_class_idx != -1): # one-class
         sup_class_idx = [x - 1 for x in num_classes]
         known_class_idx = [args.one_class_idx]
         novel_class_idx = [item for item in sup_class_idx if item not in set(known_class_idx)]
@@ -205,10 +206,10 @@ def data_generator_nd(args, configs, training_mode):
         valid_label_list =test_label_list[np.where(test_label_list == args.one_class_idx)]
 
         # only use for testing novelty
-        test_list = entire_list[np.where(entire_label_list != args.one_class_idx)]
-        test_label_list = entire_label_list[np.where(entire_label_list != args.one_class_idx)]
+        test_list = test_list[np.where(test_label_list != args.one_class_idx)]
+        test_label_list = test_label_list[np.where(test_label_list != args.one_class_idx)]
 
-    else:
+    else: # multi-class
         sup_class_idx = [x - 1 for x in num_classes]
         print(sup_class_idx)
         #known_class_idx = random.sample(sup_class_idx, (int)(len(num_classes)/2))
@@ -244,8 +245,8 @@ def data_generator_nd(args, configs, training_mode):
     for ood in novel_class_idx:
         # one class idx exit
         ood_test_set = Load_Dataset(test_list[np.where(test_label_list == ood)],
-                                        test_label_list[np.where(test_label_list == ood)], 
-                                        configs, training_mode)
+                                    test_label_list[np.where(test_label_list == ood)], 
+                                    configs, training_mode)
         ood = f'one_class_{ood}'  # change save name
 
         ood_test_loader[ood] = DataLoader(ood_test_set, batch_size=configs.batch_size, shuffle=True)          

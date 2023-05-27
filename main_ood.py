@@ -64,7 +64,7 @@ parser.add_argument('--print_freq', type=int, default=1, help='print frequency')
 parser.add_argument('--save_freq', type=int, default=50, help='save frequency')
 parser.add_argument('--data_folder', type=str, default=None, help='path to custom dataset')
     
-parser.add_argument('--aug_method', type=str, default='Dropout', help='choose the data augmentation method')
+parser.add_argument('--aug_method', type=str, default='AddNoise', help='choose the data augmentation method')
 parser.add_argument('--aug_wise', type=str, default='Temporal', help='choose the data augmentation wise')
 
 parser.add_argument('--test_ratio', type=float, default=0.3, help='choose the number of test ratio')
@@ -102,59 +102,66 @@ args.abnormal_class = 3
 
 exec(f'from config_files.{data_type}_Configs import Config as Configs')
 configs = Configs()
+auroc_rs = []
+f1_rs = []
+# Training for five seed
+for test_num in [20, 40, 60, 80, 100]:
+    # ##### fix random seeds for reproducibility ########
+    SEED = args.seed = test_num
+    torch.manual_seed(SEED)
+    torch.backends.cudnn.deterministic = False
+    torch.backends.cudnn.benchmark = False
+    np.random.seed(SEED)
+    #####################################################
 
-# ##### fix random seeds for reproducibility ########
-SEED = args.seed
-torch.manual_seed(SEED)
-torch.backends.cudnn.deterministic = False
-torch.backends.cudnn.benchmark = False
-np.random.seed(SEED)
-#####################################################
+    experiment_log_dir = os.path.join(logs_save_dir, experiment_description, run_description, training_mode + f"_seed_{SEED}")
+    os.makedirs(experiment_log_dir, exist_ok=True)
 
-experiment_log_dir = os.path.join(logs_save_dir, experiment_description, run_description, training_mode + f"_seed_{SEED}")
-os.makedirs(experiment_log_dir, exist_ok=True)
+    # loop through domains
+    counter = 0
+    src_counter = 0
 
-# loop through domains
-counter = 0
-src_counter = 0
+    # Logging
+    log_file_name = os.path.join(experiment_log_dir, f"logs_{datetime.now().strftime('%d_%m_%Y_%H_%M_%S')}.log")
+    logger = _logger(log_file_name)
+    logger.debug("=" * 45)
+    logger.debug(f'Dataset: {data_type}')
+    logger.debug(f'Method:  {method}')
+    logger.debug(f'Mode:    {training_mode}')
+    logger.debug("=" * 45)
 
-# Logging
-log_file_name = os.path.join(experiment_log_dir, f"logs_{datetime.now().strftime('%d_%m_%Y_%H_%M_%S')}.log")
-logger = _logger(log_file_name)
-logger.debug("=" * 45)
-logger.debug(f'Dataset: {data_type}')
-logger.debug(f'Method:  {method}')
-logger.debug(f'Mode:    {training_mode}')
-logger.debug("=" * 45)
+    # Load datasets
+    data_path = f"./data/{data_type}"
 
-# Load datasets
-data_path = f"./data/{data_type}"
+    train_dl, valid_dl, test_dl = data_generator(args, configs, training_mode)
 
-train_dl, valid_dl, test_dl = data_generator(args, configs, training_mode)
+    
+    logger.debug("Data loaded ...")
 
- 
-logger.debug("Data loaded ...")
+    # Load Model
+    model = TFC(configs).to(device)
+    classifier = target_classifier(configs).to(device)
 
-# Load Model
-model = TFC(configs).to(device)
-classifier = target_classifier(configs).to(device)
+    model_optimizer = torch.optim.Adam(model.parameters(), lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
+    classifier_optimizer = torch.optim.Adam(classifier.parameters(), lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
 
-model_optimizer = torch.optim.Adam(model.parameters(), lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
-classifier_optimizer = torch.optim.Adam(classifier.parameters(), lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
+    if training_mode == "self_supervised" or "novelty_detection":  # to do it only once
+        copy_Files(os.path.join(logs_save_dir, experiment_description, run_description), data_type)
 
-if training_mode == "self_supervised" or "novelty_detection":  # to do it only once
-    copy_Files(os.path.join(logs_save_dir, experiment_description, run_description), data_type)
-
-# Trainer
-model = Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode)
+    # Trainer
+    model = Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode)
 
 
 
-if training_mode != "self_supervised" and training_mode!="novelty_detection":
-    # Testing
-    outs = model_evaluate(model, classifier, test_dl, device, training_mode)
-    total_loss, total_acc, total_f1, pred_labels, true_labels = outs
-    _calc_metrics(pred_labels, true_labels, experiment_log_dir, args.home_path)
+    if training_mode != "self_supervised" and training_mode!="novelty_detection":
+        # Testing
+        outs = model_evaluate(model, classifier, test_dl, device, training_mode)
+        total_loss, total_acc, total_f1, auroc, pred_labels, true_labels = outs
+        _calc_metrics(pred_labels, true_labels, experiment_log_dir, args.home_path)
+    auroc_rs.append(auroc.item())
+    f1_rs.append(total_f1.item())
 
+print("Average of the AUROC list =", round(sum(auroc_rs)/len(auroc_rs), 3))
+print("Average of the F1 list =", round(sum(f1_rs)/len(f1_rs), 3))
 
 torch.cuda.empty_cache()

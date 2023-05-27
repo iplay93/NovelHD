@@ -9,7 +9,7 @@ import random
 from sklearn.metrics import roc_auc_score,  f1_score
 from trainer.trainer_TFC import my_aug
 import torch.fft as fft
-from ood_metrics import aupr, fpr_at_95_tpr, detection_error
+from ood_metrics import auroc, aupr, fpr_at_95_tpr, detection_error
 import kmeans1d
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -25,10 +25,12 @@ def normalize(x, dim=1, eps=1e-8):
 
 def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, train_loader=None):
     auroc_dict  = dict()
+    aupr_dict   = dict()
     fpr_dict    = dict()
     f1_dict     = dict()
     for ood in ood_loaders.keys():
         auroc_dict[ood] = dict()
+        aupr_dict[ood]  = dict()
         fpr_dict[ood]   = dict()
         f1_dict[ood]    = dict()
     assert len(ood_scores) == 1  # assume single ood_score for simplicity
@@ -84,8 +86,8 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
         args.weight_shi_f = [0, 0]
     elif ood_score == 'CSI':
         args.weight_sim_t = weight_sim_t #weight_sim_t or [0,0]
-        args.weight_shi_t = weight_shi_t #weight_shi_t or [0,0]
-        args.weight_sim_f = weight_sim_f #weight_sim_f
+        args.weight_shi_t = weight_shi_t  #weight_shi_t or [0,0]
+        args.weight_sim_f = weight_sim_f
         args.weight_shi_f = weight_shi_f #weight_shi_f
     else:
         raise ValueError()
@@ -105,29 +107,29 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
     print(f'Compute OOD scores... (score: {ood_score})')
     scores_id = get_scores(args, feats_id, ood_score).numpy()
     scores_ood = dict()
-    if args.one_class_idx != -1:
-        one_class_score = []
+    #if args.one_class_idx != -1:
+    one_class_score = []
 
     for ood, feats in feats_ood.items():
         scores_ood[ood]             = get_scores(args, feats, ood_score).numpy()
         auroc_dict[ood][ood_score]  = get_auroc(scores_id, scores_ood[ood])
         fpr_dict[ood][ood_score]    = get_fpr(scores_id, scores_ood[ood])
         f1_dict[ood][ood_score]     = get_f1(scores_id, scores_ood[ood])
-        if args.one_class_idx       != -1:
-            one_class_score.append(scores_ood[ood])
+        #if args.one_class_idx       != -1:
+        one_class_score.append(scores_ood[ood])
 
-    if args.one_class_idx != -1:
-        one_class_score = np.concatenate(one_class_score)
-        one_class_total = get_auroc(scores_id, one_class_score) 
-        one_class_fpr   = get_fpr(scores_id, one_class_score)
-        one_class_f1    = get_f1(scores_id, one_class_score)
+    #if args.one_class_idx != -1:
+    one_class_score = np.concatenate(one_class_score)
+    one_class_total = get_auroc(scores_id, one_class_score)
+    one_class_fpr   = get_fpr(scores_id, one_class_score)
+    one_class_f1    = get_f1(scores_id, one_class_score)
         #print(f'One_class_real_mean: {one_class_total:.3f}')
         #print(f'One_class_aupr_mean: {one_class_aupr:.3f}')
         #print(f'One_class_fpr_mean: {one_class_fpr:.3f}')
         #print(f'One_class_f1_mean: {one_class_f1}')
-        print(f'{one_class_total:.3f}')
-        print(f'{one_class_fpr:.3f}')
-        print(f'{one_class_f1:.3f}')
+    print(f'{one_class_total:.3f}')
+    print(f'{one_class_fpr:.3f}')
+    print(f'{one_class_f1:.3f}')
 
 
     if args.print_score:
@@ -268,22 +270,18 @@ def _get_features(args, model, loader, sample_num=1, layers=('simclr_t', 'shift_
 def get_auroc(scores_id, scores_ood):
     scores = np.concatenate([scores_id, scores_ood])
     labels = np.concatenate([np.ones_like(scores_id), np.zeros_like(scores_ood)])
-    return roc_auc_score(labels, scores)
+    return auroc(scores, labels)
+
+def get_aupr(scores_id, scores_ood):
+    scores = np.concatenate([scores_id, scores_ood])
+    labels = np.concatenate([np.ones_like(scores_id), np.zeros_like(scores_ood)])
+    return aupr(scores, labels)
 
 def get_fpr(scores_id, scores_ood):
     scores = np.concatenate([scores_id, scores_ood])
     labels = np.concatenate([np.ones_like(scores_id), np.zeros_like(scores_ood)])
     return fpr_at_95_tpr(scores, labels)
 
-def get_f1(scores_id, scores_ood):
-    th = 1.2
-    scores = np.concatenate([scores_id, scores_ood])
-    labels = np.concatenate([np.ones_like(scores_id), np.zeros_like(scores_ood)])
-    
-    preds_1d = scores.flatten() # 차원 펴주기
-    pred_class = np.where(preds_1d > th , 1 , 0) #1.2보다크면 1, 작으면 0
-
-    return f1_score(labels, pred_class, average='macro')
 
 def print_score(data_name, scores):
     quantile = np.quantile(scores, np.arange(0, 1.1, 0.1))

@@ -64,7 +64,7 @@ parser.add_argument('--print_freq', type=int, default=1, help='print frequency')
 parser.add_argument('--save_freq', type=int, default=50, help='save frequency')
 parser.add_argument('--data_folder', type=str, default=None, help='path to custom dataset')
     
-parser.add_argument('--aug_method', type=str, default='Dropout', help='choose the data augmentation method')
+parser.add_argument('--aug_method', type=str, default='AddNoise', help='choose the data augmentation method')
 parser.add_argument('--aug_wise', type=str, default='Temporal', help='choose the data augmentation wise')
 
 parser.add_argument('--test_ratio', type=float, default=0.3, help='choose the number of test ratio')
@@ -111,7 +111,7 @@ fpr_a   = []
 f1_a  = []
 
 # Training for five seed
-for test_num in [10, 30, 50, 70, 90]:
+for test_num in [20, 40, 60, 80, 100]:
     # ##### fix random seeds for reproducibility ########
     SEED = args.seed = test_num
     torch.manual_seed(SEED)
@@ -197,8 +197,10 @@ for test_num in [10, 30, 50, 70, 90]:
         set_requires_grad(model, model_dict, requires_grad=False)  # Freeze everything except last layer.
 
 
-    model_optimizer = torch.optim.Adam(model.parameters(), lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
-    classifier_optimizer = torch.optim.Adam(classifier.parameters(), lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
+    model_optimizer = torch.optim.Adam(model.parameters(), 
+                                       lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
+    classifier_optimizer = torch.optim.Adam(classifier.parameters(), 
+                                        lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
 
     if training_mode == "self_supervised" and "novelty_detection":  # to do it only once
         copy_Files(os.path.join(logs_save_dir, experiment_description, run_description), data_type)
