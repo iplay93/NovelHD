@@ -197,9 +197,8 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
 
             ### Linear evaluation ###
             outputs_linear_eval = model.linear(outputs_penul.detach())
-            loss_linear = criterion(outputs_linear_eval, labels.repeat(2))         
-
-
+            loss_linear = criterion(outputs_linear_eval, labels.repeat(2)) 
+            
             classifier_optimizer.zero_grad()
             loss_linear.backward()
             classifier_optimizer.step()

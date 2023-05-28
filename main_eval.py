@@ -13,7 +13,8 @@ from utils import _calc_metrics, copy_Files
 from models.TFC import TFC, target_classifier
 from dataloader import data_generator,data_generator_nd
 from eval_nd import eval_ood_detection
-    
+from numba import cuda
+
 # Args selections
 start_time = datetime.now()
 
@@ -291,3 +292,5 @@ logger.debug(f"Training time is : {datetime.now()-start_time}")
 
 
 torch.cuda.empty_cache()
+device = cuda.get_current_device()
+device.reset()
