@@ -159,7 +159,7 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
             
             loss_shift = criterion(s_t, shift_labels)
 
-            loss_t = loss_sim  + loss_shift
+            loss_t = loss_sim + loss_shift
 
             # For frequency contrastive
             sim_lambda_f = 0.1
@@ -169,7 +169,7 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
             
             loss_shift_f = criterion(s_f, shift_labels)
             loss_f = loss_sim_f + loss_shift_f
-
+            #loss_f = loss_shift_f
             nt_xent_criterion = NTXentLoss(device, configs.batch_size, configs.Context_Cont.temperature,
                                            configs.Context_Cont.use_cosine_similarity)
                         
@@ -182,15 +182,13 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
             lam = 0.01
             #loss
             #loss = loss_t 
-            #+ lam * loss_f
-            #loss = loss_t 
-            #loss = loss_t + loss_f
-            #loss = l_TF
-            loss = (loss_t + loss_f) + 0.1 * l_TF
+            #+ lam * loss_f            
+            loss = loss_t + loss_f
+            
+            #loss = (loss_t + loss_f) + 0.1 * l_TF
             total_loss.append(loss.item())
             loss.backward()
             model_optimizer.step()
-
 
             """Post-processing stuffs"""
             penul_1 = h_t[:batch_size]

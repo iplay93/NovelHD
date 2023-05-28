@@ -212,8 +212,8 @@ def data_generator_nd(args, configs, training_mode):
     else: # multi-class
         sup_class_idx = [x - 1 for x in num_classes]
         print(sup_class_idx)
-        #known_class_idx = random.sample(sup_class_idx, (int)(len(num_classes)/2))
-        known_class_idx = [x for x in range(0, (int)(len(sup_class_idx)/2))]
+        known_class_idx = random.sample(sup_class_idx, (int)(len(num_classes)/2))
+        #known_class_idx = [x for x in range(0, (int)(len(sup_class_idx)/2))]
         #known_class_idx = [0, 1]
         print(known_class_idx)
         novel_class_idx = [item for item in sup_class_idx if item not in set(known_class_idx)]
