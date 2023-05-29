@@ -85,10 +85,10 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
         args.weight_sim_f = [1, 1]
         args.weight_shi_f = [0, 0]
     elif ood_score == 'CSI':
-        args.weight_sim_t = weight_sim_t #weight_sim_t or [0,0]
-        args.weight_shi_t = weight_shi_t  #weight_shi_t or [0,0]
-        args.weight_sim_f = weight_sim_f #weight_sim_f
-        args.weight_shi_f = weight_shi_f #weight_shi_f
+        args.weight_sim_t = weight_sim_t # weight_sim_t or [0,0]
+        args.weight_shi_t = weight_shi_t # weight_shi_t or [0,0]
+        args.weight_sim_f = weight_sim_f # weight_sim_f
+        args.weight_shi_f = weight_shi_f # weight_shi_f
     else:
         raise ValueError()
 

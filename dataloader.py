@@ -11,7 +11,7 @@ import random
 from tsaug import *
 
 # Give a positive transformation
-my_aug = (AddNoise(scale=0.01))
+my_aug = (Reverse())
 
 def generate_freq(dataset, config):
     X_train = dataset["samples"]
@@ -130,12 +130,18 @@ def data_generator(args, configs, training_mode):
     valid_label_list = valid_label_list.cpu()
     test_list = test_list.cpu()
     test_label_list = test_label_list.cpu()
-    
 
-    """In pre-training: 
-    train_dataset: [371055, 1, 178] from SleepEEG.    
-    finetune_dataset: [60, 1, 178], test_dataset: [11420, 1, 178] from Epilepsy"""
-   
+    train_list = train_list[np.where(train_label_list == args.one_class_idx)]
+    train_label_list = train_label_list[np.where(train_label_list == args.one_class_idx)]
+
+    valid_list = valid_list[np.where(valid_label_list == args.one_class_idx)]
+    valid_label_list = valid_label_list[np.where(valid_label_list == args.one_class_idx)]
+
+    # only use for testing novelty
+    test_list = test_list[np.where(test_label_list == args.one_class_idx)]
+    test_label_list = test_label_list[np.where(test_label_list == args.one_class_idx)]
+    
+  
     # build data loader
     dataset = Load_Dataset(train_list,train_label_list, configs, training_mode)    
     train_loader = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
