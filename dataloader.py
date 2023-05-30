@@ -11,7 +11,7 @@ import random
 from tsaug import *
 
 # Give a positive transformation
-my_aug = (Reverse())
+my_aug = (Pool(size=2))
 
 def generate_freq(dataset, config):
     X_train = dataset["samples"]

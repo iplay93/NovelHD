@@ -14,7 +14,7 @@ from tsaug import *
 import torch.fft as fft
 
 
-#data augmentation for negative pairs
+# data augmentation for negative pairs
 my_aug = (Drift(max_drift=0.7, n_drift_points=5))
 #my_aug = (TimeWarp(n_speed_change=5, max_speed_ratio=3))
 
@@ -55,8 +55,6 @@ def Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, 
 
 def normalize(x, dim=1, eps=1e-8):
     return x / (x.norm(dim=dim, keepdim=True) + eps)
-
-
 
 def model_train(model, model_optimizer, classifier, classifier_optimizer, criterion, train_loader, configs, device, training_mode):
     total_loss = []
@@ -181,11 +179,11 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
 
             lam = 0.01
             #loss
-            #loss = loss_t 
+            loss = loss_t 
             #+ lam * loss_f            
-            loss = loss_t + loss_f
+            #loss = loss_t + loss_f
             
-            #loss = (loss_t + loss_f) + 0.1 * l_TF
+            #loss = (loss_t + loss_f) + l_TF
             total_loss.append(loss.item())
             loss.backward()
             model_optimizer.step()
