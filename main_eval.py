@@ -4,7 +4,7 @@ import os
 import numpy as np
 from datetime import datetime
 import argparse
-from data_preprocessing.dataloader import splitting_data
+from data_preprocessing.dataloader import splitting_data, loading_data
 from utils import _logger, set_requires_grad
 #from trainer.trainer import Trainer, model_evaluate
 from trainer.trainer_TFC import Trainer, model_evaluate
@@ -14,6 +14,8 @@ from models.TFC import TFC, target_classifier
 from dataloader import data_generator,data_generator_nd
 from eval_nd import eval_ood_detection
 from numba import cuda
+import pandas as pd
+import openpyxl
 
 # Args selections
 start_time = datetime.now()
@@ -69,7 +71,7 @@ parser.add_argument('--aug_method', type=str, default='AddNoise', help='choose t
 parser.add_argument('--aug_wise', type=str, default='Temporal', help='choose the data augmentation wise')
 
 parser.add_argument('--test_ratio', type=float, default=0.3, help='choose the number of test ratio')
-parser.add_argument('--valid_ratio', type=float, default=0.1, help='choose the number of vlaidation ratio')
+parser.add_argument('--valid_ratio', type=float, default=0, help='choose the number of vlaidation ratio')
 parser.add_argument('--overlapped_ratio', type=int, default= 50, help='choose the number of windows''overlapped ratio')
 parser.add_argument('--encoder', type=str, default='SupCon', help='choose one of them: simple, transformer')
 
@@ -95,6 +97,8 @@ data_type = args.selected_dataset
 method = 'Novel Human Activity'
 training_mode = args.training_mode
 run_description = args.run_description
+positive_aug = 'AddNoise'
+
 
 logs_save_dir = args.logs_save_dir
 os.makedirs(logs_save_dir, exist_ok=True)
@@ -113,168 +117,176 @@ aupr_a  = []
 fpr_a   = []
 de_a  = []
 
-# Training for five seed
-for test_num in [20, 40, 60, 80, 100]:
-    # ##### fix random seeds for reproducibility ########
-    SEED = args.seed = test_num
-    torch.manual_seed(SEED)
-    torch.backends.cudnn.deterministic = False
-    torch.backends.cudnn.benchmark = False
-    np.random.seed(SEED)
-    #####################################################
+num_classes, datalist, labellist = splitting_data(data_type, args)
 
-    experiment_log_dir = os.path.join(logs_save_dir, experiment_description, run_description, training_mode + f"_seed_{SEED}")
-    os.makedirs(experiment_log_dir, exist_ok=True)
+for positive_aug in ['AddNoise', 'Convolve', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Reverse', 'TimeWarp']:
+    # Training for five seed #
+    for test_num in [20,40,60,80,100]:
+        # ##### fix random seeds for reproducibility ########
+        SEED = args.seed = test_num
+        torch.manual_seed(SEED)
+        torch.backends.cudnn.deterministic = False
+        torch.backends.cudnn.benchmark = False
+        np.random.seed(SEED)
+        #####################################################
 
-    # loop through domains
-    counter = 0
-    src_counter = 0
+        experiment_log_dir = os.path.join(logs_save_dir, experiment_description, run_description, training_mode + f"_seed_{SEED}")
+        os.makedirs(experiment_log_dir, exist_ok=True)
 
-    # Logging
-    log_file_name = os.path.join(experiment_log_dir, f"logs_{datetime.now().strftime('%d_%m_%Y_%H_%M_%S')}.log")
-    logger = _logger(log_file_name)
-    logger.debug("=" * 45)
-    logger.debug(f'Dataset: {data_type}')
-    logger.debug(f'Method:  {method}')
-    logger.debug(f'Mode:    {training_mode}')
-    logger.debug("=" * 45)
+        # loop through domains
+        counter = 0
+        src_counter = 0
 
-    # Load datasets
-    data_path = f"./data/{data_type}"
-    if training_mode != "novelty_detection":
-        train_dl, valid_dl, test_dl = data_generator(args, configs, training_mode)
-    else:
-        train_dl, valid_dl, test_dl, ood_test_loader, novel_class = data_generator_nd(args, configs, training_mode)
-    logger.debug("Data loaded ...")
+        # Logging
+        log_file_name = os.path.join(experiment_log_dir, f"logs_{datetime.now().strftime('%d_%m_%Y_%H_%M_%S')}.log")
+        logger = _logger(log_file_name)
+        logger.debug("=" * 45)
+        logger.debug(f'Dataset: {data_type}')
+        logger.debug(f'Method:  {method}')
+        logger.debug(f'Mode:    {training_mode}')
+        logger.debug(f'Positive Augmentation:    {positive_aug}')
+        logger.debug(f'Seed:    {SEED}')
+        logger.debug("=" * 45)
 
-    # Load Model
-    model = TFC(configs).to(device)
-    classifier = target_classifier(configs).to(device)
+        # Load datasets
+        data_path = f"./data/{data_type}"
+        if training_mode != "novelty_detection":
+            train_dl, valid_dl, test_dl = data_generator(args, configs, training_mode, positive_aug)
+        else:
+            train_dl, valid_dl, test_dl, ood_test_loader, \
+            novel_class = data_generator_nd(args, configs, training_mode, positive_aug, 
+                                            num_classes, datalist, labellist)
+        logger.debug("Data loaded ...")
 
-    if training_mode == "fine_tune":
-        # load saved model of this experiment
-        load_from = os.path.join(os.path.join(logs_save_dir, experiment_description, run_description, f"self_supervised_seed_{SEED}", "saved_models"))
-        chkpoint = torch.load(os.path.join(load_from, "ckp_last.pt"), map_location=device)
-        pretrained_dict = chkpoint["model_state_dict"]
-        model_dict = model.state_dict()
-        del_list = ['logits']
-        pretrained_dict_copy = pretrained_dict.copy()
-        for i in pretrained_dict_copy.keys():
-            for j in del_list:
-                if j in i:
-                    del pretrained_dict[i]
-        model_dict.update(pretrained_dict)
-        model.load_state_dict(model_dict)
+        # Load Model
+        model = TFC(configs).to(device)
+        classifier = target_classifier(configs).to(device)
 
-    if training_mode == "train_linear" or "tl" in training_mode:
-        load_from = os.path.join(os.path.join(logs_save_dir, experiment_description, run_description, f"self_supervised_seed_{SEED}", "saved_models"))
-        chkpoint = torch.load(os.path.join(load_from, "ckp_last.pt"), map_location=device)
-        pretrained_dict = chkpoint["model_state_dict"]
-        model_dict = model.state_dict()
+        if training_mode == "fine_tune":
+            # load saved model of this experiment
+            load_from = os.path.join(os.path.join(logs_save_dir, experiment_description, run_description, f"self_supervised_seed_{SEED}", "saved_models"))
+            chkpoint = torch.load(os.path.join(load_from, "ckp_last.pt"), map_location=device)
+            pretrained_dict = chkpoint["model_state_dict"]
+            model_dict = model.state_dict()
+            del_list = ['logits']
+            pretrained_dict_copy = pretrained_dict.copy()
+            for i in pretrained_dict_copy.keys():
+                for j in del_list:
+                    if j in i:
+                        del pretrained_dict[i]
+            model_dict.update(pretrained_dict)
+            model.load_state_dict(model_dict)
 
-        # 1. filter out unnecessary keys
-        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+        if training_mode == "train_linear" or "tl" in training_mode:
+            load_from = os.path.join(os.path.join(logs_save_dir, experiment_description, run_description, f"self_supervised_seed_{SEED}", "saved_models"))
+            chkpoint = torch.load(os.path.join(load_from, "ckp_last.pt"), map_location=device)
+            pretrained_dict = chkpoint["model_state_dict"]
+            model_dict = model.state_dict()
 
-        # delete these parameters (Ex: the linear layer at the end)
-        del_list = ['logits']
-        pretrained_dict_copy = pretrained_dict.copy()
-        for i in pretrained_dict_copy.keys():
-            for j in del_list:
-                if j in i:
-                    del pretrained_dict[i]
+            # 1. filter out unnecessary keys
+            pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
 
-        model_dict.update(pretrained_dict)
-        model.load_state_dict(model_dict)
-        set_requires_grad(model, pretrained_dict, requires_grad=False)  # Freeze everything except last layer.
+            # delete these parameters (Ex: the linear layer at the end)
+            del_list = ['logits']
+            pretrained_dict_copy = pretrained_dict.copy()
+            for i in pretrained_dict_copy.keys():
+                for j in del_list:
+                    if j in i:
+                        del pretrained_dict[i]
 
-    if training_mode == "random_init":
-        model_dict = model.state_dict()
+            model_dict.update(pretrained_dict)
+            model.load_state_dict(model_dict)
+            set_requires_grad(model, pretrained_dict, requires_grad=False)  # Freeze everything except last layer.
 
-        # delete all the parameters except for logits
-        del_list = ['logits']
-        pretrained_dict_copy = model_dict.copy()
-        for i in pretrained_dict_copy.keys():
-            for j in del_list:
-                if j in i:
-                    del model_dict[i]
-        set_requires_grad(model, model_dict, requires_grad=False)  # Freeze everything except last layer.
+        if training_mode == "random_init":
+            model_dict = model.state_dict()
+
+            # delete all the parameters except for logits
+            del_list = ['logits']
+            pretrained_dict_copy = model_dict.copy()
+            for i in pretrained_dict_copy.keys():
+                for j in del_list:
+                    if j in i:
+                        del model_dict[i]
+            set_requires_grad(model, model_dict, requires_grad=False)  # Freeze everything except last layer.
 
 
-    model_optimizer = torch.optim.Adam(model.parameters(), 
-                                       lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
-    classifier_optimizer = torch.optim.Adam(classifier.parameters(), 
+        model_optimizer = torch.optim.Adam(model.parameters(), 
                                         lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
+        classifier_optimizer = torch.optim.Adam(classifier.parameters(), 
+                                            lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
 
-    if training_mode == "self_supervised" and "novelty_detection":  # to do it only once
-        copy_Files(os.path.join(logs_save_dir, experiment_description, run_description), data_type)
+        if training_mode == "self_supervised" and "novelty_detection":  # to do it only once
+            copy_Files(os.path.join(logs_save_dir, experiment_description, run_description), data_type)
 
-    # Trainer
-    model = Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode)
+        # Trainer
+        model = Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode)
 
-    if training_mode != "self_supervised" and training_mode!="novelty_detection":
-        # Testing
-        outs = model_evaluate(model, classifier, test_dl, device, training_mode)
-        total_loss, total_acc, total_f1, pred_labels, true_labels = outs
-        _calc_metrics(pred_labels, true_labels, experiment_log_dir, args.home_path)
-    
-    if training_mode == "novelty_detection":  
-        # load saved model of this experiment
-        path = os.path.join(os.path.join(logs_save_dir, experiment_description, 
-                            run_description, f"novelty_detection_seed_{args.seed}", "saved_models"))
-        #chkpoint = torch.load(os.path.join(path, "ckp_last.pt"), map_location=device)
-        #pretrained_dict = chkpoint["model_state_dict"]
-        #model.load_state_dict(pretrained_dict)
+        if training_mode != "self_supervised" and training_mode!="novelty_detection":
+            # Testing
+            outs = model_evaluate(model, classifier, test_dl, device, training_mode)
+            total_loss, total_acc, total_f1, pred_labels, true_labels = outs
+            _calc_metrics(pred_labels, true_labels, experiment_log_dir, args.home_path)
         
-        # Evlauation
-        with torch.no_grad():
-            auroc_dict, aupr_dict, fpr_dict, de_dict, one_class_total, one_class_aupr, one_class_fpr, one_class_de\
-            = eval_ood_detection(args, path, model,valid_dl, ood_test_loader, args.ood_score, train_loader=train_dl)
+        if training_mode == "novelty_detection":  
+            # load saved model of this experiment
+            path = os.path.join(os.path.join(logs_save_dir, experiment_description, 
+                                run_description, f"novelty_detection_seed_{args.seed}", "saved_models"))
+            #chkpoint = torch.load(os.path.join(path, "ckp_last.pt"), map_location=device)
+            #pretrained_dict = chkpoint["model_state_dict"]
+            #model.load_state_dict(pretrained_dict)
+            
+            # Evlauation
+            with torch.no_grad():
+                auroc_dict, aupr_dict, fpr_dict, de_dict, one_class_total, one_class_aupr, one_class_fpr, one_class_de\
+                = eval_ood_detection(args, path, model,valid_dl, ood_test_loader, args.ood_score, train_loader=train_dl)
 
-        auroc_a.append(one_class_total)     
-        aupr_a.append(one_class_aupr)   
-        fpr_a.append(one_class_fpr)
-        de_a.append(one_class_de)
+            auroc_a.append(one_class_total)     
+            aupr_a.append(one_class_aupr)   
+            fpr_a.append(one_class_fpr)
+            de_a.append(one_class_de)
 
-        mean_dict = dict()
-        for ood_score in args.ood_score:
-            mean = 0
+            mean_dict = dict()
+            for ood_score in args.ood_score:
+                mean = 0
+                for ood in auroc_dict.keys():
+                    mean += auroc_dict[ood][ood_score]
+                mean_dict[ood_score] = mean / len(auroc_dict.keys())
+            auroc_dict['one_class_mean'] = mean_dict
+
+            bests = []
             for ood in auroc_dict.keys():
-                mean += auroc_dict[ood][ood_score]
-            mean_dict[ood_score] = mean / len(auroc_dict.keys())
-        auroc_dict['one_class_mean'] = mean_dict
+                print(ood)
+                message = ''
+                best_auroc = 0
+                for ood_score, auroc in auroc_dict[ood].items():
+                    message += '[%s %s %.4f] ' % (ood, ood_score, auroc)
+                    if auroc > best_auroc:
+                        best_auroc = auroc
+                message += '[%s %s %.4f] ' % (ood, 'best', best_auroc)
+                if args.print_score:
+                    print(message)
+                bests.append(best_auroc)
 
-        bests = []
-        for ood in auroc_dict.keys():
-            print(ood)
-            message = ''
-            best_auroc = 0
-            for ood_score, auroc in auroc_dict[ood].items():
-                message += '[%s %s %.4f] ' % (ood, ood_score, auroc)
-                if auroc > best_auroc:
-                    best_auroc = auroc
-            message += '[%s %s %.4f] ' % (ood, 'best', best_auroc)
-            if args.print_score:
-                print(message)
-            bests.append(best_auroc)
+            bests = map('{:.4f}'.format, bests)
+            print('\t'.join(bests))
+            print("novel_class:", novel_class)
 
-        bests = map('{:.4f}'.format, bests)
-        print('\t'.join(bests))
-        print("novel_class:", novel_class)
+    # mean
+    print(f'{np.mean(auroc_a):.3f}')
+    print(f'{np.mean(aupr_a):.3f}')
+    print(f'{np.mean(fpr_a):.3f}')
+    print(f'{np.mean(de_a):.3f}')
+    # Standard deviation of list
+    print(f'{np.std(auroc_a):.3f}')
+    print(f'{np.std(aupr_a):.3f}')
+    print(f'{np.std(fpr_a):.3f}')
+    print(f'{np.std(de_a):.3f}')
 
-# mean
-print(f'{np.mean(auroc_a):.3f}')
-print(f'{np.mean(aupr_a):.3f}')
-print(f'{np.mean(fpr_a):.3f}')
-print(f'{np.mean(de_a):.3f}')
-# Standard deviation of list
-print(f'{np.std(auroc_a):.3f}')
-print(f'{np.std(aupr_a):.3f}')
-print(f'{np.std(fpr_a):.3f}')
-print(f'{np.std(de_a):.3f}')
-final_auroc.append([np.mean(auroc_a), np.std(auroc_a)])
-final_aupr.append([np.mean(aupr_a), np.std(aupr_a)])
-final_fpr.append([np.mean(fpr_a), np.std(fpr_a)])
-final_de.append([np.mean(de_a), np.std(de_a)])
+    final_auroc.append([np.mean(auroc_a), np.std(auroc_a)])
+    final_aupr.append([np.mean(aupr_a), np.std(aupr_a)])
+    final_fpr.append([np.mean(fpr_a), np.std(fpr_a)])
+    final_de.append([np.mean(de_a), np.std(de_a)])
 
 # overall
 print(f'{auroc_a}')
@@ -286,6 +298,20 @@ print(f'{final_auroc}')
 print(f'{final_aupr}')
 print(f'{final_fpr}')
 print(f'{final_de}')
+
+# for extrating results to an excel file
+final_rs =[]
+for i in final_auroc:
+    final_rs.append(i)
+for i in final_aupr:
+    final_rs.append(i)
+for i in final_fpr:
+    final_rs.append(i)
+for i in final_de:
+    final_rs.append(i)
+
+df = pd.DataFrame(final_rs, columns=['mean', 'std'])
+df.to_excel('final_result_dataAug.xlsx', sheet_name='the results')
 
 
 logger.debug(f"Training time is : {datetime.now()-start_time}")

@@ -5,13 +5,12 @@ import os
 import numpy as np
 from augmentations import DataTransform_FD, DataTransform_TD
 import torch.fft as fft
-from data_preprocessing.dataloader import splitting_data
+from data_preprocessing.dataloader import splitting_data, count_label_labellist
 from augmentations import *
 import random
 from tsaug import *
+from sklearn.model_selection import train_test_split
 
-# Give a positive transformation
-my_aug = (Pool(size=2))
 
 def generate_freq(dataset, config):
     X_train = dataset["samples"]
@@ -42,6 +41,32 @@ def generate_freq(dataset, config):
 
     x_data_f = fft.fft(x_data).abs() #/(window_length) # rfft for real value inputs.
     return (X_train, y_train, x_data_f)
+
+# Give a positive transformation
+def select_aug(aug_method):
+    
+    if(aug_method == 'AddNoise'):
+        my_aug = (AddNoise(scale=0.01))
+    elif(aug_method == 'Convolve'):
+        my_aug = (Convolve(window="flattop", size=11))
+    elif(aug_method == 'Crop'):
+        my_aug = (Crop(size=1))
+    elif(aug_method == 'Drift'):
+        my_aug = (Drift(max_drift=0.7, n_drift_points=5))
+    elif(aug_method == 'Dropout'):
+        my_aug = (Dropout( p=0.1,fill=0))        
+    elif(aug_method == 'Pool'):
+        my_aug = (Pool(size=2))
+    elif(aug_method == 'Quantize'):
+        my_aug = (Quantize(n_levels=20))
+    elif(aug_method == 'Resize'):
+        my_aug = (Resize(size=200))
+    elif(aug_method == 'Reverse'):
+        my_aug = (Reverse())
+    elif(aug_method == 'TimeWarp'):
+        my_aug = (TimeWarp(n_speed_change=5, max_speed_ratio=3))
+
+    return my_aug
 
 class Load_Dataset_2(Dataset):
     # Initialize your data, download, etc.
@@ -80,7 +105,7 @@ class Load_Dataset_2(Dataset):
         
 class Load_Dataset(Dataset):
     # Initialize your data, download, etc.
-    def __init__(self, data_list, label_list, config, training_mode):
+    def __init__(self, data_list, label_list, config, training_mode, aug_method):
         super(Load_Dataset, self).__init__()
         self.training_mode = training_mode
 
@@ -103,10 +128,13 @@ class Load_Dataset(Dataset):
         self.x_data_f = fft.fft(self.x_data).abs() #/(window_length) # rfft for real value inputs.
         self.len = X_train.shape[0]
     
+        # select positive transformation method
+        pos_aug = select_aug(aug_method)
+
         if training_mode == "novelty_detection" or self.training_mode == "ood_ness":  # no need to apply Augmentations in other modes
             #self.aug1 = DataTransform_TD(self.x_data, config)
             print(self.x_data.shape)
-            self.aug1 = torch.from_numpy(np.array(my_aug.augment(self.x_data.cpu().numpy())))
+            self.aug1 = torch.from_numpy(np.array(pos_aug.augment(self.x_data.cpu().numpy())))
             print(self.aug1.shape)
             #self.aug1_f = DataTransform_FD(self.x_data_f, config) # [7360, 1, 90]
             self.aug1_f = fft.fft(self.aug1).abs() 
@@ -119,7 +147,7 @@ class Load_Dataset(Dataset):
     def __len__(self):
         return self.len
 
-def data_generator(args, configs, training_mode):
+def data_generator(args, configs, training_mode, aug_method):
     num_classes, entire_list, train_list, valid_list, test_list, entire_label_list, train_label_list, valid_label_list, test_label_list \
     = splitting_data(args.selected_dataset, args.test_ratio, args.valid_ratio, args.padding, args.seed, \
                      args.timespan, args.min_seq, args.min_samples, args.aug_method, args.aug_wise)
@@ -143,13 +171,13 @@ def data_generator(args, configs, training_mode):
     
   
     # build data loader
-    dataset = Load_Dataset(train_list,train_label_list, configs, training_mode)    
+    dataset = Load_Dataset(train_list,train_label_list, configs, training_mode, aug_method)    
     train_loader = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
 
-    dataset = Load_Dataset(valid_list,valid_label_list, configs, training_mode)
+    dataset = Load_Dataset(valid_list,valid_label_list, configs, training_mode, aug_method)
     finetune_loader = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
 
-    dataset = Load_Dataset(test_list,test_label_list, configs, training_mode)
+    dataset = Load_Dataset(test_list,test_label_list, configs, training_mode, aug_method)
     test_loader = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
 
 
@@ -186,19 +214,39 @@ def data_generator_2(args, configs, training_mode):
     return train_loader, finetune_loader, test_loader
 
 
-def data_generator_nd(args, configs, training_mode):
-    num_classes, entire_list, train_list, valid_list, test_list, entire_label_list, train_label_list, valid_label_list, test_label_list \
-    = splitting_data(args.selected_dataset, args.test_ratio, 0, args.padding, args.seed, \
-                     args.timespan, args.min_seq, args.min_samples, args.aug_method, args.aug_wise)
+def data_generator_nd(args, configs, training_mode, positive_aug, 
+                                            num_classes, datalist, labellist):
+    test_ratio = args.test_ratio
+    valid_ratio = args.valid_ratio
+    seed =  args.seed 
+
+    # Split train and valid dataset
+    train_list, test_list, train_label_list, test_label_list = train_test_split(datalist, 
+                                                                                labellist, test_size=test_ratio, stratify= labellist, random_state=seed) 
+    if valid_ratio!=0:
+        train_list, valid_list, train_label_list, valid_label_list = train_test_split(train_list, 
+                                                                                      train_label_list, test_size=valid_ratio, stratify=train_label_list, random_state=seed)
+    if valid_ratio == 0:
+        valid_list = torch.Tensor(np.array([]))
+        valid_label_list = torch.Tensor(np.array([]))
+
+    print(f"Train Data: {len(train_list)} --------------")
+    count_label_labellist(train_label_list)
     
-    train_list = train_list.cpu()
-    train_label_list = train_label_list.cpu()
+    print(f"Validation Data: {len(valid_list)} --------------")    
+    count_label_labellist(valid_label_list)
 
-    test_list = test_list.cpu()
-    test_label_list = test_label_list.cpu()
+    print(f"Test Data: {len(test_list)} --------------")
+    count_label_labellist(test_label_list) 
+    
+    train_list = torch.tensor(train_list).cuda().cpu()
+    train_label_list = torch.tensor(train_label_list).cuda().cpu()
 
-    entire_list = entire_list.cpu()
-    entire_label_list = entire_label_list.cpu()
+    test_list = torch.tensor(test_list).cuda().cpu()
+    test_label_list = torch.tensor(test_label_list).cuda().cpu()
+
+    #entire_list = entire_list.cpu()
+    #entire_label_list = entire_label_list.cpu()
  
     if(args.one_class_idx != -1): # one-class
         sup_class_idx = [x - 1 for x in num_classes]
@@ -228,6 +276,7 @@ def data_generator_nd(args, configs, training_mode):
             one_class_idx = novel_class_idx[k]
             train_list = train_list[np.where(train_label_list != one_class_idx)]
             train_label_list = train_label_list[np.where(train_label_list != one_class_idx)]
+
             if k == 0:
                 valid_list = test_list[np.where(test_label_list != one_class_idx)]
                 valid_label_list =test_label_list[np.where(test_label_list != one_class_idx)]
@@ -238,21 +287,20 @@ def data_generator_nd(args, configs, training_mode):
 
         for k in range(len(known_class_idx)):
             one_class_idx = known_class_idx[k]
-            if k == 0:
             # only use for testing novelty
-                test_list = entire_list[np.where(entire_label_list != one_class_idx)]
-                test_label_list = entire_label_list[np.where(entire_label_list != one_class_idx)]
-            else:
-                test_list = test_list[np.where(test_label_list != one_class_idx)]
-                test_label_list = test_label_list[np.where(test_label_list != one_class_idx)]
-
+            test_list = test_list[np.where(test_label_list != one_class_idx)]
+            test_label_list = test_label_list[np.where(test_label_list != one_class_idx)]
+        
+        print(train_label_list)
+        print(valid_label_list)
+        print(test_label_list)
         
     ood_test_loader = dict()
     for ood in novel_class_idx:
         # one class idx exit
         ood_test_set = Load_Dataset(test_list[np.where(test_label_list == ood)],
                                     test_label_list[np.where(test_label_list == ood)], 
-                                    configs, training_mode)
+                                    configs, training_mode, positive_aug)
         ood = f'one_class_{ood}'  # change save name
 
         ood_test_loader[ood] = DataLoader(ood_test_set, batch_size=configs.batch_size, shuffle=True)          
@@ -264,13 +312,13 @@ def data_generator_nd(args, configs, training_mode):
     finetune_dataset: [60, 1, 178], test_dataset: [11420, 1, 178] from Epilepsy"""
    
     # build data loader
-    dataset = Load_Dataset(train_list,train_label_list, configs, training_mode)    
+    dataset = Load_Dataset(train_list,train_label_list, configs, training_mode, positive_aug)    
     train_loader = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
 
-    dataset = Load_Dataset(valid_list,valid_label_list, configs, training_mode)
+    dataset = Load_Dataset(valid_list,valid_label_list, configs, training_mode, positive_aug)
     finetune_loader = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
 
-    dataset = Load_Dataset(test_list,test_label_list, configs, training_mode)
+    dataset = Load_Dataset(test_list,test_label_list, configs, training_mode, positive_aug)
     test_loader = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
 
 

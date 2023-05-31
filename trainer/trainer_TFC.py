@@ -1,24 +1,23 @@
 import os
 import sys
-
 sys.path.append("..")
 import numpy as np
-
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-
-from models.loss import NTXentLoss, SupConLoss, get_similarity_matrix, NT_xent
+from models.loss import NTXentLoss, SupConLoss, get_similarity_matrix, NT_xent, get_similarity_two_matrix, NT_xent_TF
 from sklearn.metrics import f1_score, roc_auc_score
 from tsaug import *
 import torch.fft as fft
 
 
-# data augmentation for negative pairs
-my_aug = (Dropout( p=0.1,fill=0)) 
+# data transformations for negative pairs
+my_aug = (Convolve(window="flattop", size=11))
+    
+
 #my_aug = (TimeWarp(n_speed_change=5, max_speed_ratio=3))
 
-def Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode):
+def Trainer(model, model_optimizer, classifier, classifier_optimizer, 
+            train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode):
     # Start training
     logger.debug("Training started ....")
 
@@ -168,20 +167,24 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
             loss_shift_f = criterion(s_f, shift_labels)
             loss_f = loss_sim_f + loss_shift_f
             #loss_f = loss_shift_f
-            nt_xent_criterion = NTXentLoss(device, configs.batch_size, configs.Context_Cont.temperature,
-                                           configs.Context_Cont.use_cosine_similarity)
+
+            # combined two latent space
+            sim_two_matrix = get_similarity_two_matrix(simclr, simclr_f)
+            #nt_xent_criterion = NTXentLoss(device, configs.batch_size, configs.Context_Cont.temperature,
+                                           #configs.Context_Cont.use_cosine_similarity)
                         
-            l_TF = nt_xent_criterion(z_t, z_f)
+            #l_TF = nt_xent_criterion(z_t, z_f)
+            l_TF = NT_xent_TF(sim_two_matrix, temperature=0.5)
 
             print(f'Temporal: {loss_sim.item():.4f}, {loss_shift.item():.4f}, {loss_t.item():.4f}')
             print(f'Frequency: {loss_sim_f.item():.4f}, {loss_shift_f.item():.4f}, {loss_f.item():.4f}')
-            print("TF", l_TF.item())
+            print(f'TF: {l_TF.item():.4f}')
 
             lam = 0.01
             #loss
-            loss = loss_t 
+            #loss = loss_t 
             #+ lam * loss_f            
-            #loss = loss_t + loss_f
+            loss = loss_t + loss_f
             
             #loss = (loss_t + loss_f) + l_TF
             total_loss.append(loss.item())

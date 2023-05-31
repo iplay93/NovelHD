@@ -95,6 +95,8 @@ method = 'Novel Human Activity'
 training_mode = args.training_mode
 run_description = args.run_description
 
+positive_aug = 'AddNoise'
+
 logs_save_dir = args.logs_save_dir
 os.makedirs(logs_save_dir, exist_ok=True)
 
@@ -130,9 +132,9 @@ logger.debug("=" * 45)
 # Load datasets
 data_path = f"./data/{data_type}"
 if training_mode != "novelty_detection":
-    train_dl, valid_dl, test_dl = data_generator(args, configs, training_mode)
+    train_dl, valid_dl, test_dl = data_generator(args, configs, training_mode, positive_aug)
 else:
-    train_dl, valid_dl, test_dl, ood_test_loader, novel_class = data_generator_nd(args, configs, training_mode)
+    train_dl, valid_dl, test_dl, ood_test_loader, novel_class = data_generator_nd(args, configs, training_mode, positive_aug)
 logger.debug("Data loaded ...")
 
 # Load Model

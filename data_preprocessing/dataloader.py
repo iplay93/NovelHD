@@ -11,7 +11,7 @@ from .OpportunityDataProcessing import opportunityLoader
 from .ArasDataProcessing import arasLoader
 
 
-from sklearn.model_selection import train_test_split
+
 import torch
 from torch.utils.data import Dataset
 import pandas as pd
@@ -428,30 +428,17 @@ def change_label(label_list, deleted_label):
 
     return label_list
 
-def splitting_data(dataset, test_ratio, valid_ratio, padding, seed, timespan, min_seq, min_samples, aug_method, aug_wise): 
+def splitting_data(dataset, args): 
     
-    datalist, labellist, num_classes = loading_data(dataset, padding, timespan, min_seq, min_samples, aug_method, aug_wise)
+    datalist, labellist, num_classes = loading_data(dataset, 
+                                        args.padding, args.timespan, args.min_seq, 
+                                        args.min_samples, args.aug_method, args.aug_wise)
     
     #to make label 0~
     labellist = (np.array(labellist)-1).tolist()
-    count_label_labellist(labellist)
-
-    # Split train and valid dataset
-    train_list, test_list, train_label_list, test_label_list = train_test_split(datalist, labellist, test_size=test_ratio, stratify= labellist, random_state=seed) 
-    if valid_ratio!=0:
-        train_list, valid_list, train_label_list, valid_label_list = train_test_split(train_list, train_label_list, test_size=valid_ratio, stratify=train_label_list, random_state=seed)
-    if valid_ratio ==0:
-        valid_list = torch.Tensor(np.array([]))
-        valid_label_list = torch.Tensor(np.array([]))
-
-    print(f"Train Data: {len(train_list)} --------------")
-    count_label_labellist(train_label_list)
-    
-    print(f"Validation Data: {len(valid_list)} --------------")    
-    count_label_labellist(valid_label_list)
-
-    print(f"Test Data: {len(test_list)} --------------")
-    count_label_labellist(test_label_list)     
+    count_label_labellist(labellist)    
     
 
-    return num_classes, datalist.cuda(), train_list.cuda(), valid_list.cuda(), test_list.cuda(), torch.tensor(labellist).cuda(), torch.tensor(train_label_list).cuda(), torch.tensor(valid_label_list).cuda(), torch.tensor(test_label_list).cuda()
+    return num_classes, datalist.cuda(), labellist
+
+#train_list.cuda(), valid_list.cuda(), test_list.cuda(), torch.tensor(labellist).cuda(), torch.tensor(train_label_list).cuda(), torch.tensor(valid_label_list).cuda(), torch.tensor(test_label_list).cuda()

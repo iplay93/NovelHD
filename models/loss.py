@@ -239,6 +239,16 @@ def get_similarity_matrix(outputs, chunk=2, multi_gpu=False):
 
     return sim_matrix
 
+def get_similarity_two_matrix(output1, output2, chunk=2, multi_gpu=False):
+    '''
+        Compute similarity matrix
+        - outputs: (B', d) tensor for B' = B * chunk
+        - sim_matrix: (B', B') tensor
+    '''
+
+    sim_matrix = torch.mm(output1, output2.t())  # (B', d), (d, B') -> (B', B')
+
+    return sim_matrix
 
 def NT_xent(sim_matrix, temperature=0.5, chunk=2, eps=1e-8):
     '''
@@ -256,9 +266,31 @@ def NT_xent(sim_matrix, temperature=0.5, chunk=2, eps=1e-8):
     
     denom = torch.sum(sim_matrix, dim=1, keepdim=True)
     sim_matrix = -torch.log(sim_matrix / (denom + eps) + eps)  # loss matrix
+    
 
-    # 
+    # normal & orginal closer and shifted & shifted closer / negative pairs are not calculated 
     loss = torch.sum(sim_matrix[:B, B:].diag() + sim_matrix[B:, :B].diag()) / (2 * B)
+
+    return loss
+
+def NT_xent_TF(sim_matrix, temperature=0.5, chunk=2, eps=1e-8):
+    '''
+        Compute NT_xent loss
+        - sim_matrix: (B', B') tensor for B' = B * chunk (first 2B are pos samples)
+    '''
+
+    device = sim_matrix.device    
+
+    B = sim_matrix.size(0) // chunk  # B = B' / chunk
+    eye = torch.eye(B * chunk).to(device)  # (B', B')
+    sim_matrix = torch.exp(sim_matrix / temperature) * (eye) # save diagonal only
+    #print("B", B)
+    
+    denom = torch.sum(sim_matrix, dim=1, keepdim=True)
+    #sim_matrix = -torch.log(sim_matrix + eps)  # loss matrix
+
+    # normal & orginal closer and shifted & shifted closer / negative pairs are not calculated 
+    loss = torch.sum(sim_matrix.diag()) / (B * chunk)
 
     return loss
 
