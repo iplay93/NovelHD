@@ -1,11 +1,9 @@
 import torch
-from torch.utils.data import DataLoader
-from torch.utils.data import Dataset
-import os
+from torch.utils.data import DataLoader, Dataset
 import numpy as np
 from augmentations import DataTransform_FD, DataTransform_TD
 import torch.fft as fft
-from data_preprocessing.dataloader import splitting_data, count_label_labellist
+from data_preprocessing.dataloader import count_label_labellist, select_transformation
 from augmentations import *
 import random
 from tsaug import *
@@ -42,31 +40,7 @@ def generate_freq(dataset, config):
     x_data_f = fft.fft(x_data).abs() #/(window_length) # rfft for real value inputs.
     return (X_train, y_train, x_data_f)
 
-# Give a positive transformation
-def select_aug(aug_method):
-    
-    if(aug_method == 'AddNoise'):
-        my_aug = (AddNoise(scale=0.01))
-    elif(aug_method == 'Convolve'):
-        my_aug = (Convolve(window="flattop", size=11))
-    elif(aug_method == 'Crop'):
-        my_aug = (Crop(size=1))
-    elif(aug_method == 'Drift'):
-        my_aug = (Drift(max_drift=0.7, n_drift_points=5))
-    elif(aug_method == 'Dropout'):
-        my_aug = (Dropout( p=0.1,fill=0))        
-    elif(aug_method == 'Pool'):
-        my_aug = (Pool(size=2))
-    elif(aug_method == 'Quantize'):
-        my_aug = (Quantize(n_levels=20))
-    elif(aug_method == 'Resize'):
-        my_aug = (Resize(size=200))
-    elif(aug_method == 'Reverse'):
-        my_aug = (Reverse())
-    elif(aug_method == 'TimeWarp'):
-        my_aug = (TimeWarp(n_speed_change=5, max_speed_ratio=3))
 
-    return my_aug
 
 class Load_Dataset_2(Dataset):
     # Initialize your data, download, etc.
@@ -115,7 +89,7 @@ class Load_Dataset(Dataset):
         if len(X_train.shape) < 3:
             X_train = X_train.unsqueeze(2)
 
-        #if X_train.shape.index(min(X_train.shape)) != 1:  # make sure the Channels in second dim
+        # make sure the Channels in second dim
         X_train = X_train.permute(0, 2, 1)
 
         if isinstance(X_train, np.ndarray):
@@ -129,13 +103,13 @@ class Load_Dataset(Dataset):
         self.len = X_train.shape[0]
     
         # select positive transformation method
-        pos_aug = select_aug(aug_method)
+        pos_aug = select_transformation(aug_method, X_train.shape[2])
 
         if training_mode == "novelty_detection" or self.training_mode == "ood_ness":  # no need to apply Augmentations in other modes
             #self.aug1 = DataTransform_TD(self.x_data, config)
-            print(self.x_data.shape)
-            self.aug1 = torch.from_numpy(np.array(pos_aug.augment(self.x_data.cpu().numpy())))
-            print(self.aug1.shape)
+            #print("Positive_before", self.x_data.shape)
+            self.aug1 = torch.from_numpy(np.array(pos_aug.augment(self.x_data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
+            #print("Positive_after", self.aug1.shape)
             #self.aug1_f = DataTransform_FD(self.x_data_f, config) # [7360, 1, 90]
             self.aug1_f = fft.fft(self.aug1).abs() 
     def __getitem__(self, index):
@@ -148,9 +122,9 @@ class Load_Dataset(Dataset):
         return self.len
 
 def data_generator(args, configs, training_mode, aug_method):
-    num_classes, entire_list, train_list, valid_list, test_list, entire_label_list, train_label_list, valid_label_list, test_label_list \
-    = splitting_data(args.selected_dataset, args.test_ratio, args.valid_ratio, args.padding, args.seed, \
-                     args.timespan, args.min_seq, args.min_samples, args.aug_method, args.aug_wise)
+    # num_classes, entire_list, train_list, valid_list, test_list, entire_label_list, train_label_list, valid_label_list, test_label_list \
+    # = splitting_data(args.selected_dataset, args.test_ratio, args.valid_ratio, args.padding, args.seed, \
+    #                  args.timespan, args.min_seq, args.min_samples, args.aug_method, args.aug_wise)
     
     train_list = train_list.cpu()
     train_label_list = train_label_list.cpu()
@@ -184,9 +158,9 @@ def data_generator(args, configs, training_mode, aug_method):
     return train_loader, finetune_loader, test_loader
 
 def data_generator_2(args, configs, training_mode):
-    num_classes, entire_list, train_list, valid_list, test_list, entire_label_list, train_label_list, valid_label_list, test_label_list \
-    = splitting_data(args.selected_dataset, args.test_ratio, args.valid_ratio, args.padding, args.seed, \
-                     args.timespan, args.min_seq, args.min_samples, args.aug_method)
+    # num_classes, entire_list, train_list, valid_list, test_list, entire_label_list, train_label_list, valid_label_list, test_label_list \
+    # = splitting_data(args.selected_dataset, args.test_ratio, args.valid_ratio, args.padding, args.seed, \
+    #                  args.timespan, args.min_seq, args.min_samples, args.aug_method)
     
     train_list = train_list.cpu()
     train_label_list = train_label_list.cpu()
@@ -257,7 +231,7 @@ def data_generator_nd(args, configs, training_mode, positive_aug,
         train_label_list = train_label_list[np.where(train_label_list == args.one_class_idx)]
 
         valid_list = test_list[np.where(test_label_list == args.one_class_idx)]
-        valid_label_list =test_label_list[np.where(test_label_list == args.one_class_idx)]
+        valid_label_list = test_label_list[np.where(test_label_list == args.one_class_idx)]
 
         # only use for testing novelty
         test_list = test_list[np.where(test_label_list != args.one_class_idx)]
@@ -265,11 +239,10 @@ def data_generator_nd(args, configs, training_mode, positive_aug,
 
     else: # multi-class
         sup_class_idx = [x - 1 for x in num_classes]
-        print(sup_class_idx)
+        random.seed(args.seed)
         known_class_idx = random.sample(sup_class_idx, (int)(len(num_classes)/2))
         #known_class_idx = [x for x in range(0, (int)(len(sup_class_idx)/2))]
         #known_class_idx = [0, 1]
-        print(known_class_idx)
         novel_class_idx = [item for item in sup_class_idx if item not in set(known_class_idx)]
 
         for k in range(len(novel_class_idx)):  
@@ -291,9 +264,9 @@ def data_generator_nd(args, configs, training_mode, positive_aug,
             test_list = test_list[np.where(test_label_list != one_class_idx)]
             test_label_list = test_label_list[np.where(test_label_list != one_class_idx)]
         
-        print(train_label_list)
-        print(valid_label_list)
-        print(test_label_list)
+        # print(train_label_list)
+        # print(valid_label_list)
+        # print(test_label_list)
         
     ood_test_loader = dict()
     for ood in novel_class_idx:
@@ -305,20 +278,17 @@ def data_generator_nd(args, configs, training_mode, positive_aug,
 
         ood_test_loader[ood] = DataLoader(ood_test_set, batch_size=configs.batch_size, shuffle=True)          
     
-    print(novel_class_idx)
-    print(len(ood_test_loader))
-    """In pre-training: 
-    train_dataset: [371055, 1, 178] from SleepEEG.    
-    finetune_dataset: [60, 1, 178], test_dataset: [11420, 1, 178] from Epilepsy"""
+    print("Novel classes", novel_class_idx)
+    print("Length of OOD test loader", len(ood_test_loader))
    
-    # build data loader
-    dataset = Load_Dataset(train_list,train_label_list, configs, training_mode, positive_aug)    
-    train_loader = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
+    # build data loader (N, T, C) -> (N, C, T)
+    dataset = Load_Dataset(train_list, train_label_list, configs, training_mode, positive_aug)    
+    train_loader = DataLoader(dataset, batch_size = configs.batch_size, shuffle=True)
 
     dataset = Load_Dataset(valid_list,valid_label_list, configs, training_mode, positive_aug)
-    finetune_loader = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
+    finetune_loader = DataLoader(dataset, batch_size = configs.batch_size, shuffle=True)
 
-    dataset = Load_Dataset(test_list,test_label_list, configs, training_mode, positive_aug)
+    dataset = Load_Dataset(test_list, test_label_list, configs, training_mode, positive_aug)
     test_loader = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
 
 

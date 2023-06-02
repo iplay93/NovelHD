@@ -7,7 +7,7 @@ import numpy as np
 
 import random
 from sklearn.metrics import roc_auc_score,  f1_score
-from trainer.trainer_TFC import my_aug
+from trainer.trainer_TFC import shifted_aug
 import torch.fft as fft
 from ood_metrics import auroc, aupr, fpr_at_95_tpr, detection_error
 import kmeans1d
@@ -79,23 +79,43 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
         weight_sim_f.append(1 / sim_norm_f.mean().item())
         weight_shi_f.append(1 / shi_mean_f.mean().item())
 
-    if ood_score == 'simclr':
-        args.weight_sim_t = [1, 1]
+    if ood_score == 'T':
+        args.weight_sim_t = weight_sim_t # weight_sim_t or [0,0]
+        args.weight_shi_t = weight_shi_t # weight_shi_t or [0,0]
+        args.weight_sim_f = [0, 0]   # weight_sim_f or [0,0] 
+        args.weight_shi_f = [0, 0] # weight_shi_f or [0,0]        
+    elif ood_score == 'TCON':
+        args.weight_sim_t = [1 ,1]
         args.weight_shi_t = [0, 0]
-        args.weight_sim_f = [1, 1]
+        args.weight_sim_f = [0, 0]
         args.weight_shi_f = [0, 0]
-    elif ood_score == 'CSI':
+    elif ood_score == 'TCLS':
+        args.weight_sim_t = [0, 0]
+        args.weight_shi_t = [1, 1]
+        args.weight_sim_f = [0, 0]
+        args.weight_shi_f = [0, 0]
+    elif ood_score == 'FCON':
         args.weight_sim_t = weight_sim_t # weight_sim_t or [0,0]
         args.weight_shi_t = weight_shi_t # weight_shi_t or [0,0]
         args.weight_sim_f = weight_sim_f   # weight_sim_f or [0,0] 
+        args.weight_shi_f = [0, 0] # weight_shi_f or [0,0]  
+    elif ood_score == 'FCLS':
+        args.weight_sim_t = weight_sim_t # weight_sim_t or [0,0]
+        args.weight_shi_t = weight_shi_t # weight_shi_t or [0,0]
+        args.weight_sim_f = [0, 0]   # weight_sim_f or [0,0] 
+        args.weight_shi_f = weight_shi_f # weight_shi_f or [0,0]       
+    elif ood_score == 'NovelHD':
+        args.weight_sim_t = weight_sim_t # weight_sim_t or [0,0]
+        args.weight_shi_t = weight_shi_t # weight_shi_t or [0,0]
+        args.weight_sim_f = weight_sim_f # weight_sim_f or [0,0] 
         args.weight_shi_f = weight_shi_f # weight_shi_f or [0,0]
     else:
         raise ValueError()
 
-    print(f'weight_sim_t:\t' + '\t'.join(map('{:.4f}'.format, weight_sim_t)))
-    print(f'weight_shi_t:\t' + '\t'.join(map('{:.4f}'.format, weight_shi_t)))
-    print(f'weight_sim_f:\t' + '\t'.join(map('{:.4f}'.format, weight_sim_f)))
-    print(f'weight_shi_f:\t' + '\t'.join(map('{:.4f}'.format, weight_shi_f)))
+    print(f'weight_sim_t:\t' + '\t'.join(map('{:.4f}'.format, args.weight_sim_t)))
+    print(f'weight_shi_t:\t' + '\t'.join(map('{:.4f}'.format, args.weight_shi_t)))
+    print(f'weight_sim_f:\t' + '\t'.join(map('{:.4f}'.format, args.weight_sim_f)))
+    print(f'weight_shi_f:\t' + '\t'.join(map('{:.4f}'.format, args.weight_shi_f)))
 
     print('Pre-compute features...')
     feats_id = get_features(args, args.selected_dataset, 
@@ -207,12 +227,10 @@ def _get_features(args, model, loader, sample_num=1, layers=('simclr_t', 'shift_
     # compute features in full dataset
     model.eval()
     feats_all = {layer: [] for layer in layers}  # initialize: empty list
-    for i, (x, labels, aug1, x_f, aug1_f) in enumerate(loader):
+    for i, (x, labels, _, x_f, _) in enumerate(loader):
 
         x       = x.to(device) 
         x_f     = x_f.to(device)
-        aug1    = aug1.to(device) 
-        aug1_f  = aug1_f.to(device)# gpu tensor
 
         # compute features in one batch
         feats_batch = {layer: [] for layer in layers}  # initialize: empty list
@@ -221,18 +239,16 @@ def _get_features(args, model, loader, sample_num=1, layers=('simclr_t', 'shift_
 
             # adding shifted transformation
             for k in range(x.size(0)):
-                temp_data = torch.from_numpy(np.array([my_aug.augment(x[k].cpu().numpy())]))
-                temp_aug1 = torch.from_numpy(np.array([my_aug.augment(aug1[k].cpu().numpy())]))
+                temp_data = torch.from_numpy(shifted_aug.augment(np.reshape(x[k].cpu().numpy(),(1, x[k].shape[1],-1)))).permute(0, 2, 1)
 
                 x        = torch.cat((x, temp_data.to(device)), 0)
-                aug1     = torch.cat((aug1, temp_aug1.to(device)), 0)
                 x_f      = torch.cat((x_f, fft.fft(temp_data).abs().to(device)), 0)
-                aug1_f   = torch.cat((aug1_f, fft.fft(temp_aug1).abs().to(device)), 0)            
+       
 
             # compute augmented features
             with torch.no_grad():
                 kwargs = {layer: True for layer in layers}  # only forward selected layers
-                h_t, z_t, s_t, h_f, z_f, s_f  = model(x, x_f)
+                _, z_t, s_t, _, z_f, s_f  = model(x, x_f)
                 output_aux['simclr_t'] = z_t
                 output_aux['shift_t'] = s_t
                 output_aux['simclr_f'] = z_f
@@ -247,7 +263,6 @@ def _get_features(args, model, loader, sample_num=1, layers=('simclr_t', 'shift_
 
         # concatenate features in one batch
         for key, val in feats_batch.items():
-
             feats_batch[key] = torch.stack(val, dim=1)  # (B, T, d)
 
         # add features in full dataset

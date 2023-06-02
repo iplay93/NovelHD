@@ -32,12 +32,10 @@ class TFC(nn.Module):
         self.linear = nn.Linear(configs.TSlength_aligned * configs.input_channels, configs.num_classes)    
 
 
-    def forward(self, x_in_t, x_in_f, penultimate=False, shift=False):
-        _aux = {}
-        _return_aux = False
-        
+    def forward(self, x_in_t, x_in_f):
+
         """Use Transformer"""
-        x = self.transformer_encoder_t(x_in_t)
+        x = self.transformer_encoder_t(x_in_t.float())
         h_time = x.reshape(x.shape[0], -1)
 
         """Cross-space projector"""
@@ -47,7 +45,7 @@ class TFC(nn.Module):
         s_time = self.shift_cls_layer_t(h_time)
 
         """Frequency-based contrastive encoder"""
-        f = self.transformer_encoder_f(x_in_f)
+        f = self.transformer_encoder_f(x_in_f.float())
         h_freq = f.reshape(f.shape[0], -1)
 
         """Cross-space projector"""

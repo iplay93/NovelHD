@@ -11,7 +11,7 @@ import torch.fft as fft
 
 
 # data transformations for negative pairs
-my_aug = (Convolve(window="flattop", size=11))
+shifted_aug = (Convolve(window="flattop", size=11))
     
 
 #my_aug = (TimeWarp(n_speed_change=5, max_speed_ratio=3))
@@ -87,8 +87,10 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
 
             # adding shifted transformation
             for k in range(data.size(0)):
-                temp_data = torch.from_numpy(np.array([my_aug.augment(data[k].cpu().numpy())]))
-                temp_aug1 = torch.from_numpy(np.array([my_aug.augment(aug1[k].cpu().numpy())]))
+                #print("temp_before", data[k].shape)
+                temp_data = torch.from_numpy(shifted_aug.augment(np.reshape(data[k].cpu().numpy(),(1, data[k].shape[1],-1)))).permute(0, 2, 1)
+                temp_aug1 = torch.from_numpy(shifted_aug.augment(np.reshape(aug1[k].cpu().numpy(),(1, aug1[k].shape[1],-1)))).permute(0, 2, 1)
+
 
                 data = torch.cat((data, temp_data.to(device)), 0)
                 aug1 = torch.cat((aug1, temp_aug1.to(device)), 0)
@@ -182,9 +184,9 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
 
             lam = 0.01
             #loss
-            #loss = loss_t 
+            loss = loss_t 
             #+ lam * loss_f            
-            loss = loss_t + loss_f
+            #loss = loss_t + loss_f
             
             #loss = (loss_t + loss_f) + l_TF
             total_loss.append(loss.item())

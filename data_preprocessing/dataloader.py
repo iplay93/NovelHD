@@ -28,6 +28,29 @@ from tsaug import *
 #min_seq = 10 # minimum sequence length
 #min_samples = 10 # minimum # of samples
 
+def select_transformation(aug_method, target_len):
+    if(aug_method == 'AddNoise'):
+        my_aug = (AddNoise(scale=0.01))
+    elif(aug_method == 'Convolve'):
+        my_aug = (Convolve(window="flattop", size=11))
+    elif(aug_method == 'Crop'):
+        my_aug = (Crop(size = target_len))
+    elif(aug_method == 'Drift'):
+        my_aug = (Drift(max_drift=0.7, n_drift_points=5))
+    elif(aug_method == 'Dropout'):
+        my_aug = (Dropout( p=0.1,fill=0))        
+    elif(aug_method == 'Pool'):
+        my_aug = (Pool(size=2))
+    elif(aug_method == 'Quantize'):
+        my_aug = (Quantize(n_levels=20))
+    elif(aug_method == 'Resize'):
+        my_aug = (Resize(size = target_len))
+    elif(aug_method == 'Reverse'):
+        my_aug = (Reverse())
+    elif(aug_method == 'TimeWarp'):
+        my_aug = (TimeWarp(n_speed_change=5, max_speed_ratio=3))
+    
+    return my_aug
 # for storing dataset element
 class TSDataSet:
     def __init__(self,data, label, length):
@@ -98,10 +121,10 @@ def visualization_data(dataset_list, file_name, activity_num):
 
     print("Visualizing Dataset Finished--------------------------------------")
 
+# A method finds types of labels and counts the number of each label
 def count_label(dataset_list):
-
     # find types and counts of labels
-    types_label_list =[]
+    types_label_list = []
     count_label_list = []
 
     for i in range(len(dataset_list)):
@@ -172,7 +195,7 @@ def padding_by_mean(lengthlist, normalized_df):
     for i in range(len(lengthlist)):
         reconst_list =[]    
         # cut df by each length
-        if(lengthlist[i]>=mean_length): # length is larger than mean
+        if(lengthlist[i]>= mean_length): # length is larger than mean
             for j in range(count_lengthlist, count_lengthlist+mean_length):
                 reconst_list.append(normalized_df.iloc[j,:].tolist())
             datalist.append(torch.tensor(reconst_list))
@@ -205,71 +228,51 @@ def reconstrct_list(length_list, normalized_df):
         data_list.append(torch.tensor(reconst_list))
     return data_list
 
+
 def data_augmentation(dataset_list, aug_method, aug_wise):
 
     # Data Augmentation Module
-    print('Augmentation-------------------')
-
-    if(aug_method == 'AddNoise'):
-        my_aug = (AddNoise(scale=0.01))
-    elif(aug_method == 'Convolve'):
-        my_aug = (Convolve(window="flattop", size=11))
-    elif(aug_method == 'Crop'):
-        my_aug = (Crop(size=1))
-    elif(aug_method == 'Drift'):
-        my_aug = (Drift(max_drift=0.7, n_drift_points=5))
-    elif(aug_method == 'Dropout'):
-        my_aug = (Dropout( p=0.1,fill=0))        
-    elif(aug_method == 'Pool'):
-        my_aug = (Pool(size=2))
-    elif(aug_method == 'Quantize'):
-        my_aug = (Quantize(n_levels=20))
-    elif(aug_method == 'Resize'):
-        my_aug = (Resize(size=200))
-    elif(aug_method == 'Reverse'):
-        my_aug = (Reverse())
-    elif(aug_method == 'TimeWarp'):
-        my_aug = (TimeWarp(n_speed_change=5, max_speed_ratio=3))
+    print('Augmentation Starting-------------------')   
 
     
- #    for i in range(dataset_len):            
- #       aug = my_aug.augment(dataset_list[i].data)  
- #       ts_ds = TSDataSet(aug, dataset_list[i].label, dataset_list[i].length)
- #       dataset_list.append(ts_ds)
-    
-    # For give the same number of data size
+    # For give the same number of data size (balancing the numbers)
     types_label_list, count_label_list = count_label(dataset_list)
     max_label_count = max(count_label_list)
 
+    # calculating the numbers that need to be augmented
     sub_count_label = [0] * len(types_label_list)
     for i in range(len(types_label_list)):
         sub_count_label[i] = max_label_count - count_label_list[i]
-
     print("The amount of augmented data:", sub_count_label)
-
+    
     copy_count_label = sub_count_label.copy()
-
-    dataset_len = len(dataset_list)
-
-    count_label_list[types_label_list.index(dataset_list[i].label)] 
 
 # temporal aspect data augmentation
     if(aug_wise == 'Temporal'):
-        for i in range(dataset_len): 
-            # Augmentation for data balancing
-            for j in range(math.ceil(sub_count_label[types_label_list.index(dataset_list[i].label)]/count_label_list[types_label_list.index(dataset_list[i].label)])): 
-            #print(dataset_list[i].label, "" , math.ceil(sub_count_label[types_label_list.index(dataset_list[i].label)]/count_label_list[types_label_list.index(dataset_list[i].label)]))
-                if copy_count_label[types_label_list.index(dataset_list[i].label)] > 0:
-                # print(copy_count_label[types_label_list.index(dataset_list[i].label)],"and",sub_count_label[types_label_list.index(dataset_list[i].label)])          
-                    aug = my_aug.augment(dataset_list[i].data.T)   
-                    ts_ds = TSDataSet(aug.T, dataset_list[i].label, len(aug.T))
-                    dataset_list.append(ts_ds)
-                    copy_count_label[types_label_list.index(dataset_list[i].label)] = copy_count_label[types_label_list.index(dataset_list[i].label)]-1   
-        
         for i in range(len(dataset_list)): 
-            aug = my_aug.augment(dataset_list[i].data.T)   
-            ts_ds = TSDataSet(aug.T, dataset_list[i].label, len(aug.T))
-            dataset_list.append(ts_ds)
+            # Augmentation for data balancing
+            target_label = types_label_list.index(dataset_list[i].label)
+            target_data  = dataset_list[i].data
+
+            # Target data shape : (N, T, C)
+            
+            for j in range(math.ceil(sub_count_label[target_label]/count_label_list[target_label])): 
+            #print(dataset_list[i].label, "" , math.ceil(sub_count_label[types_label_list.index(dataset_list[i].label)]/count_label_list[types_label_list.index(dataset_list[i].label)]))
+                if copy_count_label[target_label] > 0:
+                # print(copy_count_label[types_label_list.index(dataset_list[i].label)],"and",sub_count_label[types_label_list.index(dataset_list[i].label)])          
+                    #print("Aug", dataset_list[i].data.shape)
+                    # select data transformation
+                    trans = select_transformation(aug_method, target_data.shape[0])
+                    aug = trans.augment(np.reshape(target_data,(1, target_data.shape[0], -1)))
+                    #print("Aug_after", aug.shape, aug[0].shape)  
+                    ts_ds = TSDataSet(aug[0], dataset_list[i].label, len(aug[0]))
+                    dataset_list.append(ts_ds)
+                    copy_count_label[target_label] = copy_count_label[target_label]-1   
+        
+        # for i in range(len(dataset_list)): 
+        #     aug = my_aug.augment(np.reshape(dataset_list[i].data,(1, dataset_list[i].data.shape[0], -1))) 
+        #     ts_ds = TSDataSet(aug[0], dataset_list[i].label, len(aug[0]))
+        #     dataset_list.append(ts_ds)
 
     if(aug_wise == 'Sensor'):
 # sensor aspect data augmentation
@@ -288,6 +291,7 @@ def data_augmentation(dataset_list, aug_method, aug_wise):
     
     return dataset_list
 
+# a method to create continuous labels from 0 due to data process
 def sort_data_label(dataset_list):
     # change labels
     types_label_list, _ = count_label(dataset_list)
@@ -295,94 +299,12 @@ def sort_data_label(dataset_list):
     types_label_list.sort()
     changed_label_list =[i for i in range(1, len(types_label_list)+1)]
 
-    print("original label:", types_label_list, "\nchanged label:", changed_label_list )
+    print("original label:", types_label_list, "\nchanged label:", changed_label_list)
         
     for i in range(len(dataset_list)): 
         dataset_list[i].label = changed_label_list[types_label_list.index(dataset_list[i].label)]
 
     return dataset_list 
-    
-# split data into train/validate/test 
-def loading_data(dataset, padding, timespan, min_seq, min_samples, aug_method, aug_wise): 
-
-    # Constructing data structure for each dataset
-    if dataset == 'lapras':
-        dataset_list = laprasLoader('data/Lapras/*.csv', timespan, min_seq)        
-        #visualization_data(dataset_list, 'KDD2022/data/Lapras/', 5)
-    elif dataset == 'lapras_null':
-        dataset_list = laprasLoader('data/Lapras_null/*.csv', timespan, min_seq)        
-        #visualization_data(dataset_list, 'KDD2022/data/Lapras/', 5)
-    elif dataset == 'casas':
-        dataset_list = casasLoader('data/CASAS/*.txt', timespan, min_seq)
-        #visualization_data(dataset_list, 'KDD2022/data/CASAS/', 15)
-    elif dataset == 'aras_a':
-        dataset_list = arasLoader('data/Aras/HouseA/*.txt', timespan, min_seq)
-        #visualization_data(dataset_list, 'KDD2022/data/Aras/HouseA/', 27*100 + 27)
-    elif dataset == 'aras_b':
-        dataset_list = arasLoader('data/Aras/HouseB/*.txt', timespan, min_seq)
-        #visualization_data(dataset_list, 'KDD2022/data/Aras/HouseB/', 27*100 + 27)
-    elif dataset == 'opportunity':
-        dataset_list = opportunityLoader('data/Opportunity/*.dat', timespan, min_seq)
-        #visualization_data(dataset_list, 'KDD2022/data/Opportunity/', 5)
-    
-    # # change labels
-    # types_label_list, count_label_list = count_label(dataset_list)
-
-    # types_label_list.sort()
-    # changed_label_list =[i for i in range(1, len(types_label_list)+1)]
-
-    # print("original label:", types_label_list, "\nchanged label:", changed_label_list )
-        
-    # for i in range(len(dataset_list)): 
-    #     dataset_list[i].label = changed_label_list[types_label_list.index(dataset_list[i].label)] 
-
-    
-    dataset_list = sort_data_label(dataset_list)
-    
-    # For data augmentation
-    if aug_method != "None":
-        dataset_list = data_augmentation(dataset_list, aug_method, aug_wise)
-
-    print('Before padding-----------------')
-    types_label_list, count_label_list = count_label(dataset_list)
-    
-    # convert object-list to list-list
-    label_list=[]
-    # store each length of instances
-    length_list=[]
-    # for temporal storage
-    temp_list=[]
-
-    # Normalized Module
-    # for each instance
-    for i in range(len(dataset_list)):
-        # select datalist by min_samples
-        if(count_label_list[types_label_list.index(dataset_list[i].label)] >= min_samples):
-            #datalist.append(dataset_list[i].data)        
-            label_list.append(dataset_list[i].label)
-            length_list.append(dataset_list[i].length)
-
-            for j in range(dataset_list[i].length):
-                temp_list.append(dataset_list[i].data[j])     
-               
-    # normalization of dataframe
-    normalized_df = min_max_scaling(pd.DataFrame(temp_list))
-    normalized_df = normalized_df.fillna(0)
-
-    # reconstruction of list (padding is option : max or mean)
-    if padding == 'max':
-        datalist = padding_by_max(length_list, normalized_df)
-        #print('tensor_shape', datalist.size())
-    elif padding =='mean':
-        datalist = padding_by_mean(length_list, normalized_df)
-        #print('tensor_shape', datalist.size())
-    else:
-        datalist = reconstrct_list(length_list, normalized_df)
-    
-
-    print('After padding-----------------')
-    
-    return datalist, label_list, types_label_list
 
 def sort_only_label(label_list):
     # change labels
@@ -428,17 +350,81 @@ def change_label(label_list, deleted_label):
 
     return label_list
 
-def splitting_data(dataset, args): 
+# split data into train/validate/test 
+def loading_data(dataset, args): 
     
-    datalist, labellist, num_classes = loading_data(dataset, 
-                                        args.padding, args.timespan, args.min_seq, 
-                                        args.min_samples, args.aug_method, args.aug_wise)
+    padding, timespan, min_seq, min_samples, aug_method, aug_wise = \
+    args.padding, args.timespan, args.min_seq, args.min_samples, args.aug_method, args.aug_wise
+
+    # Constructing data structure for each dataset
+    if dataset == 'lapras':
+        dataset_list = laprasLoader('data/Lapras/*.csv', timespan, min_seq)        
+        #visualization_data(dataset_list, 'KDD2022/data/Lapras/', 5)
+    elif dataset == 'lapras_null':
+        dataset_list = laprasLoader('data/Lapras_null/*.csv', timespan, min_seq)        
+        #visualization_data(dataset_list, 'KDD2022/data/Lapras/', 5)
+    elif dataset == 'casas':
+        dataset_list = casasLoader('data/CASAS/*.txt', timespan, min_seq)
+        #visualization_data(dataset_list, 'KDD2022/data/CASAS/', 15)
+    elif dataset == 'aras_a':
+        dataset_list = arasLoader('data/Aras/HouseA/*.txt', timespan, min_seq)
+        #visualization_data(dataset_list, 'KDD2022/data/Aras/HouseA/', 27*100 + 27)
+    elif dataset == 'aras_b':
+        dataset_list = arasLoader('data/Aras/HouseB/*.txt', timespan, min_seq)
+        #visualization_data(dataset_list, 'KDD2022/data/Aras/HouseB/', 27*100 + 27)
+    elif dataset == 'opportunity':
+        dataset_list = opportunityLoader('data/Opportunity/*.dat', timespan, min_seq)
+        #visualization_data(dataset_list, 'KDD2022/data/Opportunity/', 5)
+     
+    # create labels continuously
+    dataset_list = sort_data_label(dataset_list)
+
+    # For data augmentation
+    if aug_method is not None:
+        dataset_list = data_augmentation(dataset_list, aug_method, aug_wise)
+
+    print('Before padding-----------------')
+    types_label_list, count_label_list = count_label(dataset_list)
+    
+    # convert object-list to list-list
+    label_list=[]
+    # store each length of instances
+    length_list=[]
+    # for temporal storage
+    temp_list=[]
+
+    # Normalized Module
+    # for each instance
+    for i in range(len(dataset_list)):
+        # select datalist by min_samples
+        if(count_label_list[types_label_list.index(dataset_list[i].label)] >= min_samples):
+            #datalist.append(dataset_list[i].data)        
+            label_list.append(dataset_list[i].label)
+            length_list.append(dataset_list[i].length)
+
+            for j in range(dataset_list[i].length):
+                temp_list.append(dataset_list[i].data[j])     
+               
+    # normalization of dataframe
+    normalized_df = min_max_scaling(pd.DataFrame(temp_list))
+    normalized_df = normalized_df.fillna(0)
+
+    # reconstruction of list (padding is option : max or mean)
+    if padding == 'max':
+        datalist = padding_by_max(length_list, normalized_df)
+        #print('tensor_shape', datalist.size())
+    elif padding =='mean':
+        datalist = padding_by_mean(length_list, normalized_df)
+        #print('tensor_shape', datalist.size())
+    else:
+        datalist = reconstrct_list(length_list, normalized_df)
+    
+
+    print('After padding-----------------')
     
     #to make label 0~
-    labellist = (np.array(labellist)-1).tolist()
+    labellist = (np.array(label_list)-1).tolist()
     count_label_labellist(labellist)    
     
+    return  types_label_list, datalist.cuda(), labellist
 
-    return num_classes, datalist.cuda(), labellist
-
-#train_list.cuda(), valid_list.cuda(), test_list.cuda(), torch.tensor(labellist).cuda(), torch.tensor(train_label_list).cuda(), torch.tensor(valid_label_list).cuda(), torch.tensor(test_label_list).cuda()
