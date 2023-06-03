@@ -80,9 +80,6 @@ def _logger(logger_name, level=logging.DEBUG):
     return logger
 
 
-
-
-
 def copy_Files(destination, data_type):
     destination_dir = os.path.join(destination, "model_files")
     os.makedirs(destination_dir, exist_ok=True)
