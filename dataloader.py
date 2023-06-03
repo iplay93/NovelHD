@@ -8,7 +8,7 @@ from augmentations import *
 import random
 from tsaug import *
 from sklearn.model_selection import train_test_split
-
+import math
 
 def generate_freq(dataset, config):
     X_train = dataset["samples"]
@@ -79,7 +79,7 @@ class Load_Dataset_2(Dataset):
         
 class Load_Dataset(Dataset):
     # Initialize your data, download, etc.
-    def __init__(self, data_list, label_list, config, training_mode, aug_method):
+    def __init__(self, data_list, label_list, args, training_mode, aug_method):
         super(Load_Dataset, self).__init__()
         self.training_mode = training_mode
 
@@ -103,12 +103,18 @@ class Load_Dataset(Dataset):
         self.len = X_train.shape[0]
     
         # select positive transformation method
-        pos_aug = select_transformation(aug_method, X_train.shape[2])
+        if args.aug_wise == 'Temporal':
+            pos_aug = select_transformation(aug_method, X_train.shape[2])
+        elif args.aug_wise == 'Sensor':
+            pos_aug = select_transformation(aug_method, X_train.shape[1])
 
         if training_mode == "novelty_detection" or self.training_mode == "ood_ness":  # no need to apply Augmentations in other modes
             #self.aug1 = DataTransform_TD(self.x_data, config)
             #print("Positive_before", self.x_data.shape)
-            self.aug1 = torch.from_numpy(np.array(pos_aug.augment(self.x_data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
+            if args.aug_wise == 'Temporal':
+                self.aug1 = torch.from_numpy(np.array(pos_aug.augment(self.x_data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
+            elif args.aug_wise == 'Sensor':
+                self.aug1 = torch.from_numpy(np.array(pos_aug.augment(self.x_data.cpu().numpy())))
             #print("Positive_after", self.aug1.shape)
             #self.aug1_f = DataTransform_FD(self.x_data_f, config) # [7360, 1, 90]
             self.aug1_f = fft.fft(self.aug1).abs() 
@@ -240,7 +246,7 @@ def data_generator_nd(args, configs, training_mode, positive_aug,
     else: # multi-class
         sup_class_idx = [x - 1 for x in num_classes]
         random.seed(args.seed)
-        known_class_idx = random.sample(sup_class_idx, (int)(len(num_classes)/2))
+        known_class_idx = random.sample(sup_class_idx, math.ceil(len(num_classes)/2))
         #known_class_idx = [x for x in range(0, (int)(len(sup_class_idx)/2))]
         #known_class_idx = [0, 1]
         novel_class_idx = [item for item in sup_class_idx if item not in set(known_class_idx)]
@@ -273,7 +279,7 @@ def data_generator_nd(args, configs, training_mode, positive_aug,
         # one class idx exit
         ood_test_set = Load_Dataset(test_list[np.where(test_label_list == ood)],
                                     test_label_list[np.where(test_label_list == ood)], 
-                                    configs, training_mode, positive_aug)
+                                    args, training_mode, positive_aug)
         ood = f'one_class_{ood}'  # change save name
 
         ood_test_loader[ood] = DataLoader(ood_test_set, batch_size=configs.batch_size, shuffle=True)          
@@ -282,13 +288,13 @@ def data_generator_nd(args, configs, training_mode, positive_aug,
     print("Length of OOD test loader", len(ood_test_loader))
    
     # build data loader (N, T, C) -> (N, C, T)
-    dataset = Load_Dataset(train_list, train_label_list, configs, training_mode, positive_aug)    
+    dataset = Load_Dataset(train_list, train_label_list, args, training_mode, positive_aug)    
     train_loader = DataLoader(dataset, batch_size = configs.batch_size, shuffle=True)
 
-    dataset = Load_Dataset(valid_list,valid_label_list, configs, training_mode, positive_aug)
+    dataset = Load_Dataset(valid_list,valid_label_list, args, training_mode, positive_aug)
     finetune_loader = DataLoader(dataset, batch_size = configs.batch_size, shuffle=True)
 
-    dataset = Load_Dataset(test_list, test_label_list, configs, training_mode, positive_aug)
+    dataset = Load_Dataset(test_list, test_label_list, args, training_mode, positive_aug)
     test_loader = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
 
 

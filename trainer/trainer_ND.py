@@ -11,7 +11,7 @@ import torch.fft as fft
 
 
 # shifted data transformations for negative pairs
-shifted_aug = (AddNoise(scale=0.01))
+shifted_aug = (Drift(max_drift=0.7, n_drift_points=5))
 
 def Trainer(model, model_optimizer, classifier, classifier_optimizer, 
             train_dl, device, logger, configs, experiment_log_dir, args):
@@ -64,8 +64,12 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
             # adding shifted transformation
             for k in range(data.size(0)):
                 #print("temp_before", data[k].shape)
-                temp_data = torch.from_numpy(shifted_aug.augment(np.reshape(data[k].cpu().numpy(),(1, data[k].shape[1],-1)))).permute(0, 2, 1)
-                temp_aug1 = torch.from_numpy(shifted_aug.augment(np.reshape(aug1[k].cpu().numpy(),(1, aug1[k].shape[1],-1)))).permute(0, 2, 1)
+                if args.aug_wise == 'Temporal':
+                    temp_data = torch.from_numpy(shifted_aug.augment(np.reshape(data[k].cpu().numpy(),(1, data[k].shape[1],-1)))).permute(0, 2, 1)
+                    temp_aug1 = torch.from_numpy(shifted_aug.augment(np.reshape(aug1[k].cpu().numpy(),(1, aug1[k].shape[1],-1)))).permute(0, 2, 1)
+                elif args.aug_wise == 'Sensor':
+                    temp_data = torch.from_numpy(shifted_aug.augment(np.reshape(data[k].cpu().numpy(),(1, data[k].shape[0],-1))))
+                    temp_aug1 = torch.from_numpy(shifted_aug.augment(np.reshape(aug1[k].cpu().numpy(),(1, aug1[k].shape[0],-1))))
 
 
                 data = torch.cat((data, temp_data.to(device)), 0)

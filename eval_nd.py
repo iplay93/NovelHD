@@ -104,7 +104,7 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
         args.weight_shi_t = weight_shi_t # weight_shi_t or [0,0]
         args.weight_sim_f = [0, 0]   # weight_sim_f or [0,0] 
         args.weight_shi_f = weight_shi_f # weight_shi_f or [0,0]       
-    elif ood_score == 'NovelHD':
+    elif ood_score == 'NovelHD' or ood_score == 'NovelHD_TF' :
         args.weight_sim_t = weight_sim_t # weight_sim_t or [0,0]
         args.weight_shi_t = weight_shi_t # weight_shi_t or [0,0]
         args.weight_sim_f = weight_sim_f # weight_sim_f or [0,0] 
@@ -239,7 +239,10 @@ def _get_features(args, model, loader, sample_num=1, layers=('simclr_t', 'shift_
 
             # adding shifted transformation
             for k in range(x.size(0)):
-                temp_data = torch.from_numpy(shifted_aug.augment(np.reshape(x[k].cpu().numpy(),(1, x[k].shape[1],-1)))).permute(0, 2, 1)
+                if args.aug_wise == 'Temporal':
+                    temp_data = torch.from_numpy(shifted_aug.augment(np.reshape(x[k].cpu().numpy(),(1, x[k].shape[1],-1)))).permute(0, 2, 1)
+                elif args.aug_wise == 'Sensor':
+                    temp_data = torch.from_numpy(shifted_aug.augment(np.reshape(x[k].cpu().numpy(),(1, x[k].shape[0],-1))))
 
                 x        = torch.cat((x, temp_data.to(device)), 0)
                 x_f      = torch.cat((x_f, fft.fft(temp_data).abs().to(device)), 0)

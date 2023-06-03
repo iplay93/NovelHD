@@ -2,7 +2,6 @@
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
-import os
 import numpy as np
 from .augmentations import DataTransform
 from .LaprasDataProcessing import laprasLoader
@@ -11,12 +10,9 @@ from .OpportunityDataProcessing import opportunityLoader
 from .ArasDataProcessing import arasLoader
 
 
-
 import torch
-from torch.utils.data import Dataset
 import pandas as pd
 import numpy as np
-from glob import glob
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
 import math
@@ -230,10 +226,8 @@ def reconstrct_list(length_list, normalized_df):
 
 
 def data_augmentation(dataset_list, aug_method, aug_wise):
-
     # Data Augmentation Module
     print('Augmentation Starting-------------------')   
-
     
     # For give the same number of data size (balancing the numbers)
     types_label_list, count_label_list = count_label(dataset_list)
@@ -248,7 +242,7 @@ def data_augmentation(dataset_list, aug_method, aug_wise):
     copy_count_label = sub_count_label.copy()
 
 # temporal aspect data augmentation
-    if(aug_wise == 'Temporal'):
+    if aug_wise == 'Temporal' :
         for i in range(len(dataset_list)): 
             # Augmentation for data balancing
             target_label = types_label_list.index(dataset_list[i].label)
@@ -269,25 +263,42 @@ def data_augmentation(dataset_list, aug_method, aug_wise):
                     dataset_list.append(ts_ds)
                     copy_count_label[target_label] = copy_count_label[target_label]-1   
         
-        # for i in range(len(dataset_list)): 
-        #     aug = my_aug.augment(np.reshape(dataset_list[i].data,(1, dataset_list[i].data.shape[0], -1))) 
-        #     ts_ds = TSDataSet(aug[0], dataset_list[i].label, len(aug[0]))
-        #     dataset_list.append(ts_ds)
-
-    if(aug_wise == 'Sensor'):
-# sensor aspect data augmentation
-        for i in range(dataset_len): 
-            for j in range(math.ceil(sub_count_label[types_label_list.index(dataset_list[i].label)]/count_label_list[types_label_list.index(dataset_list[i].label)])): 
-                if copy_count_label[types_label_list.index(dataset_list[i].label)] > 0:          
-                    aug = my_aug.augment(dataset_list[i].data)   
-                    ts_ds = TSDataSet(aug, dataset_list[i].label, len(aug))
-                    dataset_list.append(ts_ds)
-                    copy_count_label[types_label_list.index(dataset_list[i].label)] = copy_count_label[types_label_list.index(dataset_list[i].label)]-1   
-
         for i in range(len(dataset_list)): 
-            aug = my_aug.augment(dataset_list[i].data)   
-            ts_ds = TSDataSet(aug, dataset_list[i].label, len(aug))
+            target_data  = dataset_list[i].data
+            trans = select_transformation(aug_method, target_data.shape[0])
+            aug = trans.augment(np.reshape(target_data,(1, target_data.shape[0], -1))) 
+            ts_ds = TSDataSet(aug[0], dataset_list[i].label, len(aug[0]))
             dataset_list.append(ts_ds)
+
+    elif aug_wise == 'Sensor' :
+# sensor aspect data augmentation
+        for i in range(len(dataset_list)): 
+            # Augmentation for data balancing
+            target_label = types_label_list.index(dataset_list[i].label)
+            target_data  = dataset_list[i].data
+
+            # Target data shape : (N, T, C)
+            
+            for j in range(math.ceil(sub_count_label[target_label]/count_label_list[target_label])): 
+            #print(dataset_list[i].label, "" , math.ceil(sub_count_label[types_label_list.index(dataset_list[i].label)]/count_label_list[types_label_list.index(dataset_list[i].label)]))
+                if copy_count_label[target_label] > 0:
+                # print(copy_count_label[types_label_list.index(dataset_list[i].label)],"and",sub_count_label[types_label_list.index(dataset_list[i].label)])          
+                    #print("Aug", dataset_list[i].data.shape)
+                    # select data transformation
+                    trans = select_transformation(aug_method, target_data.shape[1])
+                    aug = trans.augment(np.reshape(target_data,(1, target_data.shape[1], -1)))
+                    #print("Aug_after", aug.shape, aug[0].shape)  
+                    ts_ds = TSDataSet(aug[0].T, dataset_list[i].label, len(aug[0].T))
+                    dataset_list.append(ts_ds)
+                    copy_count_label[target_label] = copy_count_label[target_label]-1   
+        
+        for i in range(len(dataset_list)): 
+            target_data  = dataset_list[i].data
+            trans = select_transformation(aug_method, target_data.shape[1])
+            aug = trans.augment(np.reshape(target_data,(1, target_data.shape[1], -1))) 
+            ts_ds = TSDataSet(aug[0].T, dataset_list[i].label, len(aug[0].T))
+            dataset_list.append(ts_ds)
+
     
     return dataset_list
 
