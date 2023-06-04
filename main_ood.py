@@ -12,14 +12,15 @@ from utils import _calc_metrics
 from models.TFC import TFC, target_classifier
 from torch.utils.data import DataLoader, Dataset
 import torch.fft as fft
-from data_preprocessing.dataloader import splitting_data
+from data_preprocessing.dataloader import loading_data
 from tsaug import *
-
-my_aug = (Pool(size=2))
+from data_preprocessing.dataloader import count_label_labellist, select_transformation
+from sklearn.model_selection import train_test_split
+import pandas as pd
 
 class Load_Dataset(Dataset):
     # Initialize your data, download, etc.
-    def __init__(self, data_list, label_list, config, training_mode):
+    def __init__(self, data_list, label_list, config, training_mode, aug_method):
         super(Load_Dataset, self).__init__()
         self.training_mode = training_mode
 
@@ -41,8 +42,10 @@ class Load_Dataset(Dataset):
 
         self.x_data_f = fft.fft(self.x_data).abs() #/(window_length) # rfft for real value inputs.
         self.len = X_train.shape[0]
-  
-        self.aug1 = torch.from_numpy(np.array(my_aug.augment(self.x_data.cpu().numpy())))
+        
+        pos_aug = select_transformation(aug_method, X_train.shape[2])
+        self.aug1 = torch.from_numpy(np.array(pos_aug.augment(self.x_data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
+
         self.aug1_f = fft.fft(self.aug1).abs() 
 
     def __getitem__(self, index):
@@ -139,94 +142,133 @@ args.one_class_idx = 3
 
 exec(f'from config_files.{data_type}_Configs import Config as Configs')
 configs = Configs()
-auroc_rs = []
-f1_rs = []
-# Training for five seed
-for test_num in [20, 40, 60, 80, 100]:
-    # ##### fix random seeds for reproducibility ########
-    SEED = args.seed = test_num
-    torch.manual_seed(SEED)
-    torch.backends.cudnn.deterministic = False
-    torch.backends.cudnn.benchmark = False
-    np.random.seed(SEED)
-    #####################################################
 
-    experiment_log_dir = os.path.join(logs_save_dir, experiment_description, run_description, training_mode + f"_seed_{SEED}")
-    os.makedirs(experiment_log_dir, exist_ok=True)
+final_auroc = []
+final_f1 = []
 
-    # loop through domains
-    counter = 0
-    src_counter = 0
+num_classes, datalist, labellist = loading_data(data_type, args)
 
-    # Logging
-    log_file_name = os.path.join(experiment_log_dir, f"logs_{datetime.now().strftime('%d_%m_%Y_%H_%M_%S')}.log")
-    logger = _logger(log_file_name)
-    logger.debug("=" * 45)
-    logger.debug(f'Dataset: {data_type}')
-    logger.debug(f'Method:  {method}')
-    logger.debug(f'Mode:    {training_mode}')
-    logger.debug("=" * 45)
+for positive_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 
+                       'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
+    auroc_rs = []
+    f1_rs = []
+    # Training for five seed
+    for test_num in [20, 40, 60, 80, 100]:
+        # ##### fix random seeds for reproducibility ########
+        SEED = args.seed = test_num
+        torch.manual_seed(SEED)
+        torch.backends.cudnn.deterministic = False
+        torch.backends.cudnn.benchmark = False
+        np.random.seed(SEED)
+        #####################################################
 
-    # Load datasets
-    data_path = f"./data/{data_type}"
+        experiment_log_dir = os.path.join(logs_save_dir, experiment_description, run_description, training_mode + f"_seed_{SEED}")
+        os.makedirs(experiment_log_dir, exist_ok=True)
 
-    num_classes, entire_list, train_list, valid_list, test_list, entire_label_list, train_label_list, valid_label_list, test_label_list \
-    = splitting_data(args.selected_dataset, args.test_ratio, args.valid_ratio, args.padding, args.seed, \
-                     args.timespan, args.min_seq, args.min_samples, args.aug_method, args.aug_wise)
-    
-    train_list = train_list.cpu()
-    train_label_list = train_label_list.cpu()
-    valid_list =valid_list.cpu()
-    valid_label_list = valid_label_list.cpu()
-    test_list = test_list.cpu()
-    test_label_list = test_label_list.cpu()
+        # loop through domains
+        counter = 0
+        src_counter = 0
 
-    train_list = train_list[np.where(train_label_list == args.one_class_idx)]
-    train_label_list = train_label_list[np.where(train_label_list == args.one_class_idx)]
+        # Logging
+        log_file_name = os.path.join(experiment_log_dir, f"logs_{datetime.now().strftime('%d_%m_%Y_%H_%M_%S')}.log")
+        logger = _logger(log_file_name)
+        logger.debug("=" * 45)
+        logger.debug(f'Dataset: {data_type}')
+        logger.debug(f'Method:  {method}')
+        logger.debug(f'Mode:    {training_mode}')
+        logger.debug(f'Positive Augmentation:    {positive_aug}')
+        logger.debug("=" * 45)
 
-    valid_list = valid_list[np.where(valid_label_list == args.one_class_idx)]
-    valid_label_list = valid_label_list[np.where(valid_label_list == args.one_class_idx)]
-
-    # only use for testing novelty
-    test_list = test_list[np.where(test_label_list == args.one_class_idx)]
-    test_label_list = test_label_list[np.where(test_label_list == args.one_class_idx)]
-    
-  
-    # build data loader
-    dataset = Load_Dataset(train_list, train_label_list, configs, training_mode)    
-    train_dl = train_loader = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
-
-    dataset = Load_Dataset(valid_list, valid_label_list, configs, training_mode)
-    valid_dl = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
-
-    dataset = Load_Dataset(test_list, test_label_list, configs, training_mode)
-    test_dl = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
+        # Load datasets
+        data_path = f"./data/{data_type}"
 
     
+        
+
+        test_ratio = args.test_ratio
+        valid_ratio = args.valid_ratio
+        seed =  args.seed 
+
+        # Split train and valid dataset
+        train_list, test_list, train_label_list, test_label_list = train_test_split(datalist, 
+                                                labellist, test_size=test_ratio, stratify= labellist, 
+                                                random_state=seed) 
     
-    logger.debug("Data loaded ...")
+        train_list, valid_list, train_label_list, valid_label_list = train_test_split(train_list, 
+                                                train_label_list, test_size=valid_ratio, stratify=train_label_list, 
+                                                random_state=seed)
+                                       
 
-    # Load Model
-    model = TFC(configs).to(device)
-    classifier = target_classifier(configs).to(device)
+        train_list = torch.tensor(train_list).cuda().cpu()
+        train_label_list = torch.tensor(train_label_list).cuda().cpu()
+        valid_list = torch.tensor(valid_list).cuda().cpu()
+        valid_label_list = torch.tensor(valid_label_list).cuda().cpu()
+        test_list = torch.tensor(test_list).cuda().cpu()
+        test_label_list = torch.tensor(test_label_list).cuda().cpu()
 
-    model_optimizer = torch.optim.Adam(model.parameters(), lr=configs.lr, 
-                                       betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
-    classifier_optimizer = torch.optim.Adam(classifier.parameters(), 
-                                        lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
+        # train_list = train_list[np.where(train_label_list == args.one_class_idx)]
+        # train_label_list = train_label_list[np.where(train_label_list == args.one_class_idx)]
 
-    # Trainer
-    model = Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode)
+        # valid_list = valid_list[np.where(valid_label_list == args.one_class_idx)]
+        # valid_label_list = valid_label_list[np.where(valid_label_list == args.one_class_idx)]
+
+        # # only use for testing novelty
+        # test_list = test_list[np.where(test_label_list == args.one_class_idx)]
+        # test_label_list = test_label_list[np.where(test_label_list == args.one_class_idx)]
+        
+    
+        # build data loader
+        dataset = Load_Dataset(train_list, train_label_list, configs, training_mode, positive_aug)    
+        train_dl = train_loader = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
+
+        dataset = Load_Dataset(valid_list, valid_label_list, configs, training_mode, positive_aug)
+        valid_dl = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
+
+        dataset = Load_Dataset(test_list, test_label_list, configs, training_mode, positive_aug)
+        test_dl = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
+        
+        
+        logger.debug("Data loaded ...")
+
+        # Load Model
+        model = TFC(configs).to(device)
+        classifier = target_classifier(configs).to(device)
+
+        model_optimizer = torch.optim.Adam(model.parameters(), lr=configs.lr, 
+                                        betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
+        classifier_optimizer = torch.optim.Adam(classifier.parameters(), 
+                                            lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
+
+        # Trainer
+        model = Trainer(model, model_optimizer, classifier, classifier_optimizer, 
+                        train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode)
 
 
-    # Testing
-    outs = model_evaluate(model, classifier, test_dl, device, training_mode)
-    total_loss, total_acc, total_f1, auroc, pred_labels, true_labels = outs
-    _calc_metrics(pred_labels, true_labels, experiment_log_dir, args.home_path)
-    auroc_rs.append(auroc.item())
-    f1_rs.append(total_f1.item())
+        # Testing
+        outs = model_evaluate(model, classifier, test_dl, device, training_mode)
+        total_loss, total_acc, total_f1, auroc, pred_labels, true_labels = outs
+        _calc_metrics(pred_labels, true_labels, experiment_log_dir, args.home_path)
+        auroc_rs.append(auroc.item())
+        f1_rs.append(total_f1.item())
 
-print("Average of the AUROC list =", round(sum(auroc_rs)/len(auroc_rs), 3))
-print("Average of the F1 list =", round(sum(f1_rs)/len(f1_rs), 3))
+    print("Average of the AUROC list =", round(sum(auroc_rs)/len(auroc_rs), 3))
+    print("Average of the F1 list =", round(sum(f1_rs)/len(f1_rs), 3))
+    final_auroc.append([np.mean(auroc_rs), np.std(auroc_rs)])
+    final_f1.append([np.mean(f1_rs), np.std(f1_rs)])
+
+# for extrating results to an excel file
+final_rs =[]
+for i in final_auroc:
+    final_rs.append(i)
+for i in final_f1:
+    final_rs.append(i)
+
+print("Finished")
+
+df = pd.DataFrame(final_rs, columns=['mean', 'std'])
+df.to_excel('final_ood_'+data_type+'.xlsx', sheet_name='the results')
+
+
+logger.debug(f"Training time is : {datetime.now()-start_time}")
 
 torch.cuda.empty_cache()

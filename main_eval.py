@@ -108,7 +108,7 @@ configs = Configs()
 
 num_classes, datalist, labellist = loading_data(data_type, args)
 
-for args.ood_score in [['NovelHD']]:    
+for args.ood_score in [['T'],['NovelHD']]:    
         
     final_auroc = []
     final_aupr = []
@@ -121,8 +121,8 @@ for args.ood_score in [['NovelHD']]:
     fpr_a   = []
     de_a  = []
 
-    for positive_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 
-                        'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
+    for positive_aug in ['AddNoise']:# 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 
+                        #'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
         # Training for five seed #
         for test_num in [10, 30, 50, 70, 90]:
             # ##### fix random seeds for reproducibility ########

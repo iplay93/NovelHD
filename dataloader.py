@@ -104,7 +104,7 @@ class Load_Dataset(Dataset):
     
         # select positive transformation method
         if args.aug_wise == 'Temporal':
-            pos_aug = select_transformation(aug_method, X_train.shape[2])
+            pos_aug = select_transformation(aug_method, X_train.shape[1])
         elif args.aug_wise == 'Sensor':
             pos_aug = select_transformation(aug_method, X_train.shape[1])
 
@@ -112,7 +112,8 @@ class Load_Dataset(Dataset):
             #self.aug1 = DataTransform_TD(self.x_data, config)
             #print("Positive_before", self.x_data.shape)
             if args.aug_wise == 'Temporal':
-                self.aug1 = torch.from_numpy(np.array(pos_aug.augment(self.x_data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
+                self.aug1 = torch.from_numpy(np.array(pos_aug.augment(self.x_data.cpu().numpy())))
+                #self.aug1 = torch.from_numpy(np.array(pos_aug.augment(self.x_data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
             elif args.aug_wise == 'Sensor':
                 self.aug1 = torch.from_numpy(np.array(pos_aug.augment(self.x_data.cpu().numpy())))
             #print("Positive_after", self.aug1.shape)

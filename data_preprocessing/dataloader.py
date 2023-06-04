@@ -438,4 +438,3 @@ def loading_data(dataset, args):
     count_label_labellist(labellist)    
     
     return  types_label_list, datalist.cuda(), labellist
-
