@@ -27,7 +27,7 @@ class Config(object):
         self.augmentation = augmentations()
         
         """New hyperparameters"""
-        self.TSlength_aligned = 15
+        self.TSlength_aligned = 169
         self.lr_f = self.lr
         self.target_batch_size = 32#  84
         self.increased_dim = 1

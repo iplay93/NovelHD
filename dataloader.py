@@ -99,12 +99,12 @@ class Load_Dataset(Dataset):
             self.x_data = X_train
             self.y_data = y_train
 
-        self.x_data_f = fft.fft(self.x_data).abs() #/(window_length) # rfft for real value inputs.
+        self.x_data_f = fft.fft(self.x_data.permute(0, 2, 1)).abs().permute(0, 2, 1) #/(window_length) # rfft for real value inputs.
         self.len = X_train.shape[0]
     
         # select positive transformation method
         if args.aug_wise == 'Temporal':
-            pos_aug = select_transformation(aug_method, X_train.shape[1])
+            pos_aug = select_transformation(aug_method, X_train.shape[2])
         elif args.aug_wise == 'Sensor':
             pos_aug = select_transformation(aug_method, X_train.shape[1])
 
@@ -112,13 +112,12 @@ class Load_Dataset(Dataset):
             #self.aug1 = DataTransform_TD(self.x_data, config)
             #print("Positive_before", self.x_data.shape)
             if args.aug_wise == 'Temporal':
-                self.aug1 = torch.from_numpy(np.array(pos_aug.augment(self.x_data.cpu().numpy())))
-                #self.aug1 = torch.from_numpy(np.array(pos_aug.augment(self.x_data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
+                self.aug1 = torch.from_numpy(np.array(pos_aug.augment(self.x_data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
             elif args.aug_wise == 'Sensor':
                 self.aug1 = torch.from_numpy(np.array(pos_aug.augment(self.x_data.cpu().numpy())))
             #print("Positive_after", self.aug1.shape)
             #self.aug1_f = DataTransform_FD(self.x_data_f, config) # [7360, 1, 90]
-            self.aug1_f = fft.fft(self.aug1).abs() 
+            self.aug1_f = fft.fft(self.aug1.permute(0, 2, 1)).abs().permute(0, 2, 1) 
     def __getitem__(self, index):
         if self.training_mode == "novelty_detection" or self.training_mode == "ood_ness" :
             return self.x_data[index], self.y_data[index], self.aug1[index], self.x_data_f[index], self.aug1_f[index]

@@ -245,7 +245,8 @@ def _get_features(args, model, loader, sample_num=1, layers=('simclr_t', 'shift_
                     temp_data = torch.from_numpy(shifted_aug.augment(np.reshape(x[k].cpu().numpy(),(1, x[k].shape[0],-1))))
 
                 x        = torch.cat((x, temp_data.to(device)), 0)
-                x_f      = torch.cat((x_f, fft.fft(temp_data).abs().to(device)), 0)
+                
+            x_f      = fft.fft(x.permute(0, 2, 1)).abs().permute(0, 2, 1)
        
 
             # compute augmented features
