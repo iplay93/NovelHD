@@ -31,7 +31,7 @@ def train_anomaly_detector(args, config):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Wide Residual Networks')
+    parser = argparse.ArgumentParser(description='GOAD for time series')
     # Model options
     parser.add_argument('--depth', default=10, type=int)
     parser.add_argument('--widen-factor', default=4, type=int)
