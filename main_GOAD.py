@@ -55,8 +55,8 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', default='lapras', type=str)
     parser.add_argument('--padding', type=str, 
                     default='mean', help='choose one of them : no, max, mean')
-    parser.add_argument('--timespan', type=int, 
-                    default=10000, help='choose of the number of timespan between data points(1000 = 1sec, 60000 = 1min)')
+    parser.add_argument('--timespan', type=int, default=10000, 
+                        help='choose of the number of timespan between data points(1000 = 1sec, 60000 = 1min)')
     parser.add_argument('--min_seq', type=int, 
                     default=10, help='choose of the minimum number of data points in a example')
     parser.add_argument('--min_samples', type=int, default=20, 
