@@ -131,3 +131,97 @@ def permutation(x, max_segments=5, seg_mode="random"):
         else:
             ret[i] = pat
     return torch.from_numpy(ret)
+
+# from GOAD
+
+import abc
+import itertools
+import numpy as np
+#from keras.preprocessing.image import apply_affine_transform
+# The code is adapted from https://github.com/izikgo/AnomalyDetectionTransformations/blob/master/transformations.py
+
+def get_transformer(type_trans, config):
+    if type_trans == 'complicated':
+        #tr_x, tr_y = 8, 8
+        transformer = Transformer(config)
+        return transformer
+    elif type_trans == 'simple':
+        transformer = SimpleTransformer()
+        return transformer
+
+
+class AffineTransformation(object):
+    def __init__(self, j, s, p, m, config):
+        self.j = j
+        self.s = s
+        self.p = p
+        self.m = m
+        self.config = config
+            
+
+    def __call__(self, x):
+        res_x = x
+        if self.j:
+            #res_x = np.fliplr(res_x)
+            res_x = jitter(res_x, self.config.augmentation.jitter_ratio)
+        if self.s:
+            res_x = scaling(res_x, self.config.augmentation.jitter_scale_ratio)
+        if self.p:
+            res_x = permutation(res_x, max_segments= self.config.augmentation.max_seg)
+            #res_x = apply_affine_transform(res_x,
+            #tx=self.tx, ty=self.ty, channel_axis=2, fill_mode='reflect')
+        if self.m:
+            res_x = masking(res_x, keepratio=0.9)
+            #res_x = np.rot90(res_x, self.k_90_rotate)
+        return res_x
+
+
+class AbstractTransformer(abc.ABC):
+    def __init__(self):
+        self._transformation_list = None
+        self._create_transformation_list()
+
+    @property
+    def n_transforms(self):
+        return len(self._transformation_list)
+
+    @abc.abstractmethod
+    def _create_transformation_list(self):
+        return
+
+    def transform_batch(self, x_batch, t_inds):
+        assert len(x_batch) == len(t_inds)
+
+        transformed_batch = x_batch.copy()
+        for i, t_ind in enumerate(t_inds):
+            transformed_batch[i] = self._transformation_list[t_ind](transformed_batch[i])
+        return transformed_batch
+
+
+class Transformer(AbstractTransformer):
+    def __init__(self, config):
+        #self.max_tx = translation_x
+        #self.max_ty = translation_y
+        self.config = config
+        super().__init__()
+
+    def _create_transformation_list(self):
+        transformation_list = []
+        for j, s, p, m in itertools.product((False, True), (False, True),
+                                                           (False, True),(False, True)):
+            print(j, s, p, m)
+            transformation = AffineTransformation(j, s, p, m, self.config)
+            transformation_list.append(transformation)
+        self._transformation_list = transformation_list
+        return transformation_list
+
+
+class SimpleTransformer(AbstractTransformer):
+    def _create_transformation_list(self):
+        transformation_list = []
+        for is_flip, k_rotate in itertools.product((False, True),
+                                                    range(4)):
+            transformation = AffineTransformation(is_flip, 0, 0, k_rotate)
+            transformation_list.append(transformation)
+        self._transformation_list = transformation_list
+        return transformation_list

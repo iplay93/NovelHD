@@ -122,7 +122,7 @@ for args.ood_score in [['NovelHD']]:
         auroc_a = []
         aupr_a  = []
         fpr_a   = []
-        de_a  = []
+        de_a    = []
         positive_aug = 'AddNoise'
 
         # Training for five seed #

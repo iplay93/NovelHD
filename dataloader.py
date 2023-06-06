@@ -163,6 +163,30 @@ def data_generator(args, configs, training_mode, aug_method):
 
     return train_loader, finetune_loader, test_loader
 
+
+def data_generator_goad(args, datalist, labellist):
+
+    test_ratio = args.test_ratio
+    seed =  args.seed 
+    # num_classes, entire_list, train_list, valid_list, test_list, entire_label_list, train_label_list, valid_label_list, test_label_list \
+    # = splitting_data(args.selected_dataset, args.test_ratio, args.valid_ratio, args.padding, args.seed, \
+    #                  args.timespan, args.min_seq, args.min_samples, args.aug_method, args.aug_wise)
+    train_list, test_list, train_label_list, test_label_list = train_test_split(datalist, 
+                                                                                labellist, test_size=test_ratio, stratify= labellist, random_state=seed) 
+    train_list = torch.tensor(train_list).cuda().cpu()
+    train_label_list = torch.tensor(train_label_list).cuda().cpu()
+
+    test_list = torch.tensor(test_list).cuda().cpu()
+    test_label_list = torch.tensor(test_label_list).cuda().cpu()
+    
+    train_list = train_list[np.where(train_label_list == args.one_class_idx)]
+    train_label_list = train_label_list[np.where(train_label_list == args.one_class_idx)]
+
+
+    # only use for testing novelty
+    return train_list, test_list, test_label_list 
+
+
 def data_generator_2(args, configs, training_mode):
     # num_classes, entire_list, train_list, valid_list, test_list, entire_label_list, train_label_list, valid_label_list, test_label_list \
     # = splitting_data(args.selected_dataset, args.test_ratio, args.valid_ratio, args.padding, args.seed, \
