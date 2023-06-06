@@ -78,7 +78,7 @@ if __name__ == '__main__':
     exec(f'from config_files.{data_type}_Configs import Config as Configs')
     configs = Configs()
 
-    for i in range(10):
+    for i in [0, 1, 2, 3]:
         args.one_class_idx = i
         print("Dataset:", args.dataset)
         print("True Class:", args.one_class_idx)
