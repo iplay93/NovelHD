@@ -1,5 +1,8 @@
 import numpy as np
 import torch
+from tsaug import *
+from data_preprocessing.dataloader import select_transformation
+import random
 
 def one_hot_encoding(X):
     X = [int(x) for x in X]
@@ -140,39 +143,55 @@ import numpy as np
 #from keras.preprocessing.image import apply_affine_transform
 # The code is adapted from https://github.com/izikgo/AnomalyDetectionTransformations/blob/master/transformations.py
 
-def get_transformer(type_trans, config):
-    if type_trans == 'complicated':
+def get_transformer(args, config):
+    if args.type_trans == 'complicated':
         #tr_x, tr_y = 8, 8
-        transformer = Transformer(config)
+        transformer = Transformer(args, config)
         return transformer
-    elif type_trans == 'simple':
+    elif args.type_trans == 'simple':
         transformer = SimpleTransformer()
         return transformer
 
 
 class AffineTransformation(object):
-    def __init__(self, j, s, p, m, config):
+    def __init__(self, j, s, config, trans_list):
         self.j = j
         self.s = s
-        self.p = p
-        self.m = m
+        # self.p = p
+        # self.m = m
         self.config = config
-            
+        self.trans_list = trans_list
+        print(self.trans_list)                    
 
     def __call__(self, x):
         res_x = x
+        # shape of x (T,C)
+        
         if self.j:
             #res_x = np.fliplr(res_x)
-            res_x = jitter(res_x, self.config.augmentation.jitter_ratio)
+            trans = select_transformation(self.trans_list[0], res_x.shape[0])
+            res_x = trans.augment(np.reshape(res_x,(1, res_x .shape[0], -1)))[0]
+            #res_x = jitter(res_x, self.config.augmentation.jitter_ratio)
         if self.s:
-            res_x = scaling(res_x, self.config.augmentation.jitter_scale_ratio)
-        if self.p:
-            res_x = permutation(res_x, max_segments= self.config.augmentation.max_seg)
-            #res_x = apply_affine_transform(res_x,
-            #tx=self.tx, ty=self.ty, channel_axis=2, fill_mode='reflect')
-        if self.m:
-            res_x = masking(res_x, keepratio=0.9)
-            #res_x = np.rot90(res_x, self.k_90_rotate)
+            trans = select_transformation(self.trans_list[1], res_x.shape[0])
+            res_x = trans.augment(np.reshape(res_x,(1, res_x .shape[0], -1)))[0]
+            #jitter(res_x, self.config.augmentation.jitter_ratio)
+            #res_x = scaling(res_x, self.config.augmentation.jitter_scale_ratio)
+        # if self.p:
+        #     trans = select_transformation(self.trans_list[2], res_x.shape[0])
+        #     res_x = trans.augment(np.reshape(res_x,(1, res_x .shape[0], -1)))[0]
+        #     #res_x = jitter(res_x, self.config.augmentation.jitter_ratio)
+        #     #res_x = permutation(res_x, max_segments= self.config.augmentation.max_seg)
+        #     #res_x = apply_affine_transform(res_x,
+        #     #tx=self.tx, ty=self.ty, channel_axis=2, fill_mode='reflect')
+        # if self.m:
+        #     trans = select_transformation(self.trans_list[3], res_x.shape[0])
+        #     res_x = trans.augment(np.reshape(res_x,(1, res_x .shape[0], -1)))[0]
+        #     #res_x = jitter(res_x, self.config.augmentation.jitter_ratio)
+        #     #res_x = permutation(res_x, max_segments= self.config.augmentation.max_seg)
+        #     #res_x = masking(res_x, keepratio=0.9)
+        #     #res_x = np.rot90(res_x, self.k_90_rotate)
+        #     #print("res_x", res_x.shape)
         return res_x
 
 
@@ -193,24 +212,27 @@ class AbstractTransformer(abc.ABC):
         assert len(x_batch) == len(t_inds)
 
         transformed_batch = x_batch.copy()
+        
         for i, t_ind in enumerate(t_inds):
+            #print(i, t_ind, transformed_batch[i].shape )
             transformed_batch[i] = self._transformation_list[t_ind](transformed_batch[i])
         return transformed_batch
 
 
 class Transformer(AbstractTransformer):
-    def __init__(self, config):
+    def __init__(self, args, config):
         #self.max_tx = translation_x
         #self.max_ty = translation_y
         self.config = config
+        random.seed(args.seed)
+        self.trans_list = random.sample(['AddNoise' ,'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 
+                    'Quantize', 'Resize', 'Reverse', 'TimeWarp'], 2)
         super().__init__()
 
     def _create_transformation_list(self):
         transformation_list = []
-        for j, s, p, m in itertools.product((False, True), (False, True),
-                                                           (False, True),(False, True)):
-            print(j, s, p, m)
-            transformation = AffineTransformation(j, s, p, m, self.config)
+        for j, s in itertools.product((False, True), (False, True)):
+            transformation = AffineTransformation(j, s, self.config, self.trans_list)
             transformation_list.append(transformation)
         self._transformation_list = transformation_list
         return transformation_list

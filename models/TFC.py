@@ -69,3 +69,35 @@ class target_classifier(nn.Module):
         emb = torch.sigmoid(self.logits(emb_flat))
         pred = self.logits_simple(emb)
         return pred
+
+"""Two contrastive encoders"""
+class TFC_GOAD(nn.Module):
+    def __init__(self, configs, num_classes):
+        super(TFC_GOAD, self).__init__()
+
+        encoder_layers = TransformerEncoderLayer(configs.TSlength_aligned, dim_feedforward=2*configs.TSlength_aligned, nhead=1, )
+        self.transformer_encoder = TransformerEncoder(encoder_layers, 2)
+
+        self.projector = nn.Sequential(
+            nn.Linear(configs.TSlength_aligned * configs.input_channels, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Linear(256, 256)
+        )
+
+        self.linear = nn.Linear(256, num_classes)    
+
+
+    def forward(self, x_in):
+
+        """Use Transformer"""
+        x = self.transformer_encoder(x_in.float())
+        h = x.reshape(x.shape[0], -1)
+
+        """Cross-space projector"""
+        z = self.projector(h)
+
+        """Shifted transformation classifier"""
+        s = self.linear(z)
+
+        return h, z, s

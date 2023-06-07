@@ -8,6 +8,7 @@ from dataloader import data_generator_goad
 
 def transform_data(data, trans):
     trans_inds = np.tile(np.arange(trans.n_transforms), len(data))
+    print(data.shape)
     trans_data = trans.transform_batch(np.repeat(data.numpy(), trans.n_transforms, axis=0), trans_inds)
     return trans_data, trans_inds
 
@@ -15,19 +16,22 @@ def load_trans_data(args, trans):
     #dl = Data_Loader()
     _, datalist, labellist = loading_data(args.dataset, args)
     x_train, x_test, y_test = data_generator_goad(args, datalist, labellist)
+    
     x_train_trans, _ = transform_data(x_train, trans)
     x_test_trans, _ = transform_data(x_test, trans)
+
     x_test_trans, x_train_trans = x_test_trans.transpose(0, 2, 1), x_train_trans.transpose(0, 2, 1)
     y_test = np.array(y_test) == args.one_class_idx
     return x_train_trans, x_test_trans, y_test
 
 
 def train_anomaly_detector(args, config):
-    transformer = ts.get_transformer(args.type_trans, config)
+    transformer = ts.get_transformer(args, config)
     x_train, x_test, y_test = load_trans_data(args, transformer)
-    print("final shape:",x_train.shape, x_test.shape, y_test.shape)
-    #tc_obj = tc.TransClassifier(transformer.n_transforms, args)
-    #tc_obj.fit_trans_classifier(x_train, x_test, y_test)
+    print("final shape:",x_train.shape, x_test.shape, y_test.shape, transformer.n_transforms)
+    # train 은 하나의 idx를 기반으로 하기 때문에 test의 크기가 더 클 수 있음
+    tc_obj = tc.TransClassifier(transformer.n_transforms, args, configs)
+    tc_obj.fit_trans_classifier(x_train, x_test, y_test)
 
 
 if __name__ == '__main__':
@@ -52,11 +56,11 @@ if __name__ == '__main__':
 
     # Exp options
     #parser.add_argument('--class_ind', default=1, type=int)
-    parser.add_argument('--dataset', default='lapras', type=str)
+    parser.add_argument('--dataset', default='casas', type=str)
     parser.add_argument('--padding', type=str, 
                     default='mean', help='choose one of them : no, max, mean')
-    parser.add_argument('--timespan', type=int, default=10000, 
-                        help='choose of the number of timespan between data points(1000 = 1sec, 60000 = 1min)')
+    parser.add_argument('--timespan', type=int, default=1000, 
+                        help='choose of the number of timespan between data points (1000 = 1sec, 60000 = 1min)')
     parser.add_argument('--min_seq', type=int, 
                     default=10, help='choose of the minimum number of data points in a example')
     parser.add_argument('--min_samples', type=int, default=20, 
@@ -67,9 +71,9 @@ if __name__ == '__main__':
                         help='choose the data augmentation method')
     parser.add_argument('--aug_wise', type=str, default='Temporal', 
                         help='choose the data augmentation wise')
-    parser.add_argument('--test_ratio', type=float, default=0.3, 
+    parser.add_argument('--test_ratio', type=float, default=0.2, 
                         help='choose the number of test ratio')
-    parser.add_argument('--seed', default=42, type=int,
+    parser.add_argument('--seed', default = 42, type=int,
                     help='seed value')
     
     args = parser.parse_args()
@@ -78,7 +82,7 @@ if __name__ == '__main__':
     exec(f'from config_files.{data_type}_Configs import Config as Configs')
     configs = Configs()
 
-    for i in [0, 1, 2, 3]:
+    for i in range(5):
         args.one_class_idx = i
         print("Dataset:", args.dataset)
         print("True Class:", args.one_class_idx)

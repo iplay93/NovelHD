@@ -263,12 +263,12 @@ def data_augmentation(dataset_list, aug_method, aug_wise):
                     dataset_list.append(ts_ds)
                     copy_count_label[target_label] = copy_count_label[target_label]-1   
         
-        # for i in range(len(dataset_list)): 
-        #     target_data  = dataset_list[i].data
-        #     trans = select_transformation(aug_method, target_data.shape[0])
-        #     aug = trans.augment(np.reshape(target_data,(1, target_data.shape[0], -1))) 
-        #     ts_ds = TSDataSet(aug[0], dataset_list[i].label, len(aug[0]))
-        #     dataset_list.append(ts_ds)
+        for i in range(len(dataset_list)): 
+            target_data  = dataset_list[i].data
+            trans = select_transformation(aug_method, target_data.shape[0])
+            aug = trans.augment(np.reshape(target_data,(1, target_data.shape[0], -1))) 
+            ts_ds = TSDataSet(aug[0], dataset_list[i].label, len(aug[0]))
+            dataset_list.append(ts_ds)
 
     elif aug_wise == 'Sensor' :
 # sensor aspect data augmentation
