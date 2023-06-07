@@ -1,5 +1,4 @@
 import torch
-
 import os
 import numpy as np
 from datetime import datetime
@@ -11,7 +10,7 @@ from trainer.trainer_ND import Trainer
 from models.TC import TC
 from utils import _calc_metrics, copy_Files
 from models.TFC import TFC, target_classifier
-from dataloader import data_generator,data_generator_nd
+from dataloader import data_generator_nd
 from eval_nd import eval_ood_detection
 from numba import cuda
 import pandas as pd
