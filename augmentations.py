@@ -154,11 +154,11 @@ def get_transformer(args, config):
 
 
 class AffineTransformation(object):
-    def __init__(self, j, s, config, trans_list):
+    def __init__(self, j, s, p, m, config, trans_list):
         self.j = j
         self.s = s
-        # self.p = p
-        # self.m = m
+        self.p = p
+        self.m = m
         self.config = config
         self.trans_list = trans_list
         print(self.trans_list)                    
@@ -177,21 +177,21 @@ class AffineTransformation(object):
             res_x = trans.augment(np.reshape(res_x,(1, res_x .shape[0], -1)))[0]
             #jitter(res_x, self.config.augmentation.jitter_ratio)
             #res_x = scaling(res_x, self.config.augmentation.jitter_scale_ratio)
-        # if self.p:
-        #     trans = select_transformation(self.trans_list[2], res_x.shape[0])
-        #     res_x = trans.augment(np.reshape(res_x,(1, res_x .shape[0], -1)))[0]
-        #     #res_x = jitter(res_x, self.config.augmentation.jitter_ratio)
-        #     #res_x = permutation(res_x, max_segments= self.config.augmentation.max_seg)
-        #     #res_x = apply_affine_transform(res_x,
-        #     #tx=self.tx, ty=self.ty, channel_axis=2, fill_mode='reflect')
-        # if self.m:
-        #     trans = select_transformation(self.trans_list[3], res_x.shape[0])
-        #     res_x = trans.augment(np.reshape(res_x,(1, res_x .shape[0], -1)))[0]
-        #     #res_x = jitter(res_x, self.config.augmentation.jitter_ratio)
-        #     #res_x = permutation(res_x, max_segments= self.config.augmentation.max_seg)
-        #     #res_x = masking(res_x, keepratio=0.9)
-        #     #res_x = np.rot90(res_x, self.k_90_rotate)
-        #     #print("res_x", res_x.shape)
+        if self.p:
+            trans = select_transformation(self.trans_list[2], res_x.shape[0])
+            res_x = trans.augment(np.reshape(res_x,(1, res_x .shape[0], -1)))[0]
+            #res_x = jitter(res_x, self.config.augmentation.jitter_ratio)
+            #res_x = permutation(res_x, max_segments= self.config.augmentation.max_seg)
+            #res_x = apply_affine_transform(res_x,
+            #tx=self.tx, ty=self.ty, channel_axis=2, fill_mode='reflect')
+        if self.m:
+            trans = select_transformation(self.trans_list[3], res_x.shape[0])
+            res_x = trans.augment(np.reshape(res_x,(1, res_x .shape[0], -1)))[0]
+            #res_x = jitter(res_x, self.config.augmentation.jitter_ratio)
+            #res_x = permutation(res_x, max_segments= self.config.augmentation.max_seg)
+            #res_x = masking(res_x, keepratio=0.9)
+            #res_x = np.rot90(res_x, self.k_90_rotate)
+            #print("res_x", res_x.shape)
         return res_x
 
 
@@ -226,13 +226,14 @@ class Transformer(AbstractTransformer):
         self.config = config
         random.seed(args.seed)
         self.trans_list = random.sample(['AddNoise' ,'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 
-                    'Quantize', 'Resize', 'Reverse', 'TimeWarp'], 2)
+                    'Quantize', 'Resize', 'Reverse', 'TimeWarp'], 4)
         super().__init__()
 
     def _create_transformation_list(self):
         transformation_list = []
-        for j, s in itertools.product((False, True), (False, True)):
-            transformation = AffineTransformation(j, s, self.config, self.trans_list)
+        for j, s, p, m in itertools.product((False, True), (False, True),
+                                            (False, True), (False, True)):
+            transformation = AffineTransformation(j, s, p, m, self.config, self.trans_list)
             transformation_list.append(transformation)
         self._transformation_list = transformation_list
         return transformation_list

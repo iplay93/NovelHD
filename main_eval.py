@@ -43,7 +43,7 @@ parser.add_argument('--home_path', default=home_dir, type=str,
 parser.add_argument('--padding', type=str, 
                     default='mean', help='choose one of them : no, max, mean')
 parser.add_argument('--timespan', type=int, 
-                    default=1000, help='choose of the number of timespan between data points(1000 = 1sec, 60000 = 1min)')
+                    default=10000, help='choose of the number of timespan between data points(1000 = 1sec, 60000 = 1min)')
 parser.add_argument('--min_seq', type=int, 
                     default=10, help='choose of the minimum number of data points in a example')
 parser.add_argument('--min_samples', type=int, default=20, 
@@ -114,7 +114,7 @@ for args.ood_score in [['NovelHD']]:
     final_fpr   = []
     final_de    = []
 
-    for args.one_class_idx in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, -1]:
+    for args.one_class_idx in [0, 1, 2, 3, -1]:
     #for positive_aug in ['AddNoise']:# 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 
                         #'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
         # overall performance
