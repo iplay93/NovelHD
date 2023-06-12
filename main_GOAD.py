@@ -56,7 +56,7 @@ if __name__ == '__main__':
 
     # Exp options
     #parser.add_argument('--class_ind', default=1, type=int)
-    parser.add_argument('--dataset', default='casas', type=str)
+    parser.add_argument('--dataset', default='lapras', type=str)
     parser.add_argument('--padding', type=str, 
                     default='mean', help='choose one of them : no, max, mean')
     parser.add_argument('--timespan', type=int, default=10000, 
@@ -82,7 +82,7 @@ if __name__ == '__main__':
     exec(f'from config_files.{data_type}_Configs import Config as Configs')
     configs = Configs()
 
-    for i in range(5):
+    for i in range(4):
         args.one_class_idx = i
         print("Dataset:", args.dataset)
         print("True Class:", args.one_class_idx)

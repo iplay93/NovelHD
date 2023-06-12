@@ -72,7 +72,6 @@ parser.add_argument('--aug_wise', type=str, default='Temporal', help='choose the
 parser.add_argument('--test_ratio', type=float, default=0.3, help='choose the number of test ratio')
 parser.add_argument('--valid_ratio', type=float, default=0, help='choose the number of vlaidation ratio')
 parser.add_argument('--overlapped_ratio', type=int, default= 50, help='choose the number of windows''overlapped ratio')
-parser.add_argument('--encoder', type=str, default='SupCon', help='choose one of them: simple, transformer')
 
     # for training   
 parser.add_argument('--loss', type=str, default='SupCon', help='choose one of them: crossentropy loss, contrastive loss')
@@ -107,22 +106,23 @@ configs = Configs()
 
 num_classes, datalist, labellist = loading_data(data_type, args)
 
-for args.ood_score in [['NovelHD']]:    
+for args.ood_score in [['T']]:    
         
     final_auroc = []
     final_aupr  = []
     final_fpr   = []
     final_de    = []
 
-    for args.one_class_idx in [0, 1, 2, 3, -1]:
-    #for positive_aug in ['AddNoise']:# 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 
-                        #'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
+    #for args.one_class_idx in [0, 1, 2, 3, -1]:
+    for positive_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 
+                        'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
         # overall performance
         auroc_a = []
         aupr_a  = []
         fpr_a   = []
         de_a    = []
-        positive_aug = 'AddNoise'
+        #positive_aug = 'AddNoise'
+        args.one_class_idx = -1
 
         # Training for five seed #
         for test_num in [10, 30, 50, 70, 90]:

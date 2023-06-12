@@ -197,8 +197,7 @@ def data_generator_2(args, configs, training_mode):
     valid_list =valid_list.cpu()
     valid_label_list = valid_label_list.cpu()
     test_list = test_list.cpu()
-    test_label_list = test_label_list.cpu()
-    
+    test_label_list = test_label_list.cpu()    
 
     """In pre-training: 
     train_dataset: [371055, 1, 178] from SleepEEG.    
