@@ -2,6 +2,7 @@ class Config(object):
     def __init__(self):
         # model configs
         self.input_channels = 7
+        self.input_channels_2 = 4
         self.kernel_size = 6
         self.stride = 1
         self.final_out_channels = 64

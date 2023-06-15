@@ -73,8 +73,11 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
 
                 data = torch.cat((data, temp_data.to(device)), 0)
                 aug1 = torch.cat((aug1, temp_aug1.to(device)), 0)
-                data_f = torch.cat((data_f, fft.fft(temp_data).abs().to(device)), 0)
-                aug1_f = torch.cat((aug1_f, fft.fft(temp_aug1).abs().to(device)), 0)
+    
+            data_f = fft.rfft(data.permute(0, 2, 1)).abs().permute(0, 2, 1).to(device)
+            #torch.cat((data_f, fft.rfft(temp_data.permute(0, 2, 1)).abs().permute(0, 2, 1).to(device)), 0)
+            aug1_f = fft.rfft(aug1.permute(0, 2, 1)).abs().permute(0, 2, 1).to(device)
+            #= torch.cat((aug1_f, fft.rfft(temp_aug1.permute(0, 2, 1)).abs().permute(0, 2, 1).to(device)), 0)
 
             shift_labels = torch.cat([torch.ones_like(labels) * k for k in range(2)], 0)  # B -> 2B
             shift_labels = shift_labels.repeat(2)

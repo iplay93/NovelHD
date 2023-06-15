@@ -239,15 +239,13 @@ def _get_features(args, model, loader, sample_num=1, layers=('simclr_t', 'shift_
 
             # adding shifted transformation
             for k in range(x.size(0)):
-                if args.aug_wise == 'Temporal':
-                    temp_data = torch.from_numpy(shifted_aug.augment(np.reshape(x[k].cpu().numpy(),(1, x[k].shape[1],-1)))).permute(0, 2, 1)
-                elif args.aug_wise == 'Sensor':
-                    temp_data = torch.from_numpy(shifted_aug.augment(np.reshape(x[k].cpu().numpy(),(1, x[k].shape[0],-1))))
+
+                temp_data = torch.from_numpy(shifted_aug.augment(np.reshape(x[k].cpu().numpy(),(1, x[k].shape[1],-1)))).permute(0, 2, 1)
+
 
                 x        = torch.cat((x, temp_data.to(device)), 0)
                 
-            x_f      = fft.fft(x.permute(0, 2, 1)).abs().permute(0, 2, 1)
-       
+            x_f      = fft.rfft(x.permute(0, 2, 1)).abs().permute(0, 2, 1)       
 
             # compute augmented features
             with torch.no_grad():

@@ -22,12 +22,12 @@ class TFC(nn.Module):
         self.transformer_encoder_f = TransformerEncoder(encoder_layers_f, 2)
 
         self.projector_f = nn.Sequential(
-            nn.Linear(configs.TSlength_aligned * configs.input_channels, 256),
+            nn.Linear(configs.TSlength_aligned * configs.input_channels_2, 256),
             nn.BatchNorm1d(256),
             nn.ReLU(),
             nn.Linear(256, 128)
         )                   
-        self.shift_cls_layer_f = nn.Linear(configs.TSlength_aligned * configs.input_channels, 2)
+        self.shift_cls_layer_f = nn.Linear(configs.TSlength_aligned * configs.input_channels_2, 2)
 
         self.linear = nn.Linear(configs.TSlength_aligned * configs.input_channels, configs.num_classes)    
 
@@ -70,7 +70,7 @@ class target_classifier(nn.Module):
         pred = self.logits_simple(emb)
         return pred
 
-"""Two contrastive encoders"""
+"""One contrastive encoders"""
 class TFC_GOAD(nn.Module):
     def __init__(self, configs, num_classes):
         super(TFC_GOAD, self).__init__()
