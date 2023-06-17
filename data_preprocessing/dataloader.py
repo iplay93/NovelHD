@@ -209,7 +209,7 @@ def padding_by_mean(lengthlist, normalized_df):
                 reconst_list.append(normalized_df.iloc[j,:].tolist())
             # padding to the end 
             p2d = (0, 0, 0, mean_length-lengthlist[i])
-            datalist.append(F.pad(torch.tensor(reconst_list),p2d,"constant", 0))    
+            datalist.append(F.pad(torch.tensor(reconst_list),p2d,"constant", -1))    
         count_lengthlist += lengthlist[i]
     
     # convert to tensor    
