@@ -29,8 +29,8 @@ def select_transformation(aug_method, target_len):
         my_aug = (AddNoise(scale=0.01))
     elif(aug_method == 'Convolve'):
         my_aug = (Convolve(window="flattop", size=11))
-    elif(aug_method == 'Crop'):
-        my_aug = (Crop(size = target_len))
+    # elif(aug_method == 'Crop'):
+    #     my_aug = (Crop(size = target_len))
     elif(aug_method == 'Drift'):
         my_aug = (Drift(max_drift=0.7, n_drift_points=5))
     elif(aug_method == 'Dropout'):
@@ -209,7 +209,7 @@ def padding_by_mean(lengthlist, normalized_df):
                 reconst_list.append(normalized_df.iloc[j,:].tolist())
             # padding to the end 
             p2d = (0, 0, 0, mean_length-lengthlist[i])
-            datalist.append(F.pad(torch.tensor(reconst_list),p2d,"constant", -1))    
+            datalist.append(F.pad(torch.tensor(reconst_list),p2d,"constant", 0))    
         count_lengthlist += lengthlist[i]
     
     # convert to tensor    
@@ -252,26 +252,26 @@ def data_augmentation(dataset_list, aug_method, aug_wise):
 
 # temporal aspect data augmentation
     if aug_wise == 'Temporal' :
-               
-        for i in range(len(dataset_list)): 
-            # Augmentation for data balancing
-            target_label = types_label_list.index(dataset_list[i].label)
-            target_data  = dataset_list[i].data
+        pass               
+        # for i in range(len(dataset_list)): 
+        #     # Augmentation for data balancing
+        #     target_label = types_label_list.index(dataset_list[i].label)
+        #     target_data  = dataset_list[i].data
 
-            # Target data shape : (N, T, C)
+        #     # Target data shape : (N, T, C)
             
-            for j in range(math.ceil(sub_count_label[target_label]/count_label_list[target_label])): 
-            #print(dataset_list[i].label, "" , math.ceil(sub_count_label[types_label_list.index(dataset_list[i].label)]/count_label_list[types_label_list.index(dataset_list[i].label)]))
-                if copy_count_label[target_label] > 0:
-                # print(copy_count_label[types_label_list.index(dataset_list[i].label)],"and",sub_count_label[types_label_list.index(dataset_list[i].label)])          
-                    #print("Aug", dataset_list[i].data.shape)
-                    # select data transformation
-                    trans = select_transformation(aug_method, target_data.shape[0])
-                    aug = trans.augment(np.reshape(target_data,(1, target_data.shape[0], -1)))
-                    #print("Aug_after", aug.shape, aug[0].shape)  
-                    ts_ds = TSDataSet(aug[0], dataset_list[i].label, len(aug[0]))
-                    dataset_list.append(ts_ds)
-                    copy_count_label[target_label] = copy_count_label[target_label]-1   
+        #     for j in range(math.ceil(sub_count_label[target_label]/count_label_list[target_label])): 
+        #     #print(dataset_list[i].label, "" , math.ceil(sub_count_label[types_label_list.index(dataset_list[i].label)]/count_label_list[types_label_list.index(dataset_list[i].label)]))
+        #         if copy_count_label[target_label] > 0:
+        #         # print(copy_count_label[types_label_list.index(dataset_list[i].label)],"and",sub_count_label[types_label_list.index(dataset_list[i].label)])          
+        #             #print("Aug", dataset_list[i].data.shape)
+        #             # select data transformation
+        #             trans = select_transformation(aug_method, target_data.shape[0])
+        #             aug = trans.augment(np.reshape(target_data,(1, target_data.shape[0], -1)))
+        #             #print("Aug_after", aug.shape, aug[0].shape)  
+        #             ts_ds = TSDataSet(aug[0], dataset_list[i].label, len(aug[0]))
+        #             dataset_list.append(ts_ds)
+        #             copy_count_label[target_label] = copy_count_label[target_label]-1   
         
         # for i in range(len(dataset_list)): 
         #     target_data  = dataset_list[i].data

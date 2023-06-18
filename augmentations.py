@@ -103,6 +103,7 @@ def masking(x, keepratio=0.9, mask= 'binomial'):
 
 def jitter(x, sigma=0.8):
     # https://arxiv.org/pdf/1706.00527.pdf
+    # Similar to AddNoise
     return x + np.random.normal(loc=0., scale=sigma, size=x.shape)
 
 
@@ -116,6 +117,7 @@ def scaling(x, sigma=1.1):
     return np.concatenate((ai), axis=1)
 
 def permutation(x, max_segments=5, seg_mode="random"):
+    # (N, C, T)
     orig_steps = np.arange(x.shape[2])
 
     num_segs = np.random.randint(1, max_segments, size=(x.shape[0]))
