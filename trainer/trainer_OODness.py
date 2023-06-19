@@ -15,10 +15,6 @@ from tsaug import *
 import torch.fft as fft
 
 
-#data augmentation for negative pairs
-my_aug = (Convolve(window="flattop", size=11))
-#my_aug = (TimeWarp(n_speed_change=5, max_speed_ratio=3))
-
 def Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode):
     # Start training
     logger.debug("Training started ....")

@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader, Dataset
 import torch.fft as fft
 from data_preprocessing.dataloader import loading_data
 from tsaug import *
-from data_preprocessing.dataloader import count_label_labellist, select_transformation
+from data_preprocessing.augmentations import select_transformation
 from sklearn.model_selection import train_test_split
 import pandas as pd
 
@@ -31,8 +31,9 @@ class Load_Dataset(Dataset):
             X_train = X_train.unsqueeze(2)
 
         #if X_train.shape.index(min(X_train.shape)) != 1:  # make sure the Channels in second dim
+        
         X_train = X_train.permute(0, 2, 1)
-
+        # (N, C, T)
         if isinstance(X_train, np.ndarray):
             self.x_data = torch.from_numpy(X_train)
             self.y_data = torch.from_numpy(y_train).long()
@@ -40,12 +41,16 @@ class Load_Dataset(Dataset):
             self.x_data = X_train
             self.y_data = y_train
 
+        # (N, C, T)
         self.x_data_f = fft.fft(self.x_data).abs() #/(window_length) # rfft for real value inputs.
         self.len = X_train.shape[0]
         
         pos_aug = select_transformation(aug_method, X_train.shape[2])
-        self.aug1 = torch.from_numpy(np.array(pos_aug.augment(self.x_data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
+        # (N, C, T) -> (N, T, C)-> (N, C, T)
+        self.aug1 = torch.from_numpy(np.array(pos_aug.augment(
+            self.x_data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
 
+        # (N, C, T)
         self.aug1_f = fft.fft(self.aug1).abs() 
 
     def __getitem__(self, index):
@@ -81,7 +86,7 @@ parser.add_argument('--home_path', default=home_dir, type=str,
 parser.add_argument('--padding', type=str, 
                     default='mean', help='choose one of them : no, max, mean')
 parser.add_argument('--timespan', type=int, 
-                    default=10000, help='choose of the number of timespan between data points(1000 = 1sec, 60000 = 1min)')
+                    default=1000, help='choose of the number of timespan between data points(1000 = 1sec, 60000 = 1min)')
 parser.add_argument('--min_seq', type=int, 
                     default=10, help='choose of the minimum number of data points in a example')
 parser.add_argument('--min_samples', type=int, default=20, 
@@ -105,18 +110,23 @@ parser.add_argument('--save_freq', type=int, default=50, help='save frequency')
 parser.add_argument('--data_folder', type=str, default=None, help='path to custom dataset')
     
 parser.add_argument('--aug_method', type=str, default='AddNoise', help='choose the data augmentation method')
-parser.add_argument('--aug_wise', type=str, default='Temporal', help='choose the data augmentation wise')
+parser.add_argument('--aug_wise', type=str, default='Nothing', 
+                        help='choose the data augmentation wise : "Nothing, Temporal, Sensor" ')
 
-parser.add_argument('--test_ratio', type=float, default=0.3, help='choose the number of test ratio')
-parser.add_argument('--valid_ratio', type=float, default=0.1, help='choose the number of vlaidation ratio')
-parser.add_argument('--overlapped_ratio', type=int, default= 50, help='choose the number of windows''overlapped ratio')
-parser.add_argument('--encoder', type=str, default='SupCon', help='choose one of them: simple, transformer')
+parser.add_argument('--test_ratio', type=float, default=0.2, 
+                    help='choose the number of test ratio')
+parser.add_argument('--valid_ratio', type=float, default=0.1, 
+                    help='choose the number of vlaidation ratio')
+parser.add_argument('--overlapped_ratio', type=int, default= 50, 
+                    help='choose the number of windows''overlapped ratio')
 
-    # for training   
+# for training   
 parser.add_argument('--loss', type=str, default='SupCon', help='choose one of them: crossentropy loss, contrastive loss')
 parser.add_argument('--optimizer', type=str, default='', help='choose one of them: adam')
-parser.add_argument('--epochs', type=int, default= 20, help='choose the number of epochs')
-parser.add_argument('--patience', type=int, default=20, help='choose the number of patience for early stopping')
+parser.add_argument('--epochs', type=int, default= 20, 
+                    help='choose the number of epochs')
+parser.add_argument('--patience', type=int, default=20, 
+                    help='choose the number of patience for early stopping')
 parser.add_argument('--batch_size', type=int, default=128, help='choose the number of batch size')
 parser.add_argument('--lr', type=float, default=3e-5, help='choose the number of learning rate')
 parser.add_argument('--gamma', type=float, default=0.7, help='choose the number of gamma')
@@ -148,8 +158,8 @@ final_f1 = []
 
 num_classes, datalist, labellist = loading_data(data_type, args)
 
-for positive_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 
-                       'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
+for positive_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 
+                     'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
     auroc_rs = []
     f1_rs = []
     # Training for five seed
@@ -180,9 +190,7 @@ for positive_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool',
         logger.debug("=" * 45)
 
         # Load datasets
-        data_path = f"./data/{data_type}"
-
-    
+        data_path = f"./data/{data_type}"    
         
 
         test_ratio = args.test_ratio
@@ -217,9 +225,9 @@ for positive_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool',
         # test_label_list = test_label_list[np.where(test_label_list == args.one_class_idx)]
         
     
-        # build data loader
+        # Build data loader
         dataset = Load_Dataset(train_list, train_label_list, configs, training_mode, positive_aug)    
-        train_dl = train_loader = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
+        train_dl = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
 
         dataset = Load_Dataset(valid_list, valid_label_list, configs, training_mode, positive_aug)
         valid_dl = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
@@ -242,7 +250,6 @@ for positive_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool',
         # Trainer
         model = Trainer(model, model_optimizer, classifier, classifier_optimizer, 
                         train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode)
-
 
         # Testing
         outs = model_evaluate(model, classifier, test_dl, device, training_mode)
@@ -267,7 +274,6 @@ print("Finished")
 
 df = pd.DataFrame(final_rs, columns=['mean', 'std'])
 df.to_excel('final_ood_'+data_type+'.xlsx', sheet_name='the results')
-
 
 logger.debug(f"Training time is : {datetime.now()-start_time}")
 

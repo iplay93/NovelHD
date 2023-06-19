@@ -2,6 +2,7 @@ class Config(object):
     def __init__(self):
         # model configs
         self.input_channels = 241
+        self.input_channels_2 = 241
         self.kernel_size = 16
         self.stride = 1
         self.final_out_channels = 128
@@ -27,7 +28,8 @@ class Config(object):
         self.augmentation = augmentations()
         
         """New hyperparameters"""
-        self.TSlength_aligned = 169
+        #self.TSlength_aligned = 169
+        self.TSlength_aligned = 147
         self.lr_f = self.lr
         self.target_batch_size = 32#  84
         self.increased_dim = 1

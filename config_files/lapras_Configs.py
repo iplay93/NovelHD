@@ -2,7 +2,7 @@ class Config(object):
     def __init__(self):
         # model configs
         self.input_channels = 7
-        self.input_channels_2 = 4
+        self.input_channels_2 = 7
         self.kernel_size = 6
         self.stride = 1
         self.final_out_channels = 64
@@ -56,7 +56,7 @@ class Config(object):
         self.loss_type = 'distance'
 
         """New hyperparameters"""
-        self.TSlength_aligned = 598
+        self.TSlength_aligned = 527
         self.lr_f = self.lr
         self.target_batch_size = 64#  84
         self.increased_dim = 1

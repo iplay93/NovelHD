@@ -1,9 +1,7 @@
 
 import torch
-from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 import numpy as np
-from .augmentations import DataTransform
 from .LaprasDataProcessing import laprasLoader
 from .CasasDataProcessing import casasLoader
 from .OpportunityDataProcessing import opportunityLoader
@@ -16,6 +14,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
 import math
+from .augmentations import select_transformation
 
 from tsaug import *
 
@@ -24,29 +23,7 @@ from tsaug import *
 #min_seq = 10 # minimum sequence length
 #min_samples = 10 # minimum # of samples
 
-def select_transformation(aug_method, target_len):
-    if(aug_method == 'AddNoise'):
-        my_aug = (AddNoise(scale=0.01))
-    elif(aug_method == 'Convolve'):
-        my_aug = (Convolve(window="flattop", size=11))
-    # elif(aug_method == 'Crop'):
-    #     my_aug = (Crop(size = target_len))
-    elif(aug_method == 'Drift'):
-        my_aug = (Drift(max_drift=0.7, n_drift_points=5))
-    elif(aug_method == 'Dropout'):
-        my_aug = (Dropout(p=0.1,fill=0))        
-    elif(aug_method == 'Pool'):
-        my_aug = (Pool(size=2))
-    elif(aug_method == 'Quantize'):
-        my_aug = (Quantize(n_levels=20))
-    elif(aug_method == 'Resize'):
-        my_aug = (Resize(size = target_len))
-    elif(aug_method == 'Reverse'):
-        my_aug = (Reverse())
-    elif(aug_method == 'TimeWarp'):
-        my_aug = (TimeWarp(n_speed_change=5, max_speed_ratio=3))
-    
-    return my_aug
+
 # for storing dataset element
 class TSDataSet:
     def __init__(self,data, label, length):

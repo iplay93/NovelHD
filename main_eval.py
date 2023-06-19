@@ -69,7 +69,7 @@ parser.add_argument('--data_folder', type=str, default=None, help='path to custo
 parser.add_argument('--aug_method', type=str, default='AddNoise', help='choose the data augmentation method')
 parser.add_argument('--aug_wise', type=str, default='Temporal', help='choose the data augmentation wise')
 
-parser.add_argument('--test_ratio', type=float, default=0.3, help='choose the number of test ratio')
+parser.add_argument('--test_ratio', type=float, default=0.1, help='choose the number of test ratio')
 parser.add_argument('--valid_ratio', type=float, default=0, help='choose the number of vlaidation ratio')
 parser.add_argument('--overlapped_ratio', type=int, default= 50, help='choose the number of windows''overlapped ratio')
 
@@ -106,7 +106,7 @@ configs = Configs()
 
 num_classes, datalist, labellist = loading_data(data_type, args)
 
-for args.ood_score in [['T']]:    
+for args.ood_score in [['T'],['NovelHD']]:    
         
     final_auroc = []
     final_aupr  = []
@@ -114,15 +114,15 @@ for args.ood_score in [['T']]:
     final_de    = []
 
     #for args.one_class_idx in [0, 1, 2, 3, -1]:
-    for positive_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 
-                        'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
+    for positive_aug in ['AddNoise']:#, 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 
+                        #'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
         # overall performance
         auroc_a = []
         aupr_a  = []
         fpr_a   = []
         de_a    = []
         #positive_aug = 'AddNoise'
-        args.one_class_idx = -1
+        args.one_class_idx = 0
 
         # Training for five seed #
         for test_num in [10, 30, 50, 70, 90]:
@@ -264,7 +264,7 @@ for args.ood_score in [['T']]:
     print("Finished")
 
     df = pd.DataFrame(final_rs, columns=['mean', 'std'])
-    df.to_excel('final_result_dataAug_'+str(args.ood_score[0])+'.xlsx', sheet_name='the results')
+    df.to_excel('final_result_dataAug_' + str(args.ood_score[0])+'.xlsx', sheet_name='the results')
 
 
     logger.debug(f"Training time is : {datetime.now()-start_time}")
