@@ -45,7 +45,7 @@ class Load_Dataset(Dataset):
         self.x_data_f = fft.fft(self.x_data).abs() #/(window_length) # rfft for real value inputs.
         self.len = X_train.shape[0]
         
-        pos_aug = select_transformation(aug_method, X_train.shape[2])
+        pos_aug = select_transformation(aug_method)
         # (N, C, T) -> (N, T, C)-> (N, C, T)
         self.aug1 = torch.from_numpy(np.array(pos_aug.augment(
             self.x_data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
@@ -101,12 +101,15 @@ parser.add_argument("--ood_samples", help='number of samples to compute OOD scor
 parser.add_argument("--print_score", help='print quantiles of ood score',
                         action='store_true')
 parser.add_argument("--ood_layer", help='layer for OOD scores',
-                        choices = ['penultimate', 'simclr', 'shift'],
-                        default = ['simclr', 'shift'], nargs="+", type=str)
+                    choices = ['penultimate', 'simclr', 'shift'],
+                    default = ['simclr', 'shift'], nargs="+", type=str)
 
-parser.add_argument('--version', type=str, default='CL', help='choose of version want to do : ND or CL')
-parser.add_argument('--print_freq', type=int, default=1, help='print frequency')
-parser.add_argument('--save_freq', type=int, default=50, help='save frequency')
+parser.add_argument('--version', type=str, 
+                    default='CL', help='choose of version want to do : ND or CL')
+parser.add_argument('--print_freq', type=int, 
+                    default=1, help='print frequency')
+parser.add_argument('--save_freq', type=int, 
+                    default=50, help='save frequency')
 parser.add_argument('--data_folder', type=str, default=None, help='path to custom dataset')
     
 parser.add_argument('--aug_method', type=str, default='AddNoise', help='choose the data augmentation method')
@@ -123,18 +126,20 @@ parser.add_argument('--overlapped_ratio', type=int, default= 50,
 # for training   
 parser.add_argument('--loss', type=str, default='SupCon', help='choose one of them: crossentropy loss, contrastive loss')
 parser.add_argument('--optimizer', type=str, default='', help='choose one of them: adam')
-parser.add_argument('--epochs', type=int, default= 20, 
-                    help='choose the number of epochs')
 parser.add_argument('--patience', type=int, default=20, 
                     help='choose the number of patience for early stopping')
-parser.add_argument('--batch_size', type=int, default=128, help='choose the number of batch size')
-parser.add_argument('--lr', type=float, default=3e-5, help='choose the number of learning rate')
-parser.add_argument('--gamma', type=float, default=0.7, help='choose the number of gamma')
-parser.add_argument('--temp', type=float, default=0.07, help='temperature for loss function')
-parser.add_argument('--warm', action='store_true',help='warm-up for large batch training')
+parser.add_argument('--batch_size', type=int, default=128, 
+                    help='choose the number of batch size')
+parser.add_argument('--lr', type=float, default=3e-5, 
+                    help='choose the number of learning rate')
+parser.add_argument('--gamma', type=float, default=0.7, 
+                    help='choose the number of gamma')
+parser.add_argument('--temp', type=float, default=0.07, 
+                    help='temperature for loss function')
+parser.add_argument('--warm', action='store_true',
+                    help='warm-up for large batch training')
 
 args = parser.parse_args()
-
 
 torch.cuda.empty_cache()
 
@@ -153,15 +158,18 @@ args.one_class_idx = 3
 exec(f'from config_files.{data_type}_Configs import Config as Configs')
 configs = Configs()
 
+final_acc = []
+final_f1  = []
 final_auroc = []
-final_f1 = []
 
 num_classes, datalist, labellist = loading_data(data_type, args)
 
 for positive_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 
                      'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
+    acc_rs = []
+    f1_rs  = []
     auroc_rs = []
-    f1_rs = []
+    
     # Training for five seed
     for test_num in [20, 40, 60, 80, 100]:
         # ##### fix random seeds for reproducibility ########
@@ -186,12 +194,12 @@ for positive_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout',
         logger.debug(f'Dataset: {data_type}')
         logger.debug(f'Method:  {method}')
         logger.debug(f'Mode:    {training_mode}')
+        logger.debug(f'Seed:    {SEED}')
         logger.debug(f'Positive Augmentation:    {positive_aug}')
         logger.debug("=" * 45)
 
         # Load datasets
-        data_path = f"./data/{data_type}"    
-        
+        data_path = f"./data/{data_type}"            
 
         test_ratio = args.test_ratio
         valid_ratio = args.valid_ratio
@@ -199,31 +207,17 @@ for positive_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout',
 
         # Split train and valid dataset
         train_list, test_list, train_label_list, test_label_list = train_test_split(datalist, 
-                                                labellist, test_size=test_ratio, stratify= labellist, 
-                                                random_state=seed) 
+                    labellist, test_size=test_ratio, stratify= labellist, random_state=seed) 
     
         train_list, valid_list, train_label_list, valid_label_list = train_test_split(train_list, 
-                                                train_label_list, test_size=valid_ratio, stratify=train_label_list, 
-                                                random_state=seed)
+                    train_label_list, test_size=valid_ratio, stratify=train_label_list, random_state=seed)
                                        
-
         train_list = torch.tensor(train_list).cuda().cpu()
         train_label_list = torch.tensor(train_label_list).cuda().cpu()
         valid_list = torch.tensor(valid_list).cuda().cpu()
         valid_label_list = torch.tensor(valid_label_list).cuda().cpu()
         test_list = torch.tensor(test_list).cuda().cpu()
         test_label_list = torch.tensor(test_label_list).cuda().cpu()
-
-        # train_list = train_list[np.where(train_label_list == args.one_class_idx)]
-        # train_label_list = train_label_list[np.where(train_label_list == args.one_class_idx)]
-
-        # valid_list = valid_list[np.where(valid_label_list == args.one_class_idx)]
-        # valid_label_list = valid_label_list[np.where(valid_label_list == args.one_class_idx)]
-
-        # # only use for testing novelty
-        # test_list = test_list[np.where(test_label_list == args.one_class_idx)]
-        # test_label_list = test_label_list[np.where(test_label_list == args.one_class_idx)]
-        
     
         # Build data loader
         dataset = Load_Dataset(train_list, train_label_list, configs, training_mode, positive_aug)    
@@ -243,31 +237,42 @@ for positive_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout',
         classifier = target_classifier(configs).to(device)
 
         model_optimizer = torch.optim.Adam(model.parameters(), lr=configs.lr, 
-                                        betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
+                        betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
         classifier_optimizer = torch.optim.Adam(classifier.parameters(), 
-                                            lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
+                        lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
 
         # Trainer
         model = Trainer(model, model_optimizer, classifier, classifier_optimizer, 
                         train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode)
 
-        # Testing
+        # evaluate on the test set
+        logger.debug('\nEvaluate on the Test set:')
         outs = model_evaluate(model, classifier, test_dl, device, training_mode)
         total_loss, total_acc, total_f1, auroc, pred_labels, true_labels = outs
+        logger.debug(f'Test Loss : {total_loss:.4f}\t | \tTest Accuracy : {total_acc:2.4f}\n'
+                     f'Test F1 : {total_f1:.4f}\t | \tTest AUROC : {auroc:2.4f}')
+        
+        # Testing        
         _calc_metrics(pred_labels, true_labels, experiment_log_dir, args.home_path)
-        auroc_rs.append(auroc.item())
+        acc_rs.append(total_acc.item())
         f1_rs.append(total_f1.item())
-
-    print("Average of the AUROC list =", round(sum(auroc_rs)/len(auroc_rs), 3))
+        auroc_rs.append(auroc.item())
+  
+    
+    print("Average of the Accuracy list =", round(sum(acc_rs)/len(acc_rs), 3))
     print("Average of the F1 list =", round(sum(f1_rs)/len(f1_rs), 3))
-    final_auroc.append([np.mean(auroc_rs), np.std(auroc_rs)])
+    print("Average of the AUROC list =", round(sum(auroc_rs)/len(auroc_rs), 3))
+    final_acc.append([np.mean(acc_rs), np.std(acc_rs)])
     final_f1.append([np.mean(f1_rs), np.std(f1_rs)])
+    final_auroc.append([np.mean(auroc_rs), np.std(auroc_rs)])
 
 # for extrating results to an excel file
 final_rs =[]
-for i in final_auroc:
+for i in final_acc:
     final_rs.append(i)
 for i in final_f1:
+    final_rs.append(i)
+for i in final_auroc:
     final_rs.append(i)
 
 print("Finished")

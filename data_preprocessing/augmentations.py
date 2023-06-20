@@ -3,7 +3,7 @@ import torch
 from tsaug import *
 import random
 
-def select_transformation(aug_method, target_len):
+def select_transformation(aug_method):
     if(aug_method == 'AddNoise'):
         my_aug = (AddNoise(scale=0.01))
     elif(aug_method == 'Convolve'):

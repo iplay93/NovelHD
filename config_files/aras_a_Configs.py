@@ -56,7 +56,8 @@ class Config(object):
         self.loss_type = 'distance'
 
         """New hyperparameters"""
-        self.TSlength_aligned = 23
+        #self.TSlength_aligned = 23
+        self.TSlength_aligned = 57
         self.lr_f = self.lr
         self.target_batch_size = 64#  84
         self.increased_dim = 1

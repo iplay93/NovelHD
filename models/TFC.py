@@ -62,7 +62,8 @@ class target_classifier(nn.Module):
     def __init__(self, configs):
         super(target_classifier, self).__init__()
         self.logits = nn.Linear(2*128, 64)
-        self.logits_simple = nn.Linear(64, configs.num_classes)
+        #self.logits_simple = nn.Linear(64, configs.num_classes)
+        self.logits_simple = nn.Linear(64, 2)
 
     def forward(self, emb):
         emb_flat = emb.reshape(emb.shape[0], -1)
