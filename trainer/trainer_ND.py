@@ -11,7 +11,7 @@ import torch.fft as fft
 
 
 # shifted data transformations for negative pairs
-shifted_aug  = (Drift(max_drift=0.7, n_drift_points=5))
+shifted_aug  = (AddNoise(scale=0.01))
 def Trainer(model, model_optimizer, classifier, classifier_optimizer, 
             train_dl, device, logger, configs, experiment_log_dir, args):
     # Start training

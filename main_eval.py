@@ -4,10 +4,8 @@ import numpy as np
 from datetime import datetime
 import argparse
 from data_preprocessing.dataloader import loading_data
-from utils import _logger, set_requires_grad
-#from trainer.trainer import Trainer, model_evaluate
+from utils import _logger
 from trainer.trainer_ND import Trainer
-from models.TC import TC
 from utils import _calc_metrics, copy_Files
 from models.TFC import TFC, target_classifier
 from dataloader import data_generator_nd
@@ -43,7 +41,7 @@ parser.add_argument('--home_path', default=home_dir, type=str,
 parser.add_argument('--padding', type=str, 
                     default='mean', help='choose one of them : no, max, mean')
 parser.add_argument('--timespan', type=int, 
-                    default=10000, help='choose of the number of timespan between data points(1000 = 1sec, 60000 = 1min)')
+                    default=10000, help='choose of the number of timespan between data points (1000 = 1sec, 60000 = 1min)')
 parser.add_argument('--min_seq', type=int, 
                     default=10, help='choose of the minimum number of data points in a example')
 parser.add_argument('--min_samples', type=int, default=20, 
@@ -67,7 +65,8 @@ parser.add_argument('--save_freq', type=int, default=50, help='save frequency')
 parser.add_argument('--data_folder', type=str, default=None, help='path to custom dataset')
     
 parser.add_argument('--aug_method', type=str, default='AddNoise', help='choose the data augmentation method')
-parser.add_argument('--aug_wise', type=str, default='Temporal', help='choose the data augmentation wise')
+parser.add_argument('--aug_wise', type=str, default='Temporal', 
+                        help='choose the data augmentation wise : "Nothing, Temporal, Sensor" ')
 
 parser.add_argument('--test_ratio', type=float, default=0.1, help='choose the number of test ratio')
 parser.add_argument('--valid_ratio', type=float, default=0, help='choose the number of vlaidation ratio')
@@ -96,7 +95,6 @@ training_mode = args.training_mode
 run_description = args.run_description
 positive_aug = 'AddNoise'
 
-
 logs_save_dir = args.logs_save_dir
 os.makedirs(logs_save_dir, exist_ok=True)
 
@@ -106,7 +104,7 @@ configs = Configs()
 
 num_classes, datalist, labellist = loading_data(data_type, args)
 
-for args.ood_score in [['T'],['NovelHD']]:    
+for args.ood_score in [['TCLS']]:    
         
     final_auroc = []
     final_aupr  = []
@@ -114,7 +112,7 @@ for args.ood_score in [['T'],['NovelHD']]:
     final_de    = []
 
     #for args.one_class_idx in [0, 1, 2, 3, -1]:
-    for positive_aug in ['AddNoise']:#, 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 
+    for positive_aug in ['Dropout']:#, 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 
                         #'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
         # overall performance
         auroc_a = []
@@ -125,7 +123,7 @@ for args.ood_score in [['T'],['NovelHD']]:
         args.one_class_idx = 0
 
         # Training for five seed #
-        for test_num in [10, 30, 50, 70, 90]:
+        for test_num in [20, 40, 60, 80, 100]:
             # ##### fix random seeds for reproducibility ########
             SEED = args.seed = test_num
             torch.manual_seed(SEED)
@@ -264,7 +262,7 @@ for args.ood_score in [['T'],['NovelHD']]:
     print("Finished")
 
     df = pd.DataFrame(final_rs, columns=['mean', 'std'])
-    df.to_excel('final_result_dataAug_' + str(args.ood_score[0])+'.xlsx', sheet_name='the results')
+    df.to_excel('result_files.final_result_dataAug_' + str(args.ood_score[0])+'.xlsx', sheet_name='the results')
 
 
     logger.debug(f"Training time is : {datetime.now()-start_time}")

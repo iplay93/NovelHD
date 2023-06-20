@@ -41,8 +41,6 @@ class Load_Dataset(Dataset):
             self.x_data = X_train
             self.y_data = y_train
 
-        # (N, C, T)
-        self.x_data_f = fft.fft(self.x_data).abs() #/(window_length) # rfft for real value inputs.
         self.len = X_train.shape[0]
         
         pos_aug = select_transformation(aug_method)
@@ -52,6 +50,14 @@ class Load_Dataset(Dataset):
 
         # (N, C, T)
         self.aug1_f = fft.fft(self.aug1).abs() 
+    
+        
+        # normal_aug = select_transformation('Drift')
+        # self.x_data = torch.from_numpy(np.array(normal_aug.augment(
+        #     self.x_data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
+
+        # (N, C, T)
+        self.x_data_f = fft.fft(self.x_data).abs() #/(window_length) # rfft for real value inputs.
 
     def __getitem__(self, index):
         return self.x_data[index], self.y_data[index], self.aug1[index], self.x_data_f[index], self.aug1_f[index]
@@ -74,8 +80,8 @@ parser.add_argument('--seed', default=0, type=int,
                     help='seed value')
 parser.add_argument('--training_mode', default='supervised', type=str,
                     help='Modes of choice: random_init, supervised, self_supervised, fine_tune, train_linear')
-parser.add_argument('--selected_dataset', default='Epilepsy', type=str,
-                    help='Dataset of choice: sleepEDF, HAR, Epilepsy, pFD')
+parser.add_argument('--selected_dataset', default='lapras', type=str,
+                    help='Dataset of choice: lapras, casas, opportunity, aras_a, aras_b')
 parser.add_argument('--logs_save_dir', default='experiments_logs', type=str,
                     help='saving directory')
 parser.add_argument('--device', default='cuda', type=str,
@@ -86,7 +92,7 @@ parser.add_argument('--home_path', default=home_dir, type=str,
 parser.add_argument('--padding', type=str, 
                     default='mean', help='choose one of them : no, max, mean')
 parser.add_argument('--timespan', type=int, 
-                    default=1000, help='choose of the number of timespan between data points(1000 = 1sec, 60000 = 1min)')
+                    default=10000, help='choose of the number of timespan between data points(1000 = 1sec, 60000 = 1min)')
 parser.add_argument('--min_seq', type=int, 
                     default=10, help='choose of the minimum number of data points in a example')
 parser.add_argument('--min_samples', type=int, default=20, 
@@ -152,8 +158,6 @@ run_description = args.run_description
 
 logs_save_dir = args.logs_save_dir
 os.makedirs(logs_save_dir, exist_ok=True)
-
-args.one_class_idx = 3
 
 exec(f'from config_files.{data_type}_Configs import Config as Configs')
 configs = Configs()

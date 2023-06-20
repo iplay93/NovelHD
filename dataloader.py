@@ -103,9 +103,9 @@ class Load_Dataset(Dataset):
     
         # select positive transformation method
         if args.aug_wise == 'Temporal':
-            pos_aug = select_transformation(aug_method, X_train.shape[2])
+            pos_aug = select_transformation(aug_method)
         elif args.aug_wise == 'Sensor':
-            pos_aug = select_transformation(aug_method, X_train.shape[1])
+            pos_aug = select_transformation(aug_method)
 
         if training_mode == "novelty_detection" or self.training_mode == "ood_ness":  # no need to apply Augmentations in other modes
             #self.aug1 = DataTransform_TD(self.x_data, config)
@@ -120,7 +120,7 @@ class Load_Dataset(Dataset):
             # (N, C, T)
             self.aug1_f = fft.fft(self.aug1).abs()
     def __getitem__(self, index):
-        if self.training_mode == "novelty_detection" or self.training_mode == "ood_ness" :
+        if self.training_mode == "novelty_detection":
             return self.x_data[index], self.y_data[index], self.aug1[index], self.x_data_f[index], self.aug1_f[index]
         else:
             return self.x_data[index], self.y_data[index], self.x_data[index], self.x_data_f[index], self.x_data_f[index]
