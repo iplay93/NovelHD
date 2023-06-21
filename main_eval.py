@@ -106,19 +106,17 @@ configs = Configs()
 num_classes, datalist, labellist = loading_data(data_type, args)
 
 # each mode ood_score == 'T', 'TCON', 'TCLS', 'FCON', 'FCLS', 'NovelHD', 'NovelHD_TF'
-for args.ood_score in [['TCON'], ['TCLS'], ['T'], ['FCON'], ['FCLS'], ['NovelHD'], ['NovelHD_TF']]:    
+for args.ood_score in [['T']]:    
         
     final_auroc = []
     final_aupr  = []
     final_fpr   = []
     final_de    = []
 
-    for args.one_class_idx in [0, 1, 2, 3, -1]:
+    #for args.one_class_idx in [0, 1, 2, 3, -1]:
     # give weakly shifted transformation methods ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']
-    #for positive_aug in ['TimeWarp'] :# ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 
-        positive_aug =  'TimeWarp'              #'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
-        for shifted_aug in ['Drift']: #['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 
-                        #'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
+    for positive_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
+        for shifted_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
             # overall performance
             auroc_a = []
             aupr_a  = []

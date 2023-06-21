@@ -33,6 +33,7 @@ class Load_Dataset(Dataset):
             self.y_data = y_train
 
         # (N, C, T)
+        print(self.x_data.shape)
         self.x_data_f = fft.fft(self.x_data).abs() #/(window_length) # rfft for real value inputs.
         self.len = X_train.shape[0]
     
@@ -66,7 +67,7 @@ def data_generator_nd(args, configs, training_mode, positive_aug,
         valid_label_list = torch.Tensor(np.array([]))
 
     print(f"Train Data: {len(train_list)} --------------")
-    count_label_labellist(train_label_list)
+    exist_labels, _ = count_label_labellist(train_label_list)
     
     print(f"Validation Data: {len(valid_list)} --------------")    
     count_label_labellist(valid_label_list)
@@ -99,7 +100,7 @@ def data_generator_nd(args, configs, training_mode, positive_aug,
         test_label_list = test_label_list[np.where(test_label_list != args.one_class_idx)]
 
     else: # multi-class
-        sup_class_idx = [x - 1 for x in num_classes]
+        sup_class_idx = [x for x in exist_labels]
         random.seed(args.seed)
         known_class_idx = random.sample(sup_class_idx, math.ceil(len(num_classes)/2))
         #known_class_idx = [x for x in range(0, (int)(len(sup_class_idx)/2))]
@@ -130,6 +131,7 @@ def data_generator_nd(args, configs, training_mode, positive_aug,
         # print(test_label_list)
         
     ood_test_loader = dict()
+
     for ood in novel_class_idx:
         # one class idx exit
         ood_test_set = Load_Dataset(test_list[np.where(test_label_list == ood)],
@@ -139,7 +141,7 @@ def data_generator_nd(args, configs, training_mode, positive_aug,
 
         ood_test_loader[ood] = DataLoader(ood_test_set, batch_size=configs.batch_size, shuffle=True)          
     
-    print("Novel classes", novel_class_idx)
+   
     print("Length of OOD test loader", len(ood_test_loader))
    
     # build data loader (N, T, C) -> (N, C, T)
