@@ -282,7 +282,7 @@ for i in final_auroc:
 print("Finished")
 
 df = pd.DataFrame(final_rs, columns=['mean', 'std'])
-df.to_excel('final_ood_'+data_type+'.xlsx', sheet_name='the results')
+df.to_excel('result_files/final_ood_'+data_type+'.xlsx', sheet_name='the results')
 
 logger.debug(f"Training time is : {datetime.now()-start_time}")
 

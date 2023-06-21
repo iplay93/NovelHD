@@ -13,6 +13,7 @@ from eval_nd import eval_ood_detection
 from numba import cuda
 import pandas as pd
 import openpyxl
+from data_preprocessing.augmentations import select_transformation
 
 # Args selections
 start_time = datetime.now()
@@ -41,7 +42,7 @@ parser.add_argument('--home_path', default=home_dir, type=str,
 parser.add_argument('--padding', type=str, 
                     default='mean', help='choose one of them : no, max, mean')
 parser.add_argument('--timespan', type=int, 
-                    default=10000, help='choose of the number of timespan between data points (1000 = 1sec, 60000 = 1min)')
+                    default=1000, help='choose of the number of timespan between data points (1000 = 1sec, 60000 = 1min)')
 parser.add_argument('--min_seq', type=int, 
                     default=10, help='choose of the minimum number of data points in a example')
 parser.add_argument('--min_samples', type=int, default=20, 
@@ -68,7 +69,7 @@ parser.add_argument('--aug_method', type=str, default='AddNoise', help='choose t
 parser.add_argument('--aug_wise', type=str, default='Temporal', 
                         help='choose the data augmentation wise : "Nothing, Temporal, Sensor" ')
 
-parser.add_argument('--test_ratio', type=float, default=0.1, help='choose the number of test ratio')
+parser.add_argument('--test_ratio', type=float, default=0.2, help='choose the number of test ratio')
 parser.add_argument('--valid_ratio', type=float, default=0, help='choose the number of vlaidation ratio')
 parser.add_argument('--overlapped_ratio', type=int, default= 50, help='choose the number of windows''overlapped ratio')
 
@@ -104,138 +105,143 @@ configs = Configs()
 
 num_classes, datalist, labellist = loading_data(data_type, args)
 
-for args.ood_score in [['TCLS']]:    
+# each mode ood_score == 'T', 'TCON', 'TCLS', 'FCON', 'FCLS', 'NovelHD', 'NovelHD_TF'
+for args.ood_score in [['TCON'], ['TCLS'], ['T'], ['FCON'], ['FCLS'], ['NovelHD'], ['NovelHD_TF']]:    
         
     final_auroc = []
     final_aupr  = []
     final_fpr   = []
     final_de    = []
 
-    #for args.one_class_idx in [0, 1, 2, 3, -1]:
-    for positive_aug in ['Dropout']:#, 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 
+    for args.one_class_idx in [0, 1, 2, 3, -1]:
+    # give weakly shifted transformation methods ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']
+    #for positive_aug in ['TimeWarp'] :# ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 
+        positive_aug =  'TimeWarp'              #'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
+        for shifted_aug in ['Drift']: #['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 
                         #'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
-        # overall performance
-        auroc_a = []
-        aupr_a  = []
-        fpr_a   = []
-        de_a    = []
-        #positive_aug = 'AddNoise'
-        args.one_class_idx = 0
-
-        # Training for five seed #
-        for test_num in [20, 40, 60, 80, 100]:
-            # ##### fix random seeds for reproducibility ########
-            SEED = args.seed = test_num
-            torch.manual_seed(SEED)
-            torch.backends.cudnn.deterministic = False
-            torch.backends.cudnn.benchmark = False
-            np.random.seed(SEED)
-            #####################################################
-
-            experiment_log_dir = os.path.join(logs_save_dir, experiment_description, run_description, training_mode + f"_seed_{SEED}")
-            os.makedirs(experiment_log_dir, exist_ok=True)
-
-            # loop through domains
-            counter = 0
-            src_counter = 0
-
-            # Logging
-            log_file_name = os.path.join(experiment_log_dir, f"logs_{datetime.now().strftime('%d_%m_%Y_%H_%M_%S')}.log")
-            logger = _logger(log_file_name)
-            logger.debug("=" * 45)
-            logger.debug(f'Dataset: {data_type}')
-            logger.debug(f'Method:  {method}')
-            logger.debug(f'Mode:    {training_mode}')
-            logger.debug(f'Positive Augmentation:    {positive_aug}')
-            logger.debug(f'Seed:    {SEED}')
-            logger.debug(f'Version:    {args.ood_score}')
-            logger.debug(f'One_class_idx:    {args.one_class_idx}')
-            logger.debug("=" * 45)
-
-            # Load datasets
-            data_path = f"./data/{data_type}"
-            #args.aug_method = positive_aug 
+            # overall performance
+            auroc_a = []
+            aupr_a  = []
+            fpr_a   = []
+            de_a    = []
             
-            train_dl, valid_dl, test_dl, ood_test_loader, novel_class = data_generator_nd(
-                args, configs, training_mode, positive_aug, num_classes, datalist, labellist)
-            logger.debug("Data loaded ...")
+            # give strongly shifted transformation
+            #shifted_aug = 'Crop'
 
-            # Load Model
-            model = TFC(configs).to(device)
-            classifier = target_classifier(configs).to(device)
+            # Training for five seed #
+            for test_num in [20, 40, 60, 80, 100]:
+                # ##### fix random seeds for reproducibility ########
+                SEED = args.seed = test_num
+                torch.manual_seed(SEED)
+                torch.backends.cudnn.deterministic = False
+                torch.backends.cudnn.benchmark = False
+                np.random.seed(SEED)
+                #####################################################
 
-            model_optimizer = torch.optim.Adam(model.parameters(), 
-                                            lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
-            classifier_optimizer = torch.optim.Adam(classifier.parameters(), 
-                                                lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
+                experiment_log_dir = os.path.join(logs_save_dir, experiment_description, run_description, training_mode + f"_seed_{SEED}")
+                os.makedirs(experiment_log_dir, exist_ok=True)
 
-            #if training_mode == "self_supervised" and "novelty_detection":  # to do it only once
-            #    copy_Files(os.path.join(logs_save_dir, experiment_description, run_description), data_type)
+                # loop through domains
+                counter = 0
+                src_counter = 0
 
-            # Trainer
-            model = Trainer(model, model_optimizer, classifier, classifier_optimizer, 
-                            train_dl, device, logger, configs, experiment_log_dir, args)
+                # Logging
+                log_file_name = os.path.join(experiment_log_dir, f"logs_{datetime.now().strftime('%d_%m_%Y_%H_%M_%S')}.log")
+                logger = _logger(log_file_name)
+                logger.debug("=" * 45)
+                logger.debug(f'Dataset: {data_type}')
+                logger.debug(f'Method:  {method}')
+                logger.debug(f'Mode:    {training_mode}')
+                logger.debug(f'Positive Augmentation:    {positive_aug}')
+                logger.debug(f'Negative Augmentation:    {shifted_aug}')
+                logger.debug(f'Seed:    {SEED}')
+                logger.debug(f'Version:    {args.ood_score}')
+                logger.debug(f'One_class_idx:    {args.one_class_idx}')
+                logger.debug("=" * 45)
 
+                # Load datasets
+                data_path = f"./data/{data_type}"
 
-            
-            # load saved model of this experiment
-            path = os.path.join(os.path.join(logs_save_dir, experiment_description, 
-                                    run_description, f"novelty_detection_seed_{args.seed}", "saved_models"))
-                #chkpoint = torch.load(os.path.join(path, "ckp_last.pt"), map_location=device)
-                #pretrained_dict = chkpoint["model_state_dict"]
-                #model.load_state_dict(pretrained_dict)
                 
-                # Evlauation
-            with torch.no_grad():
-                auroc_dict, aupr_dict, fpr_dict, de_dict, one_class_total, one_class_aupr, one_class_fpr, one_class_de\
-                    = eval_ood_detection(args, path, model, valid_dl, ood_test_loader, args.ood_score, train_loader=train_dl)
+                train_dl, valid_dl, test_dl, ood_test_loader, novel_class = data_generator_nd(
+                    args, configs, training_mode, positive_aug, num_classes, datalist, labellist)
+                logger.debug("Data loaded ...")
 
-                auroc_a.append(one_class_total)     
-                aupr_a.append(one_class_aupr)   
-                fpr_a.append(one_class_fpr)
-                de_a.append(one_class_de)
+                # Load Model
+                model = TFC(configs).to(device)
+                classifier = target_classifier(configs).to(device)
 
-                mean_dict = dict()
-                for ood_score in args.ood_score:
-                    mean = 0
+                model_optimizer = torch.optim.Adam(model.parameters(), 
+                                                lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
+                classifier_optimizer = torch.optim.Adam(classifier.parameters(), 
+                                                    lr=configs.lr, betas=(configs.beta1, configs.beta2), weight_decay=3e-4)
+
+                #if training_mode == "self_supervised" and "novelty_detection":  # to do it only once
+                #    copy_Files(os.path.join(logs_save_dir, experiment_description, run_description), data_type)
+
+                # Trainer
+                model = Trainer(model, model_optimizer, classifier, classifier_optimizer, 
+                                train_dl, device, logger, configs, experiment_log_dir, args, select_transformation(shifted_aug))
+
+                
+                # load saved model of this experiment
+                path = os.path.join(os.path.join(logs_save_dir, experiment_description, 
+                                        run_description, f"novelty_detection_seed_{args.seed}", "saved_models"))
+                    #chkpoint = torch.load(os.path.join(path, "ckp_last.pt"), map_location=device)
+                    #pretrained_dict = chkpoint["model_state_dict"]
+                    #model.load_state_dict(pretrained_dict)
+                    
+                    # Evlauation
+                with torch.no_grad():
+                    auroc_dict, aupr_dict, fpr_dict, de_dict, one_class_total, one_class_aupr, one_class_fpr, one_class_de\
+                        = eval_ood_detection(args, path, model, valid_dl, ood_test_loader, args.ood_score, train_dl, select_transformation(shifted_aug))
+
+                    auroc_a.append(one_class_total)     
+                    aupr_a.append(one_class_aupr)   
+                    fpr_a.append(one_class_fpr)
+                    de_a.append(one_class_de)
+
+                    mean_dict = dict()
+                    for ood_score in args.ood_score:
+                        mean = 0
+                        for ood in auroc_dict.keys():
+                            mean += auroc_dict[ood][ood_score]
+                        mean_dict[ood_score] = mean / len(auroc_dict.keys())
+                    auroc_dict['one_class_mean'] = mean_dict
+
+                    bests = []
                     for ood in auroc_dict.keys():
-                        mean += auroc_dict[ood][ood_score]
-                    mean_dict[ood_score] = mean / len(auroc_dict.keys())
-                auroc_dict['one_class_mean'] = mean_dict
+                        print(ood)
+                        message = ''
+                        best_auroc = 0
+                        for ood_score, auroc in auroc_dict[ood].items():
+                            message += '[%s %s %.4f] ' % (ood, ood_score, auroc)
+                            if auroc > best_auroc:
+                                best_auroc = auroc
+                        message += '[%s %s %.4f] ' % (ood, 'best', best_auroc)
+                        if args.print_score:
+                            print(message)
+                        bests.append(best_auroc)
 
-                bests = []
-                for ood in auroc_dict.keys():
-                    print(ood)
-                    message = ''
-                    best_auroc = 0
-                    for ood_score, auroc in auroc_dict[ood].items():
-                        message += '[%s %s %.4f] ' % (ood, ood_score, auroc)
-                        if auroc > best_auroc:
-                            best_auroc = auroc
-                    message += '[%s %s %.4f] ' % (ood, 'best', best_auroc)
-                    if args.print_score:
-                        print(message)
-                    bests.append(best_auroc)
+                    bests = map('{:.4f}'.format, bests)
+                    print('\t'.join(bests))
+                    print("novel_class:", novel_class)
 
-                bests = map('{:.4f}'.format, bests)
-                print('\t'.join(bests))
-                print("novel_class:", novel_class)
+            # # mean
+            # print(f'{np.mean(auroc_a):.3f}')
+            # print(f'{np.mean(aupr_a):.3f}')
+            # print(f'{np.mean(fpr_a):.3f}')
+            # print(f'{np.mean(de_a):.3f}')
+            # # Standard deviation of list
+            # print(f'{np.std(auroc_a):.3f}')
+            # print(f'{np.std(aupr_a):.3f}')
+            # print(f'{np.std(fpr_a):.3f}')
+            # print(f'{np.std(de_a):.3f}')
 
-        # # mean
-        # print(f'{np.mean(auroc_a):.3f}')
-        # print(f'{np.mean(aupr_a):.3f}')
-        # print(f'{np.mean(fpr_a):.3f}')
-        # print(f'{np.mean(de_a):.3f}')
-        # # Standard deviation of list
-        # print(f'{np.std(auroc_a):.3f}')
-        # print(f'{np.std(aupr_a):.3f}')
-        # print(f'{np.std(fpr_a):.3f}')
-        # print(f'{np.std(de_a):.3f}')
-
-        final_auroc.append([np.mean(auroc_a), np.std(auroc_a)])
-        final_aupr.append([np.mean(aupr_a), np.std(aupr_a)])
-        final_fpr.append([np.mean(fpr_a), np.std(fpr_a)])
-        final_de.append([np.mean(de_a), np.std(de_a)])
+            final_auroc.append([np.mean(auroc_a), np.std(auroc_a)])
+            final_aupr.append([np.mean(aupr_a), np.std(aupr_a)])
+            final_fpr.append([np.mean(fpr_a), np.std(fpr_a)])
+            final_de.append([np.mean(de_a), np.std(de_a)])
 
     # overall
     # print(f'{auroc_a}')
@@ -252,21 +258,19 @@ for args.ood_score in [['TCLS']]:
     final_rs =[]
     for i in final_auroc:
         final_rs.append(i)
-    for i in final_aupr:
-        final_rs.append(i)
-    for i in final_fpr:
-        final_rs.append(i)
-    for i in final_de:
-        final_rs.append(i)
+    # for i in final_aupr:
+    #     final_rs.append(i)
+    # for i in final_fpr:
+    #     final_rs.append(i)
+    # for i in final_de:
+    #     final_rs.append(i)
 
     print("Finished")
 
     df = pd.DataFrame(final_rs, columns=['mean', 'std'])
-    df.to_excel('result_files.final_result_dataAug_' + str(args.ood_score[0])+'.xlsx', sheet_name='the results')
-
+    df.to_excel('result_files/final_result_dataAug_' + str(args.ood_score[0])+'_'+data_type+'.xlsx', sheet_name='the results')
 
     logger.debug(f"Training time is : {datetime.now()-start_time}")
-
 
 torch.cuda.empty_cache()
 device = cuda.get_current_device()

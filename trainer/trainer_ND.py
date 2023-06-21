@@ -11,21 +11,21 @@ import torch.fft as fft
 
 
 # shifted data transformations for negative pairs
-shifted_aug  = (AddNoise(scale=0.01))
+ 
 def Trainer(model, model_optimizer, classifier, classifier_optimizer, 
-            train_dl, device, logger, configs, experiment_log_dir, args):
+            train_dl, device, logger, configs, experiment_log_dir, args, shifted_aug):
     # Start training
     logger.debug("Training started ....")
 
     criterion = nn.CrossEntropyLoss()
 
     for epoch in range(1, configs.num_epoch + 1):
-        if epoch % 20 == 0 : 
+        if epoch % 50 == 0 : 
             logger.debug(f'\nEpoch : {epoch}\n')
         # Train and validate
         train_loss, train_acc = model_train(epoch, logger, model, model_optimizer, classifier, 
-                                            classifier_optimizer, criterion, train_dl, configs, device, args)
-        if epoch % 20 == 0 : 
+                    classifier_optimizer, criterion, train_dl, configs, device, args, shifted_aug)
+        if epoch % 50 == 0 : 
             logger.debug(f'Train Loss   : {train_loss:.4f}\t | \tTrain Accuracy     : {train_acc:2.4f}\n')
     
     # Save the model
@@ -40,7 +40,7 @@ def normalize(x, dim=1, eps=1e-8):
     return x / (x.norm(dim=dim, keepdim=True) + eps)
 
 def model_train(epoch, logger, model, model_optimizer, classifier, classifier_optimizer, 
-                criterion, train_loader, configs, device, args):
+                criterion, train_loader, configs, device, args, shifted_aug):
     total_loss = []
     total_acc = []
     model.train()
@@ -60,21 +60,20 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
         classifier_optimizer.zero_grad()
         
         if configs.batch_size == batch_size:
+            # (N, C, T) -> (N, T, C) -> (N, C, T)
+            temp_data = torch.from_numpy(np.array(shifted_aug.augment(data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
+            temp_aug1 = torch.from_numpy(np.array(shifted_aug.augment(aug1.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
+            
+            # # adding shifted transformation
+            # for k in range(data.size(0)):      
+            #     transpose_data = np.transpose(data[k].cpu().numpy())
+            #     transpose_aug = np.transpose(aug1[k].cpu().numpy())
 
-            # adding shifted transformation
-            for k in range(data.size(0)):
-                #print("temp_before", data[k].shape)
-                if args.aug_wise == 'Temporal':
-                    temp_data = torch.from_numpy(shifted_aug.augment
-                        (np.reshape(data[k].cpu().numpy(),(1, data[k].shape[1],-1)))).permute(0, 2, 1)
-                    temp_aug1 = torch.from_numpy(shifted_aug.augment
-                        (np.reshape(aug1[k].cpu().numpy(),(1, aug1[k].shape[1],-1)))).permute(0, 2, 1)
-                elif args.aug_wise == 'Sensor':
-                    temp_data = torch.from_numpy(shifted_aug.augment(np.reshape(data[k].cpu().numpy(),(1, data[k].shape[0],-1))))
-                    temp_aug1 = torch.from_numpy(shifted_aug.augment(np.reshape(aug1[k].cpu().numpy(),(1, aug1[k].shape[0],-1))))
+            #     temp_data = torch.from_numpy(shifted_aug.augment(np.reshape(transpose_data,(1, transpose_data.shape[0],-1)))).permute(0, 2, 1)
+            #     temp_aug1 = torch.from_numpy(shifted_aug.augment(np.reshape(transpose_aug ,(1, transpose_aug.shape[0],-1)))).permute(0, 2, 1)
 
-                data = torch.cat((data, temp_data.to(device)), 0)
-                aug1 = torch.cat((aug1, temp_aug1.to(device)), 0)
+            data = torch.cat((data, temp_data.to(device)), 0)
+            aug1 = torch.cat((aug1, temp_aug1.to(device)), 0)
     
             data_f = fft.fft(data).abs().to(device)
             #torch.cat((data_f, fft.rfft(temp_data.permute(0, 2, 1)).abs().permute(0, 2, 1).to(device)), 0)

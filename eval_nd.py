@@ -7,7 +7,7 @@ import numpy as np
 
 import random
 from sklearn.metrics import roc_auc_score,  f1_score
-from trainer.trainer_TFC import shifted_aug
+
 import torch.fft as fft
 from ood_metrics import auroc, aupr, fpr_at_95_tpr, detection_error
 import kmeans1d
@@ -23,7 +23,8 @@ def set_random_seed(seed):
 def normalize(x, dim=1, eps=1e-8):
     return x / (x.norm(dim=dim, keepdim=True) + eps)
 
-def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, train_loader=None):
+def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, train_loader, shifted_aug):
+
     auroc_dict  = dict()
     aupr_dict   = dict()
     fpr_dict    = dict()
@@ -48,7 +49,7 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
     }
 
     print('Pre-compute global statistics...')
-    feats_train = get_features(args, f'{args.selected_dataset}_train', 
+    feats_train = get_features(args, shifted_aug, f'{args.selected_dataset}_train', 
                                model, train_loader, prefix=prefix, **kwargs)  # (M, T, d)
 
     args.axis = []
@@ -118,11 +119,11 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
     print(f'weight_shi_f:\t' + '\t'.join(map('{:.4f}'.format, args.weight_shi_f)))
 
     print('Pre-compute features...')
-    feats_id = get_features(args, args.selected_dataset, 
+    feats_id = get_features(args, shifted_aug, args.selected_dataset, 
                             model, id_loader, prefix=prefix, **kwargs)  # (N, T, d)
     feats_ood = dict()
     for ood, ood_loader in ood_loaders.items():
-        feats_ood[ood] = get_features(args, ood, model, ood_loader, prefix=prefix, **kwargs)
+        feats_ood[ood] = get_features(args, shifted_aug, ood, model, ood_loader, prefix=prefix, **kwargs)
 
     print(f'Compute OOD scores... (score: {ood_score})')
     scores_id = get_scores(args, feats_id, ood_score).numpy()
@@ -193,7 +194,7 @@ def get_scores(args, feats_dict, ood_score):
     return scores.cpu()
 
 
-def get_features(args, data_name, model, loader, prefix='',
+def get_features(args, shifted_aug, data_name, model, loader, prefix='',
                 sample_num=1, layers=('simclr_t', 'shift_t','simclr_f', 'shift_f')):
 
     if not isinstance(layers, (list, tuple)):
@@ -209,7 +210,7 @@ def get_features(args, data_name, model, loader, prefix='',
     # pre-compute features and save to the path
     left = [layer for layer in layers if layer not in feats_dict.keys()]
     if len(left) > 0:
-        _feats_dict = _get_features(args, model, loader, sample_num, layers=left)
+        _feats_dict = _get_features(args, shifted_aug, model, loader, sample_num, layers=left)
 
         for layer, feats in _feats_dict.items():
             path = prefix + f'_{data_name}_{layer}.pth'
@@ -219,7 +220,7 @@ def get_features(args, data_name, model, loader, prefix='',
     return feats_dict
 
 
-def _get_features(args, model, loader, sample_num=1, layers=('simclr_t', 'shift_t','simclr_f', 'shift_f')):
+def _get_features(args, shifted_aug, model, loader, sample_num=10, layers=('simclr_t', 'shift_t','simclr_f', 'shift_f')):
     output_aux = dict()
     if not isinstance(layers, (list, tuple)):
         layers = [layers]
@@ -238,13 +239,10 @@ def _get_features(args, model, loader, sample_num=1, layers=('simclr_t', 'shift_
             set_random_seed(seed)
 
             # adding shifted transformation
-            for k in range(x.size(0)):
-                temp_data = torch.from_numpy(shifted_aug.augment
-                    (np.reshape(x[k].cpu().numpy(),(1, x[k].shape[1],-1)))).permute(0, 2, 1)
+            temp_data = torch.from_numpy(np.array(shifted_aug.augment(x.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
+            x = torch.cat((x, temp_data.to(device)), 0)
 
-                x        = torch.cat((x, temp_data.to(device)), 0)
-                
-            x_f      = fft.fft(x).abs()       
+            x_f      = fft.fft(x).abs()                   
 
             # compute augmented features
             with torch.no_grad():

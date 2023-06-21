@@ -9,7 +9,7 @@ def select_transformation(aug_method):
     elif(aug_method == 'Convolve'):
         my_aug = Convolve(window="flattop", size=11)
     elif(aug_method == 'Crop'):
-        my_aug = PERMUTE(min_segments=2, max_segments=15, seg_mode="random")
+        my_aug = PERMUTE(min_segments=10, max_segments=15, seg_mode="random")
     #     my_aug = (Crop(size = target_len))
     elif(aug_method == 'Drift'):
         my_aug = (Drift(max_drift=0.7, n_drift_points=5))
@@ -26,7 +26,9 @@ def select_transformation(aug_method):
         my_aug = (Reverse())
     elif(aug_method == 'TimeWarp'):
         my_aug = (TimeWarp(n_speed_change=5, max_speed_ratio=3))
-    
+    else:
+        return ValueError
+        
     return my_aug
 
 def one_hot_encoding(X):
@@ -173,7 +175,8 @@ class PERMUTE():
             else:
                 ret[i] = pat
 
-        return torch.from_numpy(ret)        
+        #return torch.from_numpy(ret)     
+        return ret   
 
 
     
