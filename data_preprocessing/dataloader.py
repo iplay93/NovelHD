@@ -212,7 +212,8 @@ def reconstrct_list(length_list, normalized_df):
 
 def data_augmentation(dataset_list, aug_method, aug_wise):
     # Data Augmentation Module
-    print('Augmentation Starting-------------------')   
+    print('-' * 100)
+    print(('*'*5)+'Augmentation Starting'+('*'*5))
     
     # For give the same number of data size (balancing the numbers)
     types_label_list, count_label_list = count_label(dataset_list)
@@ -228,28 +229,28 @@ def data_augmentation(dataset_list, aug_method, aug_wise):
 
 # temporal aspect data augmentation
     if aug_wise == 'Temporal' :     
-        pass       
-        # for i in range(len(dataset_list)): 
-        #     # Augmentation for data balancing
-        #     target_label = types_label_list.index(dataset_list[i].label)
-        #     target_data  = dataset_list[i].data
-
-        #     # Target data shape : (N, T, C)
-            
-        #     for j in range(math.ceil(sub_count_label[target_label]/count_label_list[target_label])): 
-        #     #print(dataset_list[i].label, "" , math.ceil(sub_count_label[types_label_list.index(dataset_list[i].label)]/count_label_list[types_label_list.index(dataset_list[i].label)]))
-        #         if copy_count_label[target_label] > 0:
-        #         # print(copy_count_label[types_label_list.index(dataset_list[i].label)],"and",sub_count_label[types_label_list.index(dataset_list[i].label)])          
-        #             #print("Aug", dataset_list[i].data.shape)
-        #             # select data transformation
-        #             trans = select_transformation('AddNoise')
-        #             aug = trans.augment(np.reshape(target_data,(1, target_data.shape[0], -1)))
-        #             #print("Aug_after", aug.shape, aug[0].shape)  
-        #             ts_ds = TSDataSet(aug[0], dataset_list[i].label, len(aug[0]))
-        #             dataset_list.append(ts_ds)
-        #             copy_count_label[target_label] = copy_count_label[target_label]-1   
         
-        # for i in range(len(dataset_list)): 
+        for i in range(len(dataset_list)): 
+            # Augmentation for data balancing
+            target_label = types_label_list.index(dataset_list[i].label)
+            target_data  = dataset_list[i].data
+
+            # Target data shape : (N, T, C)
+            
+            for j in range(math.ceil(sub_count_label[target_label]/count_label_list[target_label])): 
+            #print(dataset_list[i].label, "" , math.ceil(sub_count_label[types_label_list.index(dataset_list[i].label)]/count_label_list[type   s_label_list.index(dataset_list[i].label)]))
+                if copy_count_label[target_label] > 0:
+                # print(copy_count_label[types_label_list.index(dataset_list[i].label)],"and",sub_count_label[types_label_list.index(dataset_list[i].label)])          
+                    #print("Aug", dataset_list[i].data.shape)
+                    # select data transformation
+                    trans = select_transformation('AddNoise')
+                    aug = trans.augment(np.reshape(target_data,(1, target_data.shape[0], -1)))
+                    #print("Aug_after", aug.shape, aug[0].shape)  
+                    ts_ds = TSDataSet(aug[0], dataset_list[i].label, len(aug[0]))
+                    dataset_list.append(ts_ds)
+                    copy_count_label[target_label] = copy_count_label[target_label]-1   
+        
+        #for i in range(len(dataset_list)): 
         #     target_data  = dataset_list[i].data
         #     trans = select_transformation(aug_method)
         #     aug = trans.augment(np.reshape(target_data,(1, target_data.shape[0], -1))) 
@@ -297,7 +298,7 @@ def sort_data_label(dataset_list):
     types_label_list.sort()
     changed_label_list =[i for i in range(1, len(types_label_list)+1)]
 
-    print("original label:", types_label_list, "\nchanged label:", changed_label_list)
+    print("original label:", types_label_list, "\nchanged label:", changed_label_list)    
         
     for i in range(len(dataset_list)): 
         dataset_list[i].label = changed_label_list[types_label_list.index(dataset_list[i].label)]
@@ -373,15 +374,25 @@ def loading_data(dataset, args):
     elif dataset == 'opportunity':
         dataset_list = opportunityLoader('data/Opportunity/*.dat', timespan, min_seq)
         #visualization_data(dataset_list, 'KDD2022/data/Opportunity/', 5)
-     
+    
+    # select datalist by min_samples
+    types_label_list, count_label_list = count_label(dataset_list)
+    types_label_list = [label for label in types_label_list if (count_label_list[types_label_list.index(label)] >= min_samples) ]
+    print('-' * 100)
+    print(('*'*5)+'Remining data labels: ', types_label_list)
+    dataset_list = [ele for ele in dataset_list if (ele.label in types_label_list)]
+    
+    print('-' * 100)
+    print(('*'*5)+'Changed data labels'+('*'*5))
     # create labels continuously
     dataset_list = sort_data_label(dataset_list)
-
-    # For data augmentation
+    
+    # For data augmentation calculating necessary augmented 
     if aug_method is not None:
         dataset_list = data_augmentation(dataset_list, aug_method, aug_wise)
-
-    print('Before padding-----------------')
+    
+    print('-' * 100)
+    print(('*'*5)+'Before padding'+('*'*5))
     types_label_list, count_label_list = count_label(dataset_list)
     
     # convert object-list to list-list
@@ -394,14 +405,12 @@ def loading_data(dataset, args):
     # Normalized Module
     # for each instance
     for i in range(len(dataset_list)):
-        # select datalist by min_samples
-        if(count_label_list[types_label_list.index(dataset_list[i].label)] >= min_samples):
             #datalist.append(dataset_list[i].data)        
-            label_list.append(dataset_list[i].label)
-            length_list.append(dataset_list[i].length)
+        label_list.append(dataset_list[i].label)
+        length_list.append(dataset_list[i].length)
 
-            for j in range(dataset_list[i].length):
-                temp_list.append(dataset_list[i].data[j])     
+        for j in range(dataset_list[i].length):
+            temp_list.append(dataset_list[i].data[j])     
                
     # normalization of dataframe
     #normalized_df = pd.DataFrame(temp_list)
@@ -421,7 +430,8 @@ def loading_data(dataset, args):
         datalist = reconstrct_list(length_list, normalized_df)
     
 
-    print('After padding-----------------')
+    print('-' * 100)
+    print(('*'*5)+'After padding'+('*'*5))
     
     #to make label 0~
     labellist = (np.array(label_list)-1).tolist()

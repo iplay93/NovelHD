@@ -33,7 +33,6 @@ class Load_Dataset(Dataset):
             self.y_data = y_train
 
         # (N, C, T)
-        print(self.x_data.shape)
         self.x_data_f = fft.fft(self.x_data).abs() #/(window_length) # rfft for real value inputs.
         self.len = X_train.shape[0]
     
@@ -102,7 +101,7 @@ def data_generator_nd(args, configs, training_mode, positive_aug,
     else: # multi-class
         sup_class_idx = [x for x in exist_labels]
         random.seed(args.seed)
-        known_class_idx = random.sample(sup_class_idx, math.ceil(len(num_classes)/2))
+        known_class_idx = random.sample(sup_class_idx, math.ceil(len(sup_class_idx)/2))
         #known_class_idx = [x for x in range(0, (int)(len(sup_class_idx)/2))]
         #known_class_idx = [0, 1]
         novel_class_idx = [item for item in sup_class_idx if item not in set(known_class_idx)]

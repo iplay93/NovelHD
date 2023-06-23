@@ -31,7 +31,7 @@ parser.add_argument('--seed', default=0, type=int,
 parser.add_argument('--training_mode', default='supervised', type=str,
                     help='Modes of choice: random_init, supervised, self_supervised, fine_tune, train_linear')
 parser.add_argument('--selected_dataset', default='lapras', type=str,
-                    help='Dataset of choice: lapras, casas, opportunity, aras_a, aras_b')
+                    help='Dataset of choice: lapras, casas, opportunity, aras_a')
 parser.add_argument('--logs_save_dir', default='experiments_logs', type=str,
                     help='saving directory')
 parser.add_argument('--device', default='cuda', type=str,
@@ -42,7 +42,7 @@ parser.add_argument('--home_path', default=home_dir, type=str,
 parser.add_argument('--padding', type=str, 
                     default='mean', help='choose one of them : no, max, mean')
 parser.add_argument('--timespan', type=int, 
-                    default=1000, help='choose of the number of timespan between data points (1000 = 1sec, 60000 = 1min)')
+                    default=10000, help='choose of the number of timespan between data points (1000 = 1sec, 60000 = 1min)')
 parser.add_argument('--min_seq', type=int, 
                     default=10, help='choose of the minimum number of data points in a example')
 parser.add_argument('--min_samples', type=int, default=20, 
@@ -67,13 +67,13 @@ parser.add_argument('--data_folder', type=str, default=None, help='path to custo
     
 parser.add_argument('--aug_method', type=str, default='AddNoise', help='choose the data augmentation method')
 parser.add_argument('--aug_wise', type=str, default='Temporal', 
-                        help='choose the data augmentation wise : "Nothing, Temporal, Sensor" ')
+                        help='choose the data augmentation wise : "None,  Temporal, Sensor" ')
 
 parser.add_argument('--test_ratio', type=float, default=0.2, help='choose the number of test ratio')
 parser.add_argument('--valid_ratio', type=float, default=0, help='choose the number of vlaidation ratio')
 parser.add_argument('--overlapped_ratio', type=int, default= 50, help='choose the number of windows''overlapped ratio')
 
-    # for training   
+# for training   
 parser.add_argument('--loss', type=str, default='SupCon', help='choose one of them: crossentropy loss, contrastive loss')
 parser.add_argument('--optimizer', type=str, default='', help='choose one of them: adam')
 parser.add_argument('--patience', type=int, default=20, help='choose the number of patience for early stopping')
@@ -102,21 +102,30 @@ os.makedirs(logs_save_dir, exist_ok=True)
 exec(f'from config_files.{data_type}_Configs import Config as Configs')
 configs = Configs()
 
+if data_type == 'lapras': args.timespan = 10000
+elif data_type == 'opportunity': args.timespan = 1000
+elif data_type == 'aras_a': args.timespan = 10000
+elif data_type == 'aras_b': args.timespan = 10000
 
 num_classes, datalist, labellist = loading_data(data_type, args)
 
-# each mode ood_score == 'T', 'TCON', 'TCLS', 'FCON', 'FCLS', 'NovelHD', 'NovelHD_TF'
-for args.ood_score in [['T']]:    
+# each mode ood_score == ['T'], ['TCON'], ['TCLS'], ['FCON'], ['FCLS'], ['NovelHD'], ['NovelHD_TF']
+# ['T'],['NovelHD'], ['NovelHD_TF']
+for args.ood_score in [['T'],['NovelHD'], ['NovelHD_TF']]:    
         
     final_auroc = []
     final_aupr  = []
     final_fpr   = []
     final_de    = []
 
-    #for args.one_class_idx in [0, 1, 2, 3, -1]:
+    # lapras : [0, 1, 2, 3, -1]
+    # casas : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, -1]
+    # aras_a : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
+    # opportunity : [0, 1, 2, 3, 4, -1]
+    for args.one_class_idx in [0, 1, 2, 3, -1]:
     # give weakly shifted transformation methods ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']
-    for positive_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
-        for shifted_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
+        for positive_aug in ['Quantize']: #, 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
+        #for shifted_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
             # overall performance
             auroc_a = []
             aupr_a  = []
@@ -124,7 +133,7 @@ for args.ood_score in [['T']]:
             de_a    = []
             
             # give strongly shifted transformation
-            #shifted_aug = 'Crop'
+            shifted_aug = 'Dropout'
 
             # Training for five seed #
             for test_num in [20, 40, 60, 80, 100]:
@@ -192,7 +201,8 @@ for args.ood_score in [['T']]:
                     # Evlauation
                 with torch.no_grad():
                     auroc_dict, aupr_dict, fpr_dict, de_dict, one_class_total, one_class_aupr, one_class_fpr, one_class_de\
-                        = eval_ood_detection(args, path, model, valid_dl, ood_test_loader, args.ood_score, train_dl, select_transformation(shifted_aug))
+                        = eval_ood_detection(args, path, model, valid_dl, 
+                                             ood_test_loader, args.ood_score, train_dl, select_transformation(shifted_aug))
 
                     auroc_a.append(one_class_total)     
                     aupr_a.append(one_class_aupr)   
@@ -256,17 +266,17 @@ for args.ood_score in [['T']]:
     final_rs =[]
     for i in final_auroc:
         final_rs.append(i)
-    # for i in final_aupr:
-    #     final_rs.append(i)
-    # for i in final_fpr:
-    #     final_rs.append(i)
-    # for i in final_de:
-    #     final_rs.append(i)
+    for i in final_aupr:
+        final_rs.append(i)
+    for i in final_fpr:
+        final_rs.append(i)
+    for i in final_de:
+        final_rs.append(i)
 
     print("Finished")
 
     df = pd.DataFrame(final_rs, columns=['mean', 'std'])
-    df.to_excel('result_files/final_result_dataAug_' + str(args.ood_score[0])+'_'+data_type+'.xlsx', sheet_name='the results')
+    df.to_excel('result_files/final_result_dataAug_' + str(args.ood_score[0])+'_'+data_type+'_comparison.xlsx', sheet_name='the results')
 
     logger.debug(f"Training time is : {datetime.now()-start_time}")
 

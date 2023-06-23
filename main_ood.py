@@ -92,7 +92,7 @@ parser.add_argument('--home_path', default=home_dir, type=str,
 parser.add_argument('--padding', type=str, 
                     default='mean', help='choose one of them : no, max, mean')
 parser.add_argument('--timespan', type=int, 
-                    default=10000, help='choose of the number of timespan between data points(1000 = 1sec, 60000 = 1min)')
+                    default=1000, help='choose of the number of timespan between data points(1000 = 1sec, 60000 = 1min)')
 parser.add_argument('--min_seq', type=int, 
                     default=10, help='choose of the minimum number of data points in a example')
 parser.add_argument('--min_samples', type=int, default=20, 
@@ -119,7 +119,7 @@ parser.add_argument('--save_freq', type=int,
 parser.add_argument('--data_folder', type=str, default=None, help='path to custom dataset')
     
 parser.add_argument('--aug_method', type=str, default='AddNoise', help='choose the data augmentation method')
-parser.add_argument('--aug_wise', type=str, default='Nothing', 
+parser.add_argument('--aug_wise', type=str, default='None', 
                         help='choose the data augmentation wise : "Nothing, Temporal, Sensor" ')
 
 parser.add_argument('--test_ratio', type=float, default=0.2, 
@@ -161,6 +161,11 @@ os.makedirs(logs_save_dir, exist_ok=True)
 
 exec(f'from config_files.{data_type}_Configs import Config as Configs')
 configs = Configs()
+
+if data_type == 'lapras': args.timespan =10000
+elif data_type == 'opportunity': args.timespan =1000
+elif data_type == 'aras_a': args.timespan =10000
+elif data_type == 'aras_b': args.timespan =10000
 
 final_acc = []
 final_f1  = []

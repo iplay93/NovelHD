@@ -115,7 +115,7 @@ def laprasLoader(file_name, timespan, min_seq):
                         else:
                             temp_dataset[j][sensor_list.index(temp_df[i, 0])] += 1
 
-                # append a instance into a dataset
+                # append an instance into a dataset
                 dataset_list.append(TSDataSet(temp_dataset, label_num(file), len(temp_dataset)))
         
         # for next file

@@ -57,7 +57,7 @@ class Config(object):
 
         """New hyperparameters"""
         #self.TSlength_aligned = 33
-        self.TSlength_aligned = 53
+        self.TSlength_aligned = 33
         self.lr_f = self.lr
         self.target_batch_size = 64#  84
         self.increased_dim = 1
