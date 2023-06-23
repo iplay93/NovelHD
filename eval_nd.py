@@ -10,7 +10,7 @@ from sklearn.metrics import roc_auc_score,  f1_score
 
 import torch.fft as fft
 from ood_metrics import auroc, aupr, fpr_at_95_tpr, detection_error
-import kmeans1d
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -259,7 +259,6 @@ def _get_features(args, shifted_aug, model, loader, sample_num=10, layers=('simc
 
                 feats_batch[layer] += feats.chunk(2)
 
-
         # concatenate features in one batch
         for key, val in feats_batch.items():
             feats_batch[key] = torch.stack(val, dim=1)  # (B, T, d)
@@ -273,7 +272,6 @@ def _get_features(args, shifted_aug, model, loader, sample_num=10, layers=('simc
         feats_all[key] = torch.cat(val, dim=0)  # (N, T, d)
 
     # reshape order
-
         # Convert [1,2,3,4, 1,2,3,4] -> [1,1, 2,2, 3,3, 4,4]
     for key, val in feats_all.items():
         N, T, d = val.size()  # T = K * T'
@@ -303,7 +301,6 @@ def get_de(scores_id, scores_ood):
     scores = np.concatenate([scores_id, scores_ood])
     labels = np.concatenate([np.ones_like(scores_id), np.zeros_like(scores_ood)])
     return detection_error(scores, labels)
-
 
 def print_score(data_name, scores):
     quantile = np.quantile(scores, np.arange(0, 1.1, 0.1))

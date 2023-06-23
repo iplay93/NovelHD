@@ -10,7 +10,6 @@ from utils import _calc_metrics, copy_Files
 from models.TFC import TFC, target_classifier
 from dataloader import data_generator_nd
 from eval_nd import eval_ood_detection
-from numba import cuda
 import pandas as pd
 import openpyxl
 from data_preprocessing.augmentations import select_transformation

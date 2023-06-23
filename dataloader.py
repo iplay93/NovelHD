@@ -80,8 +80,8 @@ def data_generator_nd(args, configs, training_mode, positive_aug,
     test_list = torch.tensor(test_list).cuda().cpu()
     test_label_list = torch.tensor(test_label_list).cuda().cpu()
 
-    #entire_list = entire_list.cpu()
-    #entire_label_list = entire_label_list.cpu()
+    entire_list = entire_list.cpu()
+    entire_label_list = torch.tensor(entire_label_list).cuda().cpu()
  
     if(args.one_class_idx != -1): # one-class
         sup_class_idx = [x - 1 for x in num_classes]
@@ -95,8 +95,8 @@ def data_generator_nd(args, configs, training_mode, positive_aug,
         valid_label_list = test_label_list[np.where(test_label_list == args.one_class_idx)]
 
         # only use for testing novelty
-        test_list = test_list[np.where(test_label_list != args.one_class_idx)]
-        test_label_list = test_label_list[np.where(test_label_list != args.one_class_idx)]
+        test_list = entire_list[np.where(entire_label_list != args.one_class_idx)]
+        test_label_list = entire_label_list[np.where(entire_label_list != args.one_class_idx)]
 
     else: # multi-class
         sup_class_idx = [x for x in exist_labels]
@@ -105,26 +105,17 @@ def data_generator_nd(args, configs, training_mode, positive_aug,
         #known_class_idx = [x for x in range(0, (int)(len(sup_class_idx)/2))]
         #known_class_idx = [0, 1]
         novel_class_idx = [item for item in sup_class_idx if item not in set(known_class_idx)]
-
-        for k in range(len(novel_class_idx)):  
-            one_class_idx = novel_class_idx[k]
-            train_list = train_list[np.where(train_label_list != one_class_idx)]
-            train_label_list = train_label_list[np.where(train_label_list != one_class_idx)]
-
-            if k == 0:
-                valid_list = test_list[np.where(test_label_list != one_class_idx)]
-                valid_label_list =test_label_list[np.where(test_label_list != one_class_idx)]
-            else: 
-                valid_list = valid_list[np.where(valid_label_list != one_class_idx)]
-                valid_label_list =valid_label_list[np.where(valid_label_list != one_class_idx)]
-
-
-        for k in range(len(known_class_idx)):
-            one_class_idx = known_class_idx[k]
-            # only use for testing novelty
-            test_list = test_list[np.where(test_label_list != one_class_idx)]
-            test_label_list = test_label_list[np.where(test_label_list != one_class_idx)]
         
+        train_list = train_list[np.isin(train_label_list, known_class_idx)]
+        train_label_list = train_label_list[np.isin(train_label_list, known_class_idx)]
+        valid_list = test_list[np.isin(test_label_list, known_class_idx)]
+        valid_label_list =test_label_list[np.isin(test_label_list, known_class_idx)]
+
+        # only use for testing novelty
+        test_list = entire_list[np.isin(entire_label_list, novel_class_idx)]
+        test_label_list = entire_label_list[np.isin(entire_label_list, novel_class_idx)]    
+
+
         # print(train_label_list)
         # print(valid_label_list)
         # print(test_label_list)

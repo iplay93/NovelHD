@@ -1,37 +1,51 @@
 import argparse
 import sys
 
-from keras.models import Model
+import torch
+import torch.nn as nn
+import torch.optim as optim
 import numpy as np
-
-from keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D
-from keras.models import Model
 from data_preprocessing.dataloader import loading_data
+from torch.utils.data import DataLoader, Dataset
+from anomaly_detection_ocsvm import anomaly_detection
 
-def build_cae_model(height=32, width=32, channel=3):
-    """
-    build convolutional autoencoder model
-    """
-    input_img = Input(shape=(height, width, channel))
+class CAE(nn.Module):
+    def __init__(self, seq_length=100, input_dim=1):
+        super(CAE, self).__init__()
+        self.seq_length = seq_length
+        self.input_dim = input_dim
 
-    # encoder
-    net = Conv2D(16, (3, 3), activation='relu', padding='same')(input_img)
-    net = MaxPooling2D((2, 2), padding='same')(net)
-    net = Conv2D(8, (3, 3), activation='relu', padding='same')(net)
-    net = MaxPooling2D((2, 2), padding='same')(net)
-    net = Conv2D(4, (3, 3), activation='relu', padding='same')(net)
-    encoded = MaxPooling2D((2, 2), padding='same', name='enc')(net)
+        # Encoder layers
+        self.encoder = nn.Sequential(
+            nn.Conv1d(input_dim, 16, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool1d(2, stride=2),
+            nn.Conv1d(16, 8, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool1d(2, stride=2),
+            nn.Conv1d(8, 4, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool1d(2, stride=2)
+        )
 
-    # decoder
-    net = Conv2D(4, (3, 3), activation='relu', padding='same')(encoded)
-    net = UpSampling2D((2, 2))(net)
-    net = Conv2D(8, (3, 3), activation='relu', padding='same')(net)
-    net = UpSampling2D((2, 2))(net)
-    net = Conv2D(16, (3, 3), activation='relu', padding='same')(net)
-    net = UpSampling2D((2, 2))(net)
-    decoded = Conv2D(channel, (3, 3), activation='sigmoid', padding='same')(net)
+        # Decoder layers
+        self.decoder = nn.Sequential(
+            nn.Upsample(scale_factor=2, mode='linear'),
+            nn.Conv1d(4, 8, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Upsample(scale_factor=2, mode='linear'),
+            nn.Conv1d(8, 16, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Upsample(size = seq_length, mode='linear'),
+            nn.Conv1d(16, input_dim, kernel_size=3, padding=1),
+            nn.Sigmoid()
+        )
 
-    return Model(input_img, decoded)
+    def forward(self, x):
+        encoded = self.encoder(x)
+        decoded = self.decoder(encoded)
+        return decoded
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train Convolutional AutoEncoder and inference')
@@ -39,42 +53,37 @@ def parse_args():
     parser.add_argument('--height', default=1, type=int, help='height of images')
     parser.add_argument('--width', default=32, type=int, help='width of images')
     parser.add_argument('--channel', default=3, type=int, help='channel of images')
-    parser.add_argument('--num_epoch', default=50, type=int, help='the number of epochs')
-    parser.add_argument('--batch_size', default=100, type=int, help='mini batch size')
+    parser.add_argument('--num_epoch', default=100, type=int, help='the number of epochs')
+    parser.add_argument('--batch_size', default=64, type=int, help='mini batch size')
     parser.add_argument('--output_path', default='./data/cifar10_cae.npz', type=str, help='path to directory to output')
+    
+    #for 
+    parser.add_argument('--padding', type=str, 
+                    default='mean', help='choose one of them : no, max, mean')
+    parser.add_argument('--timespan', type=int, 
+                        default=10000, help='choose of the number of timespan between data points(1000 = 1sec, 60000 = 1min)')
+    parser.add_argument('--min_seq', type=int, 
+                        default=10, help='choose of the minimum number of data points in a example')
+    parser.add_argument('--min_samples', type=int, default=20, 
+                        help='choose of the minimum number of samples in each label')
     parser.add_argument('--selected_dataset', default='lapras', type=str,
-                    help='Dataset of choice: lapras, casas, opportunity, aras_a')
+                        help='Dataset of choice: lapras, casas, opportunity, aras_a, aras_b')
+    parser.add_argument('--aug_method', type=str, default='AddNoise', help='choose the data augmentation method')
+    parser.add_argument('--aug_wise', type=str, default='Temporal', help='choose the data augmentation wise')
+
+    parser.add_argument('--test_ratio', type=float, default=0.3, help='choose the number of test ratio')
+
     args = parser.parse_args()
 
     return args
-
-
-def load_data(data_to_path):
-    """load data
-    data should be compressed in npz
-    """
-    data = np.load(data_to_path)
-
-    try:
-        all_image = data['images']
-        all_label = data['labels']
-    except:
-        print('Loading data should be numpy array and has "images" and "labels" keys.')
-        sys.exit(1)
-    
-
-    # normalize input images
-    all_image = (all_image - 127.0) / 127.0
-    return all_image, all_label
-
 
 def flat_feature(enc_out):
     """flat feature of CAE features
     """
     enc_out_flat = []
 
-    s1, s2, s3 = enc_out[0].shape
-    s = s1 * s2 * s3
+    s1, s2 = enc_out[0].shape
+    s = s1 * s2 
     for con in enc_out:
         enc_out_flat.append(con.reshape((s,)))
 
@@ -84,38 +93,60 @@ def flat_feature(enc_out):
 def main():
     """main function"""
     args = parse_args()
-    data_path = args.data_path
-    height = args.height
-    width = args.width
-    channel = args.channel
-    num_epoch = args.num_epoch
+    height = 1
+    seq_length = 598
+    channel = 7
+    num_epoch = 100
     batch_size = args.batch_size
-    output_path = args.output_path
     data_type = args.selected_dataset
+    output_path = './data/' + data_type + '_cae.npz'   
+
+    if data_type == 'lapras': args.timespan = 10000
+    elif data_type == 'opportunity': args.timespan = 1000
+    elif data_type == 'aras_a': args.timespan = 10000
+    elif data_type == 'aras_b': args.timespan = 10000
     
     # load CIFAR-10 data from data directory
-    all_image, all_label = load_data(data_path)
+    #all_image, all_label = load_data(data_path)
     num_classes, datalist, labellist = loading_data(data_type, args)
-    
-    # build model and train
-    autoencoder = build_cae_model(height, width, channel)
-    autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
-    autoencoder.fit(all_image, all_image,
-                    epochs=num_epoch,
-                    batch_size=batch_size,
-                    shuffle=True)
+    num_classes, datalist, labellist = torch.from_numpy(np.array(num_classes)), torch.from_numpy(np.array(datalist.cpu())),torch.from_numpy(np.array(labellist)).long()
+    datalist = datalist.permute(0, 2, 1)
+    # Make datalist shape 
+    # Create an instance of the CAE model
+    autoencoder = CAE(seq_length, channel)
 
-    # inference from encoder
-    layer_name = 'enc'
-    encoded_layer = Model(inputs=autoencoder.input, outputs=autoencoder.get_layer(layer_name).output)
-    enc_out = encoded_layer.predict(all_image)
+    # Define the loss function and optimizer
+    criterion = nn.BCELoss()
+    optimizer = optim.Adam(autoencoder.parameters())
 
-    # flat features for OC-SVM input
-    enc_out = flat_feature(enc_out)
+    # Create DataLoader
+    dataloader = DataLoader(datalist, batch_size=batch_size, shuffle=True)    
 
-    # save cae output
-    np.savez(output_path, ae_out=enc_out, labels=all_label)
+    for epoch in range(num_epoch):
+        running_loss = 0.0
+        for inputs in dataloader:
+            optimizer.zero_grad()
+            outputs = autoencoder(inputs)
+            loss = criterion(outputs, inputs)
+            loss.backward()
+            optimizer.step()
 
+            running_loss += loss.item()
+
+
+        epoch_loss = running_loss / len(dataloader)
+        print(f"Epoch [{epoch+1}/{num_epoch}], Loss: {epoch_loss:.4f}")
+ 
+    encoded_data = autoencoder.encoder(datalist)
+    encoded_data = encoded_data.detach().numpy()
+
+
+    # flat features for classification input
+    enc_out = flat_feature(encoded_data)
+    print(enc_out.shape)
+
+    # save CAE output
+    np.savez(output_path, ae_out=enc_out, labels=labellist)
 
 if __name__ == '__main__':
     main()
