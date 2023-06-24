@@ -1,11 +1,11 @@
 import json
 import torch
 
-from base.base_dataset import BaseADDataset
-from networks.main import build_network, build_autoencoder
-from optim.deepSVDD_trainer import DeepSVDDTrainer
-from optim.ae_trainer import AETrainer
 
+from optim_deepsvdd.deepSVDD_trainer import DeepSVDDTrainer
+from optim_deepsvdd.ae_trainer import AETrainer
+
+from models.SVDD_Net import TimeSeriesNet, TimeSeriesAutoencoder
 
 class DeepSVDD(object):
     """A class for the Deep SVDD method.
@@ -25,7 +25,7 @@ class DeepSVDD(object):
         results: A dictionary to save the results.
     """
 
-    def __init__(self, objective: str = 'one-class', nu: float = 0.1):
+    def __init__(self, objective: str = 'one-class', nu: float = 0.1, seq_length =10 , channel =1):
         """Inits DeepSVDD with one of the two objectives and hyperparameter nu."""
 
         assert objective in ('one-class', 'soft-boundary'), "Objective must be either 'one-class' or 'soft-boundary'."
@@ -35,8 +35,11 @@ class DeepSVDD(object):
         self.R = 0.0  # hypersphere radius R
         self.c = None  # hypersphere center c
 
+        self.seq_length = seq_length
+        self.channel = channel
+
         self.net_name = None
-        self.net = None  # neural network \phi
+        self.net = TimeSeriesNet(self.seq_length, self.channel) # neural network \phi
 
         self.trainer = None
         self.optimizer_name = None
@@ -52,51 +55,46 @@ class DeepSVDD(object):
             'test_scores': None,
         }
 
-    def set_network(self, net_name):
-        """Builds the neural network \phi."""
-        self.net_name = net_name
-        self.net = build_network(net_name)
 
-    def train(self, dataset: BaseADDataset, optimizer_name: str = 'adam', lr: float = 0.001, n_epochs: int = 50,
-              lr_milestones: tuple = (), batch_size: int = 128, weight_decay: float = 1e-6, device: str = 'cuda',
-              n_jobs_dataloader: int = 0):
+
+    def train(self, train_loader, test_loader, optimizer_name: str = 'adam', lr: float = 0.001, n_epochs: int = 50,
+              lr_milestones: tuple = (), batch_size: int = 128, weight_decay: float = 1e-6, device: str = 'cuda'):
         """Trains the Deep SVDD model on the training data."""
 
         self.optimizer_name = optimizer_name
         self.trainer = DeepSVDDTrainer(self.objective, self.R, self.c, self.nu, optimizer_name, lr=lr,
                                        n_epochs=n_epochs, lr_milestones=lr_milestones, batch_size=batch_size,
-                                       weight_decay=weight_decay, device=device, n_jobs_dataloader=n_jobs_dataloader)
+                                       weight_decay=weight_decay, device=device)
         # Get the model
-        self.net = self.trainer.train(dataset, self.net)
+        self.net = self.trainer.train(train_loader, self.net)
         self.R = float(self.trainer.R.cpu().data.numpy())  # get float
         self.c = self.trainer.c.cpu().data.numpy().tolist()  # get list
         self.results['train_time'] = self.trainer.train_time
 
-    def test(self, dataset: BaseADDataset, device: str = 'cuda', n_jobs_dataloader: int = 0):
+    def test(self, test_loader, device: str = 'cuda', n_jobs_dataloader: int = 0):
         """Tests the Deep SVDD model on the test data."""
 
         if self.trainer is None:
             self.trainer = DeepSVDDTrainer(self.objective, self.R, self.c, self.nu,
                                            device=device, n_jobs_dataloader=n_jobs_dataloader)
-
-        self.trainer.test(dataset, self.net)
+        auroc_rs, aupr_rs, fpr_at_95_tpr_rs, detection_error_rs = \
+            self.trainer.test(test_loader, self.net)
         # Get results
         self.results['test_auc'] = self.trainer.test_auc
         self.results['test_time'] = self.trainer.test_time
         self.results['test_scores'] = self.trainer.test_scores
 
-    def pretrain(self, dataset: BaseADDataset, optimizer_name: str = 'adam', lr: float = 0.001, n_epochs: int = 100,
-                 lr_milestones: tuple = (), batch_size: int = 128, weight_decay: float = 1e-6, device: str = 'cuda',
-                 n_jobs_dataloader: int = 0):
+    def pretrain(self, train_loader, test_loader, optimizer_name: str = 'adam', lr: float = 0.001, n_epochs: int = 100,
+                 lr_milestones: tuple = (), batch_size: int = 128, weight_decay: float = 1e-6, device: str = 'cuda'):
         """Pretrains the weights for the Deep SVDD network \phi via autoencoder."""
 
-        self.ae_net = build_autoencoder(self.net_name)
+        self.ae_net = TimeSeriesAutoencoder(self.seq_length, self.channel)
         self.ae_optimizer_name = optimizer_name
         self.ae_trainer = AETrainer(optimizer_name, lr=lr, n_epochs=n_epochs, lr_milestones=lr_milestones,
-                                    batch_size=batch_size, weight_decay=weight_decay, device=device,
-                                    n_jobs_dataloader=n_jobs_dataloader)
-        self.ae_net = self.ae_trainer.train(dataset, self.ae_net)
-        self.ae_trainer.test(dataset, self.ae_net)
+                                    batch_size=batch_size, weight_decay=weight_decay, device=device)
+        self.ae_net = self.ae_trainer.train(train_loader, self.ae_net)
+        auroc_rs, aupr_rs, fpr_at_95_tpr_rs, detection_error_rs = \
+            self.ae_trainer.test(test_loader, self.ae_net)
         self.init_network_weights_from_pretraining()
 
     def init_network_weights_from_pretraining(self):
@@ -133,7 +131,7 @@ class DeepSVDD(object):
         self.net.load_state_dict(model_dict['net_dict'])
         if load_ae:
             if self.ae_net is None:
-                self.ae_net = build_autoencoder(self.net_name)
+                self.ae_net = TimeSeriesAutoencoder(self.seq_length, self.channel)
             self.ae_net.load_state_dict(model_dict['ae_net_dict'])
 
     def save_results(self, export_json):

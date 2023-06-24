@@ -215,23 +215,23 @@ class AffineTransformation(object):
         
         if self.j:
             #res_x = np.fliplr(res_x)
-            trans = select_transformation(self.trans_list[0], res_x.shape[0])
+            trans = select_transformation(self.trans_list[0])
             res_x = trans.augment(np.reshape(res_x,(1, res_x .shape[0], -1)))[0]
             #res_x = jitter(res_x, self.config.augmentation.jitter_ratio)
         if self.s:
-            trans = select_transformation(self.trans_list[1], res_x.shape[0])
+            trans = select_transformation(self.trans_list[1])
             res_x = trans.augment(np.reshape(res_x,(1, res_x .shape[0], -1)))[0]
             #jitter(res_x, self.config.augmentation.jitter_ratio)
             #res_x = scaling(res_x, self.config.augmentation.jitter_scale_ratio)
         if self.p:
-            trans = select_transformation(self.trans_list[2], res_x.shape[0])
+            trans = select_transformation(self.trans_list[2])
             res_x = trans.augment(np.reshape(res_x,(1, res_x .shape[0], -1)))[0]
             #res_x = jitter(res_x, self.config.augmentation.jitter_ratio)
             #res_x = permutation(res_x, max_segments= self.config.augmentation.max_seg)
             #res_x = apply_affine_transform(res_x,
             #tx=self.tx, ty=self.ty, channel_axis=2, fill_mode='reflect')
         if self.m:
-            trans = select_transformation(self.trans_list[3], res_x.shape[0])
+            trans = select_transformation(self.trans_list[3])
             res_x = trans.augment(np.reshape(res_x,(1, res_x .shape[0], -1)))[0]
             #res_x = jitter(res_x, self.config.augmentation.jitter_ratio)
             #res_x = permutation(res_x, max_segments= self.config.augmentation.max_seg)

@@ -1,6 +1,3 @@
-from base.base_trainer import BaseTrainer
-from base.base_dataset import BaseADDataset
-from base.base_net import BaseNet
 from torch.utils.data.dataloader import DataLoader
 from sklearn.metrics import roc_auc_score
 
@@ -9,15 +6,22 @@ import time
 import torch
 import torch.optim as optim
 import numpy as np
+from ood_metrics import auroc, aupr, fpr_at_95_tpr, detection_error
 
-
-class DeepSVDDTrainer(BaseTrainer):
+class DeepSVDDTrainer():
 
     def __init__(self, objective, R, c, nu: float, optimizer_name: str = 'adam', lr: float = 0.001, n_epochs: int = 150,
                  lr_milestones: tuple = (), batch_size: int = 128, weight_decay: float = 1e-6, device: str = 'cuda',
                  n_jobs_dataloader: int = 0):
-        super().__init__(optimizer_name, lr, n_epochs, lr_milestones, batch_size, weight_decay, device,
-                         n_jobs_dataloader)
+        super().__init__()
+        self. optimizer_name = optimizer_name
+        self.lr = lr
+        self.n_epochs = n_epochs
+        self.lr_milestones = lr_milestones
+        self.batch_size = batch_size
+        self.weight_decay = weight_decay
+        self.device = device
+        
 
         assert objective in ('one-class', 'soft-boundary'), "Objective must be either 'one-class' or 'soft-boundary'."
         self.objective = objective
@@ -35,15 +39,16 @@ class DeepSVDDTrainer(BaseTrainer):
         self.test_auc = None
         self.test_time = None
         self.test_scores = None
+    
+    def calc_metrics(testy, scores):
+        return auroc(scores, testy), aupr(scores, testy), fpr_at_95_tpr(scores, testy), detection_error(scores, testy)
 
-    def train(self, dataset: BaseADDataset, net: BaseNet):
+
+    def train(self, train_loader, net):
         logger = logging.getLogger()
 
         # Set device for network
         net = net.to(self.device)
-
-        # Get train data loader
-        train_loader, _ = dataset.loaders(batch_size=self.batch_size, num_workers=self.n_jobs_dataloader)
 
         # Set optimizer (Adam optimizer for now)
         optimizer = optim.Adam(net.parameters(), lr=self.lr, weight_decay=self.weight_decay,
@@ -54,19 +59,16 @@ class DeepSVDDTrainer(BaseTrainer):
 
         # Initialize hypersphere center c (if c not loaded)
         if self.c is None:
-            logger.info('Initializing center c...')
+            print('Initializing center c...')
             self.c = self.init_center_c(train_loader, net)
-            logger.info('Center c initialized.')
+            print('Center c initialized.')
 
         # Training
-        logger.info('Starting training...')
+        print('Starting training...')
         start_time = time.time()
         net.train()
         for epoch in range(self.n_epochs):
 
-            scheduler.step()
-            if epoch in self.lr_milestones:
-                logger.info('  LR scheduler: new learning rate is %g' % float(scheduler.get_lr()[0]))
 
             loss_epoch = 0.0
             n_batches = 0
@@ -96,29 +98,31 @@ class DeepSVDDTrainer(BaseTrainer):
                 loss_epoch += loss.item()
                 n_batches += 1
 
+            scheduler.step()
+            if epoch in self.lr_milestones:
+                print('  LR scheduler: new learning rate is %g' % float(scheduler.get_lr()[0]))
+
+
             # log epoch statistics
             epoch_train_time = time.time() - epoch_start_time
-            logger.info('  Epoch {}/{}\t Time: {:.3f}\t Loss: {:.8f}'
+            print('  Epoch {}/{}\t Time: {:.3f}\t Loss: {:.8f}'
                         .format(epoch + 1, self.n_epochs, epoch_train_time, loss_epoch / n_batches))
 
         self.train_time = time.time() - start_time
-        logger.info('Training time: %.3f' % self.train_time)
+        print('Training time: %.3f' % self.train_time)
 
-        logger.info('Finished training.')
+        print('Finished training.')
 
         return net
 
-    def test(self, dataset: BaseADDataset, net: BaseNet):
+    def test(self, test_loader , net):
         logger = logging.getLogger()
 
         # Set device for network
         net = net.to(self.device)
 
-        # Get test data loader
-        _, test_loader = dataset.loaders(batch_size=self.batch_size, num_workers=self.n_jobs_dataloader)
-
         # Testing
-        logger.info('Starting testing...')
+        print('Starting testing...')
         start_time = time.time()
         idx_label_score = []
         net.eval()
@@ -139,7 +143,7 @@ class DeepSVDDTrainer(BaseTrainer):
                                             scores.cpu().data.numpy().tolist()))
 
         self.test_time = time.time() - start_time
-        logger.info('Testing time: %.3f' % self.test_time)
+        print('Testing time: %.3f' % self.test_time)
 
         self.test_scores = idx_label_score
 
@@ -149,11 +153,17 @@ class DeepSVDDTrainer(BaseTrainer):
         scores = np.array(scores)
 
         self.test_auc = roc_auc_score(labels, scores)
-        logger.info('Test set AUC: {:.2f}%'.format(100. * self.test_auc))
+        print('Test set AUC: {:.2f}%'.format(100. * self.test_auc))
+        print('Test set AUC2: {:.2f}%'.format(100. * auroc(scores, labels)))
+        print('Test set AUPR: {:.2f}%'.format(100. * aupr(scores, labels)))
+        print('Test set FPR: {:.2f}%'.format(100. * fpr_at_95_tpr(scores, labels)))
+        print('Test set DE: {:.2f}%'.format(100. * detection_error(scores, labels)))
+        print('Finished testing.')
 
-        logger.info('Finished testing.')
+        return auroc(scores, labels), aupr(scores, labels), \
+                fpr_at_95_tpr(scores, labels), detection_error(scores, labels)
 
-    def init_center_c(self, train_loader: DataLoader, net: BaseNet, eps=0.1):
+    def init_center_c(self, train_loader: DataLoader, net, eps=0.1):
         """Initialize hypersphere center c as the mean from an initial forward pass on the data."""
         n_samples = 0
         c = torch.zeros(net.rep_dim, device=self.device)

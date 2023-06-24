@@ -1,9 +1,12 @@
 import argparse
-import augmentations as ts
+import torch
+import data_preprocessing.augmentations as ts
 import models.opt_tc as tc
 import numpy as np
 from data_preprocessing.dataloader import loading_data
-from dataloader import data_generator_goad
+from sklearn.model_selection import train_test_split
+from data_preprocessing.dataloader import count_label_labellist
+import random, math
 #from data_loader import Data_Loader
 
 def transform_data(data, trans):
@@ -12,16 +15,61 @@ def transform_data(data, trans):
     trans_data = trans.transform_batch(np.repeat(data.numpy(), trans.n_transforms, axis=0), trans_inds)
     return trans_data, trans_inds
 
+def data_generator_goad(args, datalist, labellist):
+
+    test_ratio = args.test_ratio
+    seed =  args.seed 
+    # num_classes, entire_list, train_list, valid_list, test_list, entire_label_list, train_label_list, valid_label_list, test_label_list \
+    # = splitting_data(args.selected_dataset, args.test_ratio, args.valid_ratio, args.padding, args.seed, \
+    #                  args.timespan, args.min_seq, args.min_samples, args.aug_method, args.aug_wise)
+    train_list, test_list, train_label_list, test_label_list = train_test_split(datalist, 
+                                                                                labellist, test_size=test_ratio, stratify= labellist, random_state=seed) 
+    print(f"Train Data: {len(train_list)} --------------")
+    exist_labels, _ = count_label_labellist(train_label_list)    
+
+    print(f"Test Data: {len(test_list)} --------------")
+    count_label_labellist(test_label_list) 
+
+    train_list = torch.tensor(train_list).cuda().cpu()
+    train_label_list = torch.tensor(train_label_list).cuda().cpu()
+
+    test_list = torch.tensor(test_list).cuda().cpu()
+    test_label_list = torch.tensor(test_label_list).cuda().cpu()
+    
+    if (args.one_class_idx != -1):
+        
+        train_list = train_list[np.where(train_label_list == args.one_class_idx)]
+        train_label_list = train_label_list[np.where(train_label_list == args.one_class_idx)]
+        test_label_list  = np.array(test_label_list ) == args.one_class_idx
+
+    else:
+    # multi-class
+        sup_class_idx = [x for x in exist_labels]
+        random.seed(args.seed)
+        known_class_idx = random.sample(sup_class_idx, math.ceil(len(sup_class_idx)/2))
+        #known_class_idx = [x for x in range(0, (int)(len(sup_class_idx)/2))]
+        #known_class_idx = [0, 1]
+        novel_class_idx = [item for item in sup_class_idx if item not in set(known_class_idx)]
+        
+        train_list = train_list[np.isin(train_label_list, known_class_idx)]
+        test_label_list = [True if i in known_class_idx else False for i in test_label_list]
+
+    # only use for testing novelty
+    return train_list, test_list, torch.tensor(test_label_list).cuda().cpu()
+
 def load_trans_data(args, trans):
     #dl = Data_Loader()
     _, datalist, labellist = loading_data(args.dataset, args)
     x_train, x_test, y_test = data_generator_goad(args, datalist, labellist)
+    print(y_test)
     
     x_train_trans, _ = transform_data(x_train, trans)
     x_test_trans, _ = transform_data(x_test, trans)
 
     x_test_trans, x_train_trans = x_test_trans.transpose(0, 2, 1), x_train_trans.transpose(0, 2, 1)
-    y_test = np.array(y_test) == args.one_class_idx
+
+    #print(y_test)
+
     return x_train_trans, x_test_trans, y_test
 
 
@@ -82,7 +130,7 @@ if __name__ == '__main__':
     exec(f'from config_files.{data_type}_Configs import Config as Configs')
     configs = Configs()
 
-    for i in range(4):
+    for i in [0,1,2,3,4,-1]:
         args.one_class_idx = i
         print("Dataset:", args.dataset)
         print("True Class:", args.one_class_idx)
