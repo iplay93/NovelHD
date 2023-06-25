@@ -3,11 +3,11 @@ import torch
 import data_preprocessing.augmentations as ts
 import models.opt_tc as tc
 import numpy as np
-from data_preprocessing.dataloader import loading_data
+from data_preprocessing.dataloader import loading_data, count_label_labellist
 from sklearn.model_selection import train_test_split
-from data_preprocessing.dataloader import count_label_labellist
 import random, math
 #from data_loader import Data_Loader
+import pandas as pd
 
 def transform_data(data, trans):
     trans_inds = np.tile(np.arange(trans.n_transforms), len(data))
@@ -52,6 +52,7 @@ def data_generator_goad(args, datalist, labellist):
         novel_class_idx = [item for item in sup_class_idx if item not in set(known_class_idx)]
         
         train_list = train_list[np.isin(train_label_list, known_class_idx)]
+        train_label_list = train_label_list[np.isin(train_label_list, known_class_idx)]
         test_label_list = [True if i in known_class_idx else False for i in test_label_list]
 
     # only use for testing novelty
@@ -61,7 +62,6 @@ def load_trans_data(args, trans):
     #dl = Data_Loader()
     _, datalist, labellist = loading_data(args.dataset, args)
     x_train, x_test, y_test = data_generator_goad(args, datalist, labellist)
-    print(y_test)
     
     x_train_trans, _ = transform_data(x_train, trans)
     x_test_trans, _ = transform_data(x_test, trans)
@@ -79,7 +79,9 @@ def train_anomaly_detector(args, config):
     print("final shape:",x_train.shape, x_test.shape, y_test.shape, transformer.n_transforms)
     # train 은 하나의 idx를 기반으로 하기 때문에 test의 크기가 더 클 수 있음
     tc_obj = tc.TransClassifier(transformer.n_transforms, args, configs)
-    tc_obj.fit_trans_classifier(x_train, x_test, y_test)
+    auroc_rs, aupr_rs, fpr_rs, de_rs = tc_obj.fit_trans_classifier(x_train, x_test, y_test)
+    
+    return auroc_rs, aupr_rs, fpr_rs, de_rs
 
 
 if __name__ == '__main__':
@@ -130,8 +132,76 @@ if __name__ == '__main__':
     exec(f'from config_files.{data_type}_Configs import Config as Configs')
     configs = Configs()
 
-    for i in [0,1,2,3,4,-1]:
-        args.one_class_idx = i
-        print("Dataset:", args.dataset)
-        print("True Class:", args.one_class_idx)
-        train_anomaly_detector(args, configs)
+    if data_type == 'lapras': 
+        class_num = [0, 1, 2, 3, -1]
+        args.timespan = 10000
+    elif data_type == 'casas': 
+        class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, -1]
+        args.aug_wise = 'Temporal2'
+    elif data_type == 'opportunity': 
+        class_num = [0, 1, 2, 3, 4, -1]
+        args.timespan = 1000
+    elif data_type == 'aras_a': 
+        class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
+        args.timespan = 10000
+
+    final_auroc = []
+    final_aupr  = []
+    final_fpr   = []
+    final_de    = []
+
+    for args.one_class_idx in class_num:
+        auroc_a = []
+        aupr_a  = []
+        fpr_a   = []
+        de_a    = []
+        
+        if args.one_class_idx != -1:
+            seed_num = [20, 40, 60, 80, 100]
+        else:
+            seed_num = [20, 40, 60, 80, 100, 120, 140, 160, 180, 200]
+
+            # Training for five seed #
+        for test_num in seed_num :
+            # ##### fix random seeds for reproducibility ########
+            SEED = args.seed = test_num
+            torch.manual_seed(SEED)
+            torch.backends.cudnn.deterministic = False
+            torch.backends.cudnn.benchmark = False
+            np.random.seed(SEED)            
+            #####################################################
+            
+            print("Dataset:", args.dataset)
+            print("True Class:", args.one_class_idx)
+            one_class_total, one_class_aupr, one_class_fpr, one_class_de = train_anomaly_detector(args, configs)
+            
+            
+            auroc_a.append(one_class_total)     
+            aupr_a.append(one_class_aupr)   
+            fpr_a.append(one_class_fpr)
+            de_a.append(one_class_de)
+
+        final_auroc.append([np.mean(auroc_a), np.std(auroc_a)])
+        final_aupr.append([np.mean(aupr_a), np.std(aupr_a)])
+        final_fpr.append([np.mean(fpr_a), np.std(fpr_a)])
+        final_de.append([np.mean(de_a), np.std(de_a)])
+
+
+    # for extrating results to an excel file
+    
+    final_rs =[]
+    for i in final_auroc:
+        final_rs.append(i)
+    for i in final_aupr:
+        final_rs.append(i)
+    for i in final_fpr:
+        final_rs.append(i)
+    for i in final_de:
+        final_rs.append(i)
+
+    print("Finished")
+
+    df = pd.DataFrame(final_rs, columns=['mean', 'std'])
+    df.to_excel('result_files/final_result_GOAD_'+data_type+'_comparison.xlsx', sheet_name='the results')
+
+

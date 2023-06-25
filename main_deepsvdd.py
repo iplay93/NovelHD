@@ -12,6 +12,7 @@ from sklearn.model_selection import train_test_split
 from data_preprocessing.dataloader import count_label_labellist
 from torch.utils.data import DataLoader, Dataset
 
+
 ################################################################################
 # Settings
 ################################################################################
@@ -76,8 +77,6 @@ def data_generator(args, configs, num_classes, datalist, labellist):
     test_list = torch.tensor(test_list).cuda().cpu()
     test_label_list = torch.tensor(test_label_list).cuda().cpu()
 
-    entire_list = datalist.cpu()
-    entire_label_list = torch.tensor(labellist).cuda().cpu()
  
     if(args.one_class_idx != -1): # one-class
         sup_class_idx = [x for x in exist_labels]
@@ -91,8 +90,8 @@ def data_generator(args, configs, num_classes, datalist, labellist):
         valid_label_list = test_label_list[np.where(test_label_list == args.one_class_idx)]
 
         # only use for testing novelty
-        test_list = entire_list[np.where(entire_label_list != args.one_class_idx)]
-        test_label_list = entire_label_list[np.where(entire_label_list != args.one_class_idx)]
+        test_list = test_list[np.where(test_label_list != args.one_class_idx)]
+        test_label_list = test_label_list[np.where(test_label_list != args.one_class_idx)]
 
     else: # multi-class
         sup_class_idx = [x for x in exist_labels]
@@ -108,8 +107,8 @@ def data_generator(args, configs, num_classes, datalist, labellist):
         valid_label_list =test_label_list[np.isin(test_label_list, known_class_idx)]
 
         # only use for testing novelty
-        test_list = entire_list[np.isin(entire_label_list, novel_class_idx)]
-        test_label_list = entire_label_list[np.isin(entire_label_list, novel_class_idx)]    
+        test_list = test_list[np.isin(test_label_list, novel_class_idx)]
+        test_label_list = test_label_list[np.isin(test_label_list, novel_class_idx)]    
 
 
         # print(train_label_list)
@@ -234,11 +233,21 @@ print(data_type)
 exec(f'from config_files.{data_type}_Configs import Config as Configs')
 configs = Configs()
 
-if data_type == 'lapras': args.timespan = 10000
-elif data_type == 'opportunity': args.timespan = 1000
-elif data_type == 'aras_a': args.timespan = 10000
-elif data_type == 'aras_b': args.timespan = 10000
-
+if data_type == 'lapras': 
+    args.timespan = 10000
+    seq_length = 598
+    channel = 7
+elif data_type == 'casas': 
+    seq_length = 46
+    channel = 37
+elif data_type == 'opportunity': 
+    args.timespan = 1000
+    seq_length = 169
+    channel = 241
+elif data_type == 'aras_a': 
+    args.timespan = 10000
+    seq_length = 24
+    channel = 19
 
 
 # Default device to 'cpu' if cuda is not available
@@ -251,8 +260,6 @@ num_classes, datalist, labellist = loading_data(data_type, args)
     #dataset = load_dataset(dataset_name, data_path, normal_class)
 train_loader, test_loader, train_loader2, test_loader2, novel_class_idx  = data_generator(args, configs, num_classes, datalist, labellist)
 
-seq_length = 598
-channel = 7
 
 # Initialize DeepSVDD model and set neural network \phi
 deep_SVDD = DeepSVDD(args.objective, args.nu, seq_length, channel)

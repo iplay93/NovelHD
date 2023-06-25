@@ -6,6 +6,7 @@ from torch.backends import cudnn
 #from wideresnet import WideResNet
 from sklearn.metrics import roc_auc_score
 from models.TFC import TFC_GOAD, target_classifier
+from ood_metrics import auroc, aupr, fpr_at_95_tpr, detection_error
 
 cudnn.benchmark = True
 
@@ -102,25 +103,27 @@ class TransClassifier():
             means = all_zs.mean(0, keepdim=True)
 
 
-            with torch.no_grad():
-                batch_size = bs
-                val_probs_rots = np.zeros((len(y_test), self.n_trans))
-                for i in range(0, len(x_test), batch_size):
-                    batch_range = min(batch_size, len(x_test) - i)
-                    idx = np.arange(batch_range) + i
-                    xs = torch.from_numpy(x_test[idx]).float().cuda()
+        with torch.no_grad():
+            batch_size = bs
+            val_probs_rots = np.zeros((len(y_test), self.n_trans))
+            for i in range(0, len(x_test), batch_size):
+                batch_range = min(batch_size, len(x_test) - i)
+                idx = np.arange(batch_range) + i
+                xs = torch.from_numpy(x_test[idx]).float().cuda()
 
-                    _, zs, fs = self.model(xs)
-                    zs = torch.reshape(zs, (batch_range // n_rots, n_rots, ndf))
+                _, zs, fs = self.model(xs)
+                zs = torch.reshape(zs, (batch_range // n_rots, n_rots, ndf))
 
-                    diffs = ((zs.unsqueeze(2) - means) ** 2).sum(-1)
-                    diffs_eps = self.args.eps * torch.ones_like(diffs)
-                    diffs = torch.max(diffs, diffs_eps)
-                    logp_sz = torch.nn.functional.log_softmax(-diffs, dim=2)
+                diffs = ((zs.unsqueeze(2) - means) ** 2).sum(-1)
+                diffs_eps = self.args.eps * torch.ones_like(diffs)
+                diffs = torch.max(diffs, diffs_eps)
+                logp_sz = torch.nn.functional.log_softmax(-diffs, dim=2)
 
-                    zs_reidx = np.arange(batch_range // n_rots) + i // n_rots
-                    val_probs_rots[zs_reidx] = -torch.diagonal(logp_sz, 0, 1, 2).cpu().data.numpy()
+                zs_reidx = np.arange(batch_range // n_rots) + i // n_rots
+                val_probs_rots[zs_reidx] = -torch.diagonal(logp_sz, 0, 1, 2).cpu().data.numpy()
 
-                val_probs_rots = val_probs_rots.sum(1)
-                print("Epoch:", epoch, ", AUC: ", roc_auc_score(y_test, -val_probs_rots))
+            val_probs_rots = val_probs_rots.sum(1)
+            print("Epoch:", epoch, ", AUC: ", roc_auc_score(y_test, -val_probs_rots))
+
+        return auroc(-val_probs_rots, y_test), aupr(-val_probs_rots, y_test), fpr_at_95_tpr(-val_probs_rots, y_test), detection_error(-val_probs_rots, y_test)
 

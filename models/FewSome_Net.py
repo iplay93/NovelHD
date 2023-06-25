@@ -1,7 +1,42 @@
 import torch
 import torch.nn as nn
-from torchvision import models
 import torch.nn.functional as F
+
+class TimeSeriesNet(nn.Module):
+    def __init__(self, seq_length=100, input_channels=1, vector_size=64, bias=False):
+        super(TimeSeriesNet, self).__init__()
+        self.seq_length = seq_length
+        self.input_dim = input_channels
+
+        # Encoder layers
+        self.encoder = nn.Sequential(
+            nn.Conv1d(input_channels, 16, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool1d(2, stride=2),
+            nn.Conv1d(16, 8, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool1d(2, stride=2),
+            nn.Conv1d(8, 1, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool1d(2, stride=2)
+        )
+        # Linear layer in the encoder
+        self.encoder_linear = nn.Linear((seq_length // 8), vector_size)
+        self.activation = torch.nn.Sigmoid()
+
+    def forward(self, x):
+        print("x", x.shape)
+        encoded = self.encoder(x)
+        print("encoded1", encoded.shape)
+        encoded = encoded.view(encoded.size(0), -1)
+        print("encoded2", encoded.shape)
+        x = self.encoder_linear(encoded)
+        print("x2", x.shape)
+        x = self.activation(x)
+        print("x3", x.shape)
+        return x  # output
+
+
 
 
 
@@ -391,7 +426,6 @@ class MNIST_VGG3(nn.Module):
       x=nn.Sigmoid()(x)
 
       return x #output
-
 
 
 

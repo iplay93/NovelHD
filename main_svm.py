@@ -7,7 +7,7 @@ import torch.optim as optim
 import numpy as np
 from data_preprocessing.dataloader import loading_data
 from torch.utils.data import DataLoader, Dataset
-from anomaly_detection_ocsvm import anomaly_detection
+
 
 class CAE(nn.Module):
     def __init__(self, seq_length=100, input_dim=1):
@@ -66,12 +66,12 @@ def parse_args():
                         default=10, help='choose of the minimum number of data points in a example')
     parser.add_argument('--min_samples', type=int, default=20, 
                         help='choose of the minimum number of samples in each label')
-    parser.add_argument('--selected_dataset', default='lapras', type=str,
+    parser.add_argument('--dataset', default='lapras', type=str,
                         help='Dataset of choice: lapras, casas, opportunity, aras_a, aras_b')
     parser.add_argument('--aug_method', type=str, default='AddNoise', help='choose the data augmentation method')
     parser.add_argument('--aug_wise', type=str, default='Temporal', help='choose the data augmentation wise')
 
-    parser.add_argument('--test_ratio', type=float, default=0.3, help='choose the number of test ratio')
+    parser.add_argument('--test_ratio', type=float, default=0.2, help='choose the number of test ratio')
 
     args = parser.parse_args()
 
@@ -90,21 +90,31 @@ def flat_feature(enc_out):
     return np.array(enc_out_flat)
 
 
-def main():
+def main_svm():
     """main function"""
     args = parse_args()
-    height = 1
     seq_length = 598
     channel = 7
     num_epoch = 100
     batch_size = args.batch_size
-    data_type = args.selected_dataset
+    data_type = args.dataset
     output_path = './data/' + data_type + '_cae.npz'   
 
-    if data_type == 'lapras': args.timespan = 10000
-    elif data_type == 'opportunity': args.timespan = 1000
-    elif data_type == 'aras_a': args.timespan = 10000
-    elif data_type == 'aras_b': args.timespan = 10000
+    if data_type == 'lapras': 
+        args.timespan = 10000
+        seq_length = 598
+        channel = 7
+    elif data_type == 'casas': 
+        seq_length = 46
+        channel = 37
+    elif data_type == 'opportunity': 
+        args.timespan = 1000
+        seq_length = 169
+        channel = 241
+    elif data_type == 'aras_a': 
+        args.timespan = 10000
+        seq_length = 24
+        channel = 19
     
     # load CIFAR-10 data from data directory
     #all_image, all_label = load_data(data_path)
@@ -148,5 +158,6 @@ def main():
     # save CAE output
     np.savez(output_path, ae_out=enc_out, labels=labellist)
 
-if __name__ == '__main__':
-    main()
+#if __name__ == '__main__':
+    #main()
+    #start_test()

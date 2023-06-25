@@ -80,8 +80,8 @@ def data_generator_nd(args, configs, training_mode, positive_aug,
     test_list = torch.tensor(test_list).cuda().cpu()
     test_label_list = torch.tensor(test_label_list).cuda().cpu()
 
-    entire_list = entire_list.cpu()
-    entire_label_list = torch.tensor(entire_label_list).cuda().cpu()
+    # entire_list = entire_list.cpu()
+    # entire_label_list = torch.tensor(entire_label_list).cuda().cpu()
  
     if(args.one_class_idx != -1): # one-class
         sup_class_idx = [x - 1 for x in num_classes]
@@ -95,8 +95,8 @@ def data_generator_nd(args, configs, training_mode, positive_aug,
         valid_label_list = test_label_list[np.where(test_label_list == args.one_class_idx)]
 
         # only use for testing novelty
-        test_list = entire_list[np.where(entire_label_list != args.one_class_idx)]
-        test_label_list = entire_label_list[np.where(entire_label_list != args.one_class_idx)]
+        test_list = test_list[np.where(test_label_list != args.one_class_idx)]
+        test_label_list = test_label_list[np.where(test_label_list != args.one_class_idx)]
 
     else: # multi-class
         sup_class_idx = [x for x in exist_labels]
@@ -112,8 +112,8 @@ def data_generator_nd(args, configs, training_mode, positive_aug,
         valid_label_list =test_label_list[np.isin(test_label_list, known_class_idx)]
 
         # only use for testing novelty
-        test_list = entire_list[np.isin(entire_label_list, novel_class_idx)]
-        test_label_list = entire_label_list[np.isin(entire_label_list, novel_class_idx)]    
+        test_list = test_list[np.isin(test_label_list, novel_class_idx)]
+        test_label_list = test_label_list[np.isin(test_label_list, novel_class_idx)]    
 
 
         # print(train_label_list)

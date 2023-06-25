@@ -110,20 +110,28 @@ num_classes, datalist, labellist = loading_data(data_type, args)
 
 # each mode ood_score == ['T'], ['TCON'], ['TCLS'], ['FCON'], ['FCLS'], ['NovelHD'], ['NovelHD_TF']
 # ['T'],['NovelHD'], ['NovelHD_TF']
-for args.ood_score in [['T'],['NovelHD'], ['NovelHD_TF']]:    
+for args.ood_score in [['T'], ['NovelHD'],['NovelHD_TF']]:    
         
     final_auroc = []
     final_aupr  = []
     final_fpr   = []
     final_de    = []
 
+    if data_type == 'lapras': class_num = [0, 1, 2, 3, -1]
+    elif data_type == 'casas': 
+        class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, -1]
+        args.aug_wise = 'Temporal2'
+    elif data_type == 'opportunity': class_num = [0, 1, 2, 3, 4, -1]
+    elif data_type == 'aras_a': class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
+
     # lapras : [0, 1, 2, 3, -1]
     # casas : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, -1]
     # aras_a : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
     # opportunity : [0, 1, 2, 3, 4, -1]
-    for args.one_class_idx in [0, 1, 2, 3, -1]:
+    
+    for args.one_class_idx in class_num:
     # give weakly shifted transformation methods ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']
-        for positive_aug in ['Quantize']: #, 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
+        for positive_aug in ['Convolve']: #, 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
         #for shifted_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
             # overall performance
             auroc_a = []
@@ -133,9 +141,13 @@ for args.ood_score in [['T'],['NovelHD'], ['NovelHD_TF']]:
             
             # give strongly shifted transformation
             shifted_aug = 'Dropout'
-
+            
+            if args.one_class_idx != -1:
+                seed_num = [20, 40, 60, 80, 100]
+            else:
+                seed_num = [20, 40, 60, 80, 100, 120, 140, 160, 180, 200]
             # Training for five seed #
-            for test_num in [20, 40, 60, 80, 100]:
+            for test_num in seed_num :
                 # ##### fix random seeds for reproducibility ########
                 SEED = args.seed = test_num
                 torch.manual_seed(SEED)
@@ -280,5 +292,4 @@ for args.ood_score in [['T'],['NovelHD'], ['NovelHD_TF']]:
     logger.debug(f"Training time is : {datetime.now()-start_time}")
 
 torch.cuda.empty_cache()
-device = cuda.get_current_device()
-device.reset()
+

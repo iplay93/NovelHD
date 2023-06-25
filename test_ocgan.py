@@ -1,182 +1,172 @@
+'''
+Training script for CIFAR-10/100
+Copyright (c) Wei YANG, 2017
+'''
 from __future__ import print_function
+
 import argparse
-
 import os
-import matplotlib as mpl
-import tarfile
-import matplotlib.image as mpimg
-from matplotlib import pyplot as plt
-import mxnet as mx
-from mxnet import gluon
-from mxnet import ndarray as nd
-from mxnet.gluon import nn, utils
-from mxnet.gluon.nn import Dense, Activation, Conv2D, Conv2DTranspose, \
-    BatchNorm, LeakyReLU, Flatten, HybridSequential, HybridBlock, Dropout
-from mxnet import autograd
-import numpy as np
-import random
-from random import shuffle
-import dataloaderiter as dload
-import load_image
-import visual
-import OCGAN.models as models
-from datetime import datetime
+import shutil
 import time
-import logging
+import random
+from sklearn.metrics import roc_auc_score
+import torch
+
+import torch.nn as nn
+import torch.nn.parallel
+import torch.backends.cudnn as cudnn
+import torch.optim as optim
+import torch.utils.data as data
+import torchvision.transforms as transforms
+import torchvision.datasets as datasets
+
+import torchvision
+
+from utils import Bar, Logger, AverageMeter, mkdir_p, savefig
+import math
+
+from PIL import Image
+import matplotlib.pyplot as plt
+from torch.autograd import Variable
+
+from ocgan.networks import *
+ 
+from torchvision.utils import save_image
+
+from data import load_data
 
 
-def test_options():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--expname", default="expce", help="Name of the experiment")
-    parser.add_argument("--batch_size", default=512, type=int, help="Batch size per iteration")
-    parser.add_argument("--epochs", default=201, type=int,
-                        help="Number of epochs for training")
-    parser.add_argument("--use_gpu", default=1, type=int,  help="1 to use GPU  ")
-    parser.add_argument("--dataset", default="Caltech256",
-                        help="Specify the training dataset  ")
-    parser.add_argument("--ngf", default=64, type=int, help="Number of base filters in Generator")
-    parser.add_argument("--ndf", default=8, type=int, help="Number of base filters in Discriminator")
-    parser.add_argument("--datapath", default='/users/pramudi/Documents/data/', help="Data path")
-    parser.add_argument("--img_wd", default=61, type=int, help="Image width")
-    parser.add_argument("--img_ht", default=61, type=int, help="Image height")
-    parser.add_argument("--latent", default=4096, type=int,  help="Dimension of the latent space.")
-    parser.add_argument("--depth", default=3, type=int, help="Number of core layers in Generator/Discriminator")
-    parser.add_argument("--noisevar", default=0.02, type=float, help="variance of noise added to input")
-    parser.add_argument("--istest", default=1, type=float, help="if test set 1, otherwise validation")
-    parser.add_argument("--append", default=0, type=int, help="Append discriminator input. 1 for true")
-    parser.add_argument("--isvalidation", default=0, type=float, help="Pass through training set. Utility for development.")
-    parser.add_argument("--usegan", default=1, type=int,  help="set 1 for use gan loss.")
-    parser.add_argument("--ntype", default=4, type=int, help="Novelty detector: 1 - AE 2 - ALOCC 3 - latentD 4 - adnov")
-    args = parser.parse_args()
-    if args.use_gpu == 1:
-        args.use_gpu = True
-    else:
-        args.use_gpu = False
-    if args.usegan == 1:
-        args.usegan = True
-    else:
-        args.usegan = False    
-    if args.istest == 1:
-        args.istest = True
-    else:
-        args.istest = False
-    if args.append == 1:
-        args.append = True
-    else:
-        args.append = False
-    if args.isvalidation == 1:
-        args.isvalidation = True
-    else:
-        args.isvalidation = False
-    return args
 
 
-def facc(label, pred):
-    pred = pred.ravel()
-    label = label.ravel()
-    return ((pred > 0.5) == label).mean()
+parser = argparse.ArgumentParser(description='PyTorch CIFAR10/100 Training')
+# Datasets
+parser.add_argument('-d', '--dataset', default='mnist', type=str)
+parser.add_argument('--dataroot', default='./data', type=str)
+parser.add_argument('--anomaly_class', default='9', type=int)
+parser.add_argument('--isize', default='28', type=int)
+
+parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
+                    help='number of data loading workers (default: 4)')
+# Optimization options
+parser.add_argument('--epochs', default=100, type=int, metavar='N',
+                    help='number of total epochs to run')
+parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
+                    help='manual epoch number (useful on restarts)')
+parser.add_argument('--train_batch', default=128, type=int, metavar='N',
+                    help='train batchsize')
+parser.add_argument('--test_batch', default=64, type=int, metavar='N',
+                    help='test batchsize')
+parser.add_argument('--lr', '--learning-rate', default=0.001, type=float,
+                    metavar='LR', help='initial learning rate')
+parser.add_argument('--drop', '--dropout', default=0, type=float,
+                    metavar='Dropout', help='Dropout ratio')
+parser.add_argument('--schedule', type=int, nargs='+', default=[40, 100],
+                        help='Decrease learning rate at these epochs.')
+parser.add_argument('--gamma', type=float, default=0.1, help='LR is multiplied by gamma on schedule.')
+parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
+                    help='momentum')
+parser.add_argument('--weight-decay', '--wd', default=5e-4, type=float,
+                    metavar='W', help='weight decay (default: 1e-4)')
+# Checkpoints
+parser.add_argument('-c', '--checkpoint', default='checkpoint', type=str, metavar='PATH',
+                    help='path to save checkpoint (default: checkpoint)')
+parser.add_argument('--resume', default='', type=str, metavar='PATH',
+                    help='path to latest checkpoint (default: none)')
+# Architecture
+parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet20',
+                    choices=model_names,
+                    help='model architecture: ' +
+                        ' | '.join(model_names) +
+                        ' (default: resnet18)')
+parser.add_argument('--depth', type=int, default=29, help='Model depth.')
+parser.add_argument('--block-name', type=str, default='BasicBlock',
+                    help='the building block for Resnet and Preresnet: BasicBlock, Bottleneck (default: Basicblock for cifar10/cifar100)')
+parser.add_argument('--cardinality', type=int, default=8, help='Model cardinality (group).')
+parser.add_argument('--widen-factor', type=int, default=4, help='Widen factor. 4 -> 64, 8 -> 128, ...')
+parser.add_argument('--growthRate', type=int, default=12, help='Growth rate for DenseNet.')
+parser.add_argument('--compressionRate', type=int, default=2, help='Compression Rate (theta) for DenseNet.')
+# Miscs
+parser.add_argument('--manualSeed', type=int, help='manual seed')
+parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
+                    help='evaluate model on validation set')
+#Device options
+parser.add_argument('--gpu-id', default='0', type=str,
+                    help='id(s) for CUDA_VISIBLE_DEVICES')
+
+args = parser.parse_args()
+state = {k: v for k, v in args._get_kwargs()}
 
 
-def main(opt):
-    ctx = mx.gpu() if opt.use_gpu else mx.cpu()
-    testclasspaths = []
-    testclasslabels = []
-    print('loading test files')
-    filename = '_testlist.txt'
-    with open(opt.dataset+"_"+opt.expname+filename , 'r') as f:
-        for line in f:
-            testclasspaths.append(line.split(' ')[0])
-            if int(line.split(' ')[1]) == -1:
-                testclasslabels.append(0)
-            else:
-                testclasslabels.append(1)
-    neworder = range(len(testclasslabels))
-    c = list(zip(testclasslabels, testclasspaths))
-    print('shuffling')
-    random.shuffle(c)
-    testclasslabels, testclasspaths = zip(*c)
-    print('loading pictures')
-    test_data = load_image.load_test_images(testclasspaths,testclasslabels,opt.batch_size, opt.img_wd, opt.img_ht, ctx, opt.noisevar)
-    print('picture loading done')
-    opt.istest = True
-    networks = models.set_network(opt, ctx, True)
-    netEn = networks[0]
-    netDe = networks[1]
-    netD = networks[2]
-    netD2 = networks[3]
-    netEn.load_params('checkpoints/'+opt.expname+'_'+str(opt.epochs)+'_En.params', ctx=ctx)
-    netDe.load_params('checkpoints/'+opt.expname+'_'+str(opt.epochs)+'_De.params', ctx=ctx)
-    if opt.ntype>1:
-        netD.load_params('checkpoints/'+opt.expname+'_'+str(opt.epochs)+'_D.params', ctx=ctx)
-    if opt.ntype>2:
-        netD2.load_params('checkpoints/'+opt.expname+'_'+str(opt.epochs)+'_D2.params', ctx=ctx)
-            
-    print('Model loading done')
-    lbllist = []
-    scorelist1 = []
-    scorelist2 = []
-    scorelist3 = []
-    scorelist4 = []
-    test_data.reset()
-    count = 0
-    
-    for batch in (test_data):
-        count = count+1
-        output1=np.zeros(opt.batch_size)
-        output2=np.zeros(opt.batch_size)
-        output3=np.zeros(opt.batch_size)
-        output4=np.zeros(opt.batch_size)
-        real_in = batch.data[0].as_in_context(ctx)
-        real_out = batch.data[1].as_in_context(ctx)
-        lbls = batch.label[0].as_in_context(ctx)
-        outnn = (netDe(netEn((real_in))))
-        out = outnn
-        output3 = -1*nd.mean((outnn - real_out)**2, (1, 3, 2)).asnumpy()
-        
-        if opt.ntype >1: #AE
-            out_concat = nd.concat(real_in, outnn, dim=1) if opt.append else outnn
-            output1 = nd.mean((netD(out_concat)), (1, 3, 2)).asnumpy()
-            out_concat = nd.concat(real_in, real_in, dim=1) if opt.append else real_in
-            output2 = netD((out_concat))  # Image with no noise
-            output2 = nd.mean(output2, (1,3,2)).asnumpy()
-            out = netDe(netEn(real_out))
-            out_concat =  nd.concat(real_in, out, dim=1) if opt.append else out
-            output = netD(out_concat) #Denoised image
-            output4 = nd.mean(output, (1, 3, 2)).asnumpy()
-        lbllist = lbllist+list(lbls.asnumpy())
-        scorelist1 = scorelist1+list(output1)
-        scorelist2 = scorelist2+list(output2)
-        scorelist3 = scorelist3+list(output3)
-        scorelist4 = scorelist4+list(output4)
-        out = netDe(netEn(real_in))
 
-        # Save some sample results
-        fake_img1 = nd.concat(real_in[0],real_out[0], out[0], outnn[0],dim=1)
-        fake_img2 = nd.concat(real_in[1],real_out[1], out[1],outnn[1], dim=1)
-        fake_img3 = nd.concat(real_in[2],real_out[2], out[2], outnn[2], dim=1)
-        fake_img4 = nd.concat(real_in[3],real_out[3],out[3],outnn[3], dim=1)
-        fake_img = nd.concat(fake_img1,fake_img2, fake_img3,fake_img4, dim=2)
-        visual.visualize(fake_img)
-        plt.savefig('outputs/T_'+opt.expname+'_'+str(count)+'.png')
-        
-    print("Positives" + str(np.sum(lbllist)))
-    print("Negatives" + str(np.shape(lbllist)-np.sum(lbllist) ))
-    fpr, tpr, _ = roc_curve(lbllist, scorelist3, 1)
-    roc_auc1 = 0
-    roc_auc2 = 0
-    roc_auc4 = 0
-    roc_auc3 = auc(fpr, tpr)
-    if int(opt.ntype) >1: #AE
-        fpr, tpr, _ = roc_curve(lbllist, scorelist1, 1)
-        roc_auc1 = auc(fpr, tpr)
-        fpr, tpr, _ = roc_curve(lbllist, scorelist2, 1)
-        roc_auc2 = auc(fpr, tpr)
-        fpr, tpr, _ = roc_curve(lbllist, scorelist4, 1)
-        roc_auc4 = auc(fpr, tpr)
+# Use CUDA
+os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_id
+use_cuda = torch.cuda.is_available()
 
-    return([roc_auc1, roc_auc2, roc_auc3, roc_auc4])
+# Random seed
+if args.manualSeed is None:
+    args.manualSeed = random.randint(1, 10000)
+random.seed(args.manualSeed)
+torch.manual_seed(args.manualSeed)
+if use_cuda:
+    torch.cuda.manual_seed_all(args.manualSeed)
 
-if __name__ == "__main__":
-    opt = test_options()
-    roc_auc = main(opt)
-    print(roc_auc)
+best_acc = 0  # best test accuracy
+
+
+
+dataloader = load_data(args)
+num_classes = 2
+
+Tensor = torch.cuda.FloatTensor
+enc = get_encoder().cuda()
+dec = get_decoder().cuda()
+
+checkpoint_en = torch.load('./checkpoint/enc_model.pth.tar')
+enc.load_state_dict(checkpoint_en['state_dict'])
+
+checkpoint_de = torch.load('./checkpoint/dec_model.pth.tar')
+dec.load_state_dict(checkpoint_de['state_dict'])
+
+if not os.path.exists('./result/0009/test_dc_fake-9'):
+    os.mkdir('./result/0009/test_dc_fake-9')
+if not os.path.exists('./result/0009/test_dc_real-9'):
+    os.mkdir('./result/0009/test_dc_real-9')
+
+
+for batch_idx, (inputs, targets) in enumerate(dataloader['test']):
+     
+    if use_cuda:
+        inputs, targets = inputs.cuda(), targets.cuda()
+        # with torch.no_grad():
+    inputs, targets = torch.autograd.Variable(inputs), torch.autograd.Variable(targets)
+       
+    #update class
+    '''
+    imput_show = inputs[1,...]
+    imput_show = imput_show[0,...]
+    # label_show = targets[1,...]
+
+    print('mmmmm',imput_show.squeeze().shape,targets.shape)
+    plt.figure(1)
+    plt.imshow(imput_show.squeeze().cpu().detach().numpy())
+    plt.show()
+    '''
+  
+    # compute output
+    recon = dec(enc(inputs))
+    '''
+    recon_show = recon[1,...]
+    recon_show = recon_show[0,...]   
+    plt.figure(2)  
+    plt.imshow(recon_show.squeeze().cpu().detach().numpy())
+    plt.show()
+    '''
+    scores = torch.mean(torch.pow((inputs - recon), 2),dim=[1,2,3])
+    prec1 = roc_auc_score(targets.cpu().detach().numpy(), -scores.cpu().detach().numpy())
+    print('\nBatch: {0:d} =====  auc:{1:.2e}' .format(batch_idx,prec1))
+    pic = recon.cpu().data
+    img = inputs.cpu().data
+    save_image(pic, './result/0009/test_dc_fake-9/fake_0{}.png'.format(batch_idx))
+    save_image(img, './result/0009/test_dc_real-9/real_0{}.png'.format(batch_idx))
+print('Saving pic... ')
+

@@ -1,17 +1,137 @@
 import torch.nn.functional as F
 import torch
-from model import *
+from models.FewSome_Net import *
 import os
 import numpy as np
 import pandas as pd
 import argparse
 from sklearn.metrics import roc_curve
 from sklearn import metrics
-from datasets.main import load_dataset
+from torch.utils.data import DataLoader, Dataset
+
 import random
 from sklearn.metrics import f1_score
 import time
 
+class Load_Dataset(Dataset):
+    # Initialize your data, download, etc.
+    def __init__(self, args, dataset_name, indexes, normal_class,task, seed, N):
+        super(Load_Dataset, self).__init__()
+        self.task = task 
+
+        self.task = task  # training set or test set
+
+        self.indexes = indexes
+        self.normal_class = normal_class
+
+
+        self.data =[]
+        self.targets=[]
+        
+        num_classes, datalist, labellist = loading_data(dataset_name, args)
+        random.seed(seed)
+        # Split train and valid dataset
+        train_list, test_list, train_label_list, test_label_list = train_test_split(datalist, 
+                                                                                labellist, test_size=test_ratio, stratify= labellist, random_state=seed) 
+
+        print(f"Train Data: {len(train_list)} --------------")
+        exist_labels, _ = count_label_labellist(train_label_list)
+
+
+        print(f"Test Data: {len(test_list)} --------------")
+        count_label_labellist(test_label_list) 
+        
+        train_list = torch.tensor(train_list).cuda().cpu()
+        train_label_list = torch.tensor(train_label_list).cuda().cpu()
+
+        test_list = torch.tensor(test_list).cuda().cpu()
+        test_label_list = torch.tensor(test_label_list).cuda().cpu()
+
+
+        if(args.one_class_idx != -1): # one-class
+            sup_class_idx = [x for x in exist_labels]
+            known_class_idx = [args.one_class_idx]
+            novel_class_idx = [item for item in sup_class_idx if item not in set(known_class_idx)]
+            
+            train_list = train_list[np.where(train_label_list == args.one_class_idx)]
+            train_label_list = train_label_list[np.where(train_label_list == args.one_class_idx)]
+
+            valid_list = test_list[np.where(test_label_list == args.one_class_idx)]
+            valid_label_list = test_label_list[np.where(test_label_list == args.one_class_idx)]
+
+            # only use for testing novelty
+            test_list = test_list[np.where(test_label_list != args.one_class_idx)]
+            test_label_list = test_label_list[np.where(test_label_list != args.one_class_idx)]
+
+        else: # multi-class
+            sup_class_idx = [x for x in exist_labels]
+            random.seed(args.seed)
+            known_class_idx = random.sample(sup_class_idx, math.ceil(len(sup_class_idx)/2))
+            #known_class_idx = [x for x in range(0, (int)(len(sup_class_idx)/2))]
+            #known_class_idx = [0, 1]
+            novel_class_idx = [item for item in sup_class_idx if item not in set(known_class_idx)]
+            
+            train_list = train_list[np.isin(train_label_list, known_class_idx)]
+            train_label_list = train_label_list[np.isin(train_label_list, known_class_idx)]
+            valid_list = test_list[np.isin(test_label_list, known_class_idx)]
+            valid_label_list =test_label_list[np.isin(test_label_list, known_class_idx)]
+
+            # only use for testing novelty
+            test_list = test_list[np.isin(test_label_list, novel_class_idx)]
+            test_label_list = test_label_list[np.isin(test_label_list, novel_class_idx)]    
+
+        if self.task == 'train':
+            self.indexes = random.sample(list(range(0,len(train_list))), N)
+            for ind in self.indexes:
+                self.data.append(train_list[ind])
+                self.targets.append(0)
+
+        elif self.task == 'test':
+            valid_label_list[:] = 0
+            test_label_list[:] = 1
+            self.data = np.concatenate((valid_list, test_list),axis=0)
+            self.targets = np.concatenate((valid_label_list, test_label_list),axis=0)
+
+        print(len(self.data))
+        print(len(self.targets))
+
+        # make sure the Channels in second dim
+        self.data = np.transpose(self.data,(0, 2, 1))
+        # (N, C, T)
+
+
+    def __getitem__(self, index: int, seed = 1, base_ind=-1):
+        
+        base=False
+        img, target = self.data[index], int(self.targets[index])
+        img = torch.FloatTensor(img)
+
+        if self.task == 'train':
+            np.random.seed(seed)
+            ind = np.random.randint(len(self.indexes) )
+            c=1
+            while (ind == index):
+                np.random.seed(seed * c)
+                ind = np.random.randint(len(self.indexes) )
+                c=c+1
+
+            if ind == base_ind:
+              base = True
+
+            img2, target2 = self.data[ind], int(self.targets[ind])
+            img2 = torch.FloatTensor(img2)
+            label = torch.FloatTensor([0])
+        else:
+            img2 = torch.Tensor([1])
+            label = target
+
+
+
+        return img, img2, label, base
+
+    def __len__(self):
+        return len(self.data)
+    
 class ContrastiveLoss(torch.nn.Module):
     def __init__(self, v=0.0,margin=0.8):
         super(ContrastiveLoss, self).__init__()
@@ -44,7 +164,8 @@ class ContrastiveLoss(torch.nn.Module):
 
 
 
-def evaluate(feat1, seed, base_ind, ref_dataset, val_dataset, model, dataset_name, normal_class, output_name, model_name, indexes, data_path, criterion, alpha, num_ref_eval):
+def evaluate(feat1, seed, base_ind, ref_dataset, val_dataset, model, 
+             dataset_name, normal_class, output_name, model_name, indexes,criterion, alpha, num_ref_eval):
 
     model.eval()
 
@@ -178,25 +299,26 @@ def init_feat_vec(model,base_ind, train_dataset ):
         return feat1
 
 
-def create_reference(contamination, dataset_name, normal_class, task, data_path, download_data, N, seed):
+
+def create_reference(args, contamination, dataset_name, normal_class, task, N, seed):
     indexes = []
-    train_dataset = load_dataset(dataset_name, indexes, normal_class, task,  data_path, download_data)
-    ind = np.where(np.array(train_dataset.targets)==normal_class)[0]
+    
+    train_dataset = Load_Dataset(args, dataset_name, indexes, normal_class,task, seed=seed,N=N) #get all training data
+    ind = np.where(np.array(train_dataset.targets)==normal_class)[0] #get indexes in the training set that are equal to the normal class
     random.seed(seed)
-    samp = random.sample(range(0, len(ind)), N)
+    samp = random.sample(range(0, len(ind)), N) #randomly sample N normal data points
     final_indexes = ind[samp]
+
     if contamination != 0:
       numb = np.ceil(N*contamination)
       if numb == 0.0:
         numb=1.0
 
-      con = np.where(np.array(train_dataset.targets)!=normal_class)[0]
+      con = np.where(np.array(train_dataset.targets)!=normal_class)[0] #get indexes of non-normal class
       samp = random.sample(range(0, len(con)), int(numb))
       samp2 = random.sample(range(0, len(final_indexes)), len(final_indexes) - int(numb))
       final_indexes = np.array(list(final_indexes[samp2]) + list(con[samp]))
     return final_indexes
-
-
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -213,7 +335,6 @@ def parse_arguments():
     parser.add_argument('--weight_init_seed', type=int, default = 100)
     parser.add_argument('--alpha', type=float, default = 0)
     parser.add_argument('--epochs', type=int, required=True)
-    parser.add_argument('--data_path',  required=True)
     parser.add_argument('--download_data',  default=True)
     parser.add_argument('--contamination',  type=float, default=0)
     parser.add_argument('--v',  type=float, default=0.0)
@@ -231,13 +352,14 @@ if __name__ == '__main__':
     model_name = args.model_name
     model_path = args.model_path
     model_type = args.model_type
-    dataset = args.dataset
+    dataset_name = args.dataset
+
     output_name = args.output_name
     normal_class = args.normal_class
     N = args.num_ref
     seed = args.seed
     epochs = args.epochs
-    data_path = args.data_path
+
     download_data = args.download_data
     contamination = args.contamination
     indexes = args.index
@@ -253,7 +375,13 @@ if __name__ == '__main__':
     if num_ref_eval == None:
         num_ref_eval = N
 
-
+    # ##### fix random seeds for reproducibility ########
+    SEED = args.seed = 40
+    np.random.seed(SEED)
+    random.seed(SEED)
+    torch.manual_seed(SEED)
+    #####################################################
+    
     #create directories
     if not os.path.exists('outputs'):
         os.makedirs('outputs')
@@ -267,7 +395,7 @@ if __name__ == '__main__':
     if indexes != []:
         indexes = [int(item) for item in indexes.split(', ')]
     else:
-        indexes = create_reference(contamination, dataset, normal_class, 'train', data_path, download_data, N, seed)
+        indexes = create_reference(args, contamination, dataset_name, normal_class, 'train', N, SEED)
 
 
 
@@ -278,34 +406,10 @@ if __name__ == '__main__':
 
 
     #Initialise the model
-    if model_type == 'CIFAR_VGG3':
-        if args.pretrain == 1:
-            model = CIFAR_VGG3_pre(vector_size, biases)
-        else:
-            model = CIFAR_VGG3(vector_size, biases)
-    elif model_type == 'MNIST_VGG3':
-        if args.pretrain == 1:
-            model = MNIST_VGG3_pre(vector_size, biases)
-        else:
-            model = MNIST_VGG3(vector_size, biases)
-    elif model_type == 'MNIST_LENET':
-        model = MNIST_LeNet(vector_size, biases)
-    elif model_type == 'RESNET':
-        model = RESNET_pre(vector_size, biases)
-    elif model_type == 'CIFAR_LENET':
-        model = CIFAR_LeNet(vector_size, biases)
-    elif (model_type == 'CIFAR_VGG4'):
-        if (args.pretrain ==1):
-            model = CIFAR_VGG4_pre(vector_size, biases)
-        else:
-            model = CIFAR_VGG4(vector_size, biases)
+    model =  TimeSeriesNet(seq_length, channel, vector_size, biases)
 
-
-    if (model_type == 'RESNET'):
-        model.apply(deactivate_batchnorm)
-
-    ref_dataset = load_dataset(dataset, indexes, normal_class, 'train', data_path, download_data=True)
-    val_dataset = load_dataset(dataset, indexes, normal_class, 'test', data_path, download_data=True)
+    ref_dataset = Load_Dataset(args, dataset_name, indexes, normal_class, 'train', SEED, N=N)
+    val_dataset = Load_Dataset(args, dataset_name, indexes, normal_class, 'test', SEED, N=N)
 
 
     rand_freeze = np.random.randint(len(indexes) )
@@ -322,7 +426,7 @@ if __name__ == '__main__':
 
 
 
-    val_auc, val_loss, val_auc_min, f1,acc, df, ref_vecs = evaluate(feat1, seed, base_ind, ref_dataset, val_dataset, model, dataset, normal_class, output_name, model_name, indexes, data_path, criterion, alpha, num_ref_eval)
+    val_auc, val_loss, val_auc_min, f1,acc, df, ref_vecs = evaluate(feat1, seed, base_ind, ref_dataset, val_dataset, model, dataset_name, normal_class, output_name, model_name, indexes,criterion, alpha, num_ref_eval)
 
 
     print('AUC is {}'.format(val_auc_min))
