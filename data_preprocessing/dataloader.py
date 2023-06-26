@@ -13,7 +13,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
 import math
-from .augmentations import select_transformation
+from .augmentations import PERMUTE, select_transformation
 
 from tsaug import *
 
@@ -243,17 +243,17 @@ def data_augmentation(dataset_list, aug_method, aug_wise):
                 # print(copy_count_label[types_label_list.index(dataset_list[i].label)],"and",sub_count_label[types_label_list.index(dataset_list[i].label)])          
                     #print("Aug", dataset_list[i].data.shape)
                     # select data transformation
-                    trans = select_transformation('AddNoise')
+                    trans = PERMUTE(min_segments=1, max_segments=5, seg_mode="random")
                     aug = trans.augment(np.reshape(target_data,(1, target_data.shape[0], -1)))
                     #print("Aug_after", aug.shape, aug[0].shape)  
                     ts_ds = TSDataSet(aug[0], dataset_list[i].label, len(aug[0]))
                     dataset_list.append(ts_ds)
                     copy_count_label[target_label] = copy_count_label[target_label]-1   
         
-        if aug_wise == 'Temporal2':
+        if aug_wise == 'Temporal2' :
             for i in range(len(dataset_list)): 
                 target_data  = dataset_list[i].data
-                trans = select_transformation(aug_method)
+                trans = PERMUTE(min_segments=1, max_segments=3, seg_mode="random")
                 aug = trans.augment(np.reshape(target_data,(1, target_data.shape[0], -1))) 
                 ts_ds = TSDataSet(aug[0], dataset_list[i].label, len(aug[0]))
                 dataset_list.append(ts_ds)

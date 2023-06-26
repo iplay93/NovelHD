@@ -117,7 +117,7 @@ for args.ood_score in [['T'], ['NovelHD'],['NovelHD_TF']]:
     final_fpr   = []
     final_de    = []
 
-    if data_type == 'lapras': class_num = [0, 1, 2, 3, -1]
+    if data_type == 'lapras': class_num = [0,1,2,3,-1]
     elif data_type == 'casas': 
         class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, -1]
         args.aug_wise = 'Temporal2'
@@ -131,7 +131,7 @@ for args.ood_score in [['T'], ['NovelHD'],['NovelHD_TF']]:
     
     for args.one_class_idx in class_num:
     # give weakly shifted transformation methods ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']
-        for positive_aug in ['Convolve']: #, 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
+        for positive_aug in ['TimeWarp']: #, 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
         #for shifted_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
             # overall performance
             auroc_a = []

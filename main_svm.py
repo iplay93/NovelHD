@@ -9,42 +9,62 @@ from data_preprocessing.dataloader import loading_data
 from torch.utils.data import DataLoader, Dataset
 
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
 class CAE(nn.Module):
-    def __init__(self, seq_length=100, input_dim=1):
+    def __init__(self, seq_length=100, input_dim=1, d_model=64, nhead=4, num_encoder_layers=2, num_decoder_layers=2):
         super(CAE, self).__init__()
         self.seq_length = seq_length
         self.input_dim = input_dim
+        self.d_model = d_model
+        self.nhead = nhead
+        self.num_encoder_layers = num_encoder_layers
+        self.num_decoder_layers = num_decoder_layers
 
-        # Encoder layers
-        self.encoder = nn.Sequential(
-            nn.Conv1d(input_dim, 16, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool1d(2, stride=2),
-            nn.Conv1d(16, 8, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool1d(2, stride=2),
-            nn.Conv1d(8, 4, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool1d(2, stride=2)
-        )
+        # Transformer Encoder
+        encoder_layer = nn.TransformerEncoderLayer(d_model, nhead)
+        self.encoder = nn.TransformerEncoder(encoder_layer, num_encoder_layers)
 
-        # Decoder layers
-        self.decoder = nn.Sequential(
-            nn.Upsample(scale_factor=2, mode='linear'),
-            nn.Conv1d(4, 8, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Upsample(scale_factor=2, mode='linear'),
-            nn.Conv1d(8, 16, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Upsample(size = seq_length, mode='linear'),
-            nn.Conv1d(16, input_dim, kernel_size=3, padding=1),
-            nn.Sigmoid()
-        )
+        # Transformer Decoder
+        decoder_layer = nn.TransformerDecoderLayer(d_model, nhead)
+        self.decoder = nn.TransformerDecoder(decoder_layer, num_decoder_layers)
+
+        # Positional Encoding
+        self.positional_encoding = self.generate_positional_encoding(seq_length, d_model)
+
+        # Linear layer to map the decoder output to the original input dimension
+        self.linear = nn.Linear(d_model, input_dim)
 
     def forward(self, x):
+        x = x.unsqueeze(0)  # Add a batch dimension
+
+        # Adjust positional encoding shape
+        positional_encoding = self.positional_encoding[:, :x.size(1)].unsqueeze(0)
+
+        # Apply positional encoding to the input
+        x = x + positional_encoding
+
+        # Transformer Encoder
         encoded = self.encoder(x)
+
+        # Transformer Decoder
         decoded = self.decoder(encoded)
+
+        # Linear layer to map the decoder output to the original input dimension
+        decoded = self.linear(decoded.squeeze(0))
+
         return decoded
+
+    def generate_positional_encoding(self, seq_length, d_model):
+        positional_encoding = torch.zeros(seq_length, d_model)
+        positions = torch.arange(0, seq_length, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-torch.log(torch.tensor(10000.0)) / d_model))
+        positional_encoding[:, 0::2] = torch.sin(positions * div_term)
+        positional_encoding[:, 1::2] = torch.cos(positions * div_term)
+        return positional_encoding
 
 
 def parse_args():

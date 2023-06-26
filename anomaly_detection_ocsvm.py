@@ -340,7 +340,7 @@ if __name__ == '__main__':
     final_aupr  = []
     final_fpr   = []
     final_de    = []
-
+    
     if args.dataset == 'lapras': class_num = [0, 1, 2, 3, -1]
     elif args.dataset == 'casas': 
         class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, -1]

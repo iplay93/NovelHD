@@ -11,7 +11,7 @@ from data_preprocessing.dataloader import loading_data
 from sklearn.model_selection import train_test_split
 from data_preprocessing.dataloader import count_label_labellist
 from torch.utils.data import DataLoader, Dataset
-
+import pandas as pd
 
 ################################################################################
 # Settings
@@ -119,32 +119,32 @@ def data_generator(args, configs, num_classes, datalist, labellist):
     valid_label_list[:] = 0
     test_label_list[:] = 1
     # build data loader (N, T, C) -> (N, C, T)
-    dataset = Load_Dataset(train_list[:math.ceil(len(train_list)/2)], train_label_list[:math.ceil(len(train_list)/2)])    
+    dataset = Load_Dataset(train_list, train_label_list)    
     train_loader = DataLoader(dataset, batch_size = configs.batch_size, shuffle=True)
     
-    dataset = Load_Dataset(train_list[math.ceil(len(train_list)/2):], train_label_list[math.ceil(len(train_list)/2):])    
-    train_loader2 = DataLoader(dataset, batch_size = configs.batch_size, shuffle=True)
+    # dataset = Load_Dataset(train_list[math.ceil(len(train_list)/2):], train_label_list[math.ceil(len(train_list)/2):])    
+    # train_loader2 = DataLoader(dataset, batch_size = configs.batch_size, shuffle=True)
 
     # dataset = Load_Dataset(valid_list,valid_label_list)
     # finetune_loader = DataLoader(dataset, batch_size = configs.batch_size, shuffle=True)
 
     # replace label : anomaly -> 1 : normal -> 0
-    replace_list = np.concatenate((valid_list[:math.ceil(len(valid_list)/2)], test_list[:math.ceil(len(test_list)/2)]),axis=0)
-    replace_label_list = np.concatenate((valid_label_list[:math.ceil(len(valid_list)/2)], test_label_list[:math.ceil(len(test_list)/2)]),axis=0)
+    replace_list = np.concatenate((valid_list, test_list),axis=0)
+    replace_label_list = np.concatenate((valid_label_list, test_label_list),axis=0)
     
     dataset = Load_Dataset(replace_list, replace_label_list)
     test_loader = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
     
     
     
-    replace_list = np.concatenate((valid_list[math.ceil(len(valid_list)/2):], test_list[math.ceil(len(test_list)/2):]),axis=0)
-    replace_label_list = np.concatenate((valid_label_list[math.ceil(len(valid_list)/2):], test_label_list[math.ceil(len(test_list)/2):]),axis=0)
+    # replace_list = np.concatenate((valid_list[math.ceil(len(valid_list)/2):], test_list[math.ceil(len(test_list)/2):]),axis=0)
+    # replace_label_list = np.concatenate((valid_label_list[math.ceil(len(valid_list)/2):], test_label_list[math.ceil(len(test_list)/2):]),axis=0)
     
-    dataset = Load_Dataset(replace_list, replace_label_list)
-    test_loader2 = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
+    # dataset = Load_Dataset(replace_list, replace_label_list)
+    # test_loader2 = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
 
 
-    return train_loader, test_loader, train_loader2, test_loader2, novel_class_idx  
+    return train_loader, test_loader, novel_class_idx  
 
 
 parser = argparse.ArgumentParser(description='DeepSVDD')
@@ -165,11 +165,11 @@ parser.add_argument('--optimizer_name', type=str, default='adam',
                 help='Name of the optimizer to use for Deep SVDD network training(adam, amsgrad).')
 parser.add_argument('--lr', type=float, default=0.001,
                 help='Initial learning rate for Deep SVDD network training. Default=0.001')
-parser.add_argument('--n_epochs', type=int, default=50, help='Number of epochs to train.')
+parser.add_argument('--n_epochs', type=int, default=100, help='Number of epochs to train.')
 
 parser.add_argument('--lr_milestone', type=int, default=[], nargs='+',
                     help='Lr scheduler milestones at which lr is multiplied by 0.1. Can be multiple and must be increasing.')
-parser.add_argument('--batch_size', type=int, default=128, help='Batch size for mini-batch training.')
+parser.add_argument('--batch_size', type=int, default=64, help='Batch size for mini-batch training.')
 parser.add_argument('--weight_decay', type=float, default=1e-6,
                 help='Weight decay (L2 penalty) hyperparameter for Deep SVDD objective.')
 parser.add_argument('--pretrain', type=bool, default=True,
@@ -235,19 +235,29 @@ configs = Configs()
 
 if data_type == 'lapras': 
     args.timespan = 10000
+    class_num = [0, 1, 2, 3, -1]
     seq_length = 598
     channel = 7
 elif data_type == 'casas': 
     seq_length = 46
+    args.aug_wise = 'Temporal2'
+    class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, -1]
     channel = 37
 elif data_type == 'opportunity': 
     args.timespan = 1000
+    class_num = [0, 1, 2, 3, 4, -1]
     seq_length = 169
     channel = 241
 elif data_type == 'aras_a': 
     args.timespan = 10000
+    class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
     seq_length = 24
     channel = 19
+
+final_auroc = []
+final_aupr  = []
+final_fpr   = []
+final_de    = []
 
 
 # Default device to 'cpu' if cuda is not available
@@ -258,35 +268,85 @@ else: device ='cuda'
 num_classes, datalist, labellist = loading_data(data_type, args)
     # Load data
     #dataset = load_dataset(dataset_name, data_path, normal_class)
-train_loader, test_loader, train_loader2, test_loader2, novel_class_idx  = data_generator(args, configs, num_classes, datalist, labellist)
+for args.one_class_idx in class_num:
+    auroc_a = []
+    aupr_a  = []
+    fpr_a   = []
+    de_a    = []
+    if args.one_class_idx != -1:
+        seed_num =  [20, 40, 60, 80, 100, 120, 140, 160, 180, 200]
+    else:
+        seed_num = [20, 40, 60, 80, 100, 120, 140, 160, 180, 200]
+
+    for test_num in seed_num :
+        # ##### fix random seeds for reproducibility ########
+        SEED = args.seed = test_num
+        torch.manual_seed(SEED)
+        torch.backends.cudnn.deterministic = False
+        torch.backends.cudnn.benchmark = False
+        np.random.seed(SEED)            
+        #####################################################
+
+        print("Dataset:", data_type)
+        print("True Class:", args.one_class_idx)
+        print("Seed:", SEED)
+        
+        train_loader, test_loader, novel_class_idx = data_generator(args, configs, num_classes, datalist, labellist)
 
 
 # Initialize DeepSVDD model and set neural network \phi
-deep_SVDD = DeepSVDD(args.objective, args.nu, seq_length, channel)
+        deep_SVDD = DeepSVDD(args.objective, args.nu, seq_length, channel)
+
+        #Train model on dataset
+        deep_SVDD.train(train_loader, test_loader,
+                            optimizer_name = args.optimizer_name,
+                            lr = args.lr,
+                            n_epochs=args.n_epochs,
+                            lr_milestones=args.lr_milestone,
+                            batch_size=args.batch_size,
+                            weight_decay=args.weight_decay,
+                            device=device)
+        auroc_rs, aupr_rs, fpr_at_95_tpr_rs, detection_error_rs = deep_SVDD.test(test_loader, device=device)
+        auroc_a.append(auroc_rs)     
+        aupr_a.append(aupr_rs)   
+        fpr_a.append(fpr_at_95_tpr_rs)
+        de_a.append(detection_error_rs)
+
+    final_auroc.append([np.mean(auroc_a), np.std(auroc_a)])
+    final_aupr.append([np.mean(aupr_a), np.std(aupr_a)])
+    final_fpr.append([np.mean(fpr_a), np.std(fpr_a)])
+    final_de.append([np.mean(de_a), np.std(de_a)])
+
+# for extrating results to an excel file
+    
+    final_rs =[]
+    for i in final_auroc:
+        final_rs.append(i)
+    for i in final_aupr:
+        final_rs.append(i)
+    for i in final_fpr:
+        final_rs.append(i)
+    for i in final_de:
+        final_rs.append(i)
+
+    print("Finished")
+
+    df = pd.DataFrame(final_rs, columns=['mean', 'std'])
+    df.to_excel('result_files/final_result_DeepSVDD_'+data_type+'.xlsx', sheet_name='the results')
 
 # If specified, load Deep SVDD model (radius R, center c, network weights, and possibly autoencoder weights)
 # if load_model:
 #    deep_SVDD.load_model(model_path=load_model, load_ae=True)
 
-if args.pretrain:
-    # Pretrain model on dataset (via autoencoder)
-    deep_SVDD.pretrain(train_loader, test_loader,
-                        optimizer_name=args.ae_optimizer_name,
-                           lr=args.ae_lr,
-                           n_epochs=args.ae_n_epochs,
-                           lr_milestones= args.ae_lr_milestone,
-                           batch_size= args.ae_batch_size, 
-                           weight_decay=args.ae_weight_decay,
-                           device=device)
+# if args.pretrain:
+#     # Pretrain model on dataset (via autoencoder)
+#     deep_SVDD.pretrain(train_loader, test_loader,
+#                         optimizer_name=args.ae_optimizer_name,
+#                            lr=args.ae_lr,
+#                            n_epochs=args.ae_n_epochs,
+#                            lr_milestones= args.ae_lr_milestone,
+#                            batch_size= args.ae_batch_size, 
+#                            weight_decay=args.ae_weight_decay,
+#                            device=device)
 
 
-    # Train model on dataset
-deep_SVDD.train(train_loader2, test_loader,
-                    optimizer_name = args.optimizer_name,
-                    lr = args.lr,
-                    n_epochs=args.n_epochs,
-                    lr_milestones=args.lr_milestone,
-                    batch_size=args.batch_size,
-                    weight_decay=args.weight_decay,
-                    device=device)
-deep_SVDD.test(test_loader2, device=device)
