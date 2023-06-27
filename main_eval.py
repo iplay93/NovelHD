@@ -111,7 +111,7 @@ num_classes, datalist, labellist = loading_data(data_type, args)
 
 # each mode ood_score == ['T'], ['TCON'], ['TCLS'], ['FCON'], ['FCLS'], ['NovelHD'], ['NovelHD_TF']
 # ['T'],['NovelHD'], ['NovelHD_TF']
-for args.ood_score in [['T'], ['NovelHD'],['NovelHD_TF']]:    
+for args.ood_score in [['T']]:    
         
     final_auroc = []
     final_aupr  = []
@@ -131,7 +131,7 @@ for args.ood_score in [['T'], ['NovelHD'],['NovelHD_TF']]:
     # opportunity : [0, 1, 2, 3, 4, -1]
 
     # applying multiple strong augmentation
-    negative_list = ['Crop', 'Drift', 'Dropout','Reverse']
+    negative_list = ['Crop','Crop','Crop', 'Crop']
     positive_list = ['AddNoise', 'TimeWarp']
     args.K_shift = len(negative_list)+1
 
@@ -293,7 +293,8 @@ for args.ood_score in [['T'], ['NovelHD'],['NovelHD_TF']]:
     print("Finished")
 
     df = pd.DataFrame(final_rs, columns=['mean', 'std'])
-    df.to_excel('result_files/final_result_dataAug_' + str(args.ood_score[0])+'_'+data_type+'_comparison.xlsx', sheet_name='the results')
+    df.to_excel('result_files/final_result_dataAug_' + str(args.ood_score[0])+'_'+
+                data_type+'_'+(str(args.K_shift-1))+'.xlsx', sheet_name='the results')
 
     logger.debug(f"Training time is : {datetime.now()-start_time}")
 
