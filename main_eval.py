@@ -131,7 +131,7 @@ for args.ood_score in [['T']]:
     # opportunity : [0, 1, 2, 3, 4, -1]
 
     # applying multiple strong augmentation
-    negative_list = ['Crop','Crop','Crop', 'Crop']
+    negative_list = ['Dropout','Dropout', 'Dropout', 'Dropout','Dropout']
     positive_list = ['AddNoise', 'TimeWarp']
     args.K_shift = len(negative_list)+1
 
