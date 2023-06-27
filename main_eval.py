@@ -131,9 +131,10 @@ for args.ood_score in [['T']]:
     # opportunity : [0, 1, 2, 3, 4, -1]
 
     # applying multiple strong augmentation
-    negative_list = ['Dropout','Dropout', 'Dropout', 'Dropout','Dropout']
-    positive_list = ['AddNoise', 'TimeWarp']
-    args.K_shift = len(negative_list)+1
+    negative_list = ['Dropout', 'Drift', 'Reverse','Crop', 'Quantize'] #,'Dropout', 'Dropout', 'Dropout','Dropout']
+    positive_list = ['AddNoise', 'TimeWarp', 'Convolve', 'Pool']
+    args.K_shift = len(negative_list)+1 # Since original data included
+    args.K_pos = len(positive_list) # Normal augmentation numbers
 
     for args.one_class_idx in class_num:
     # give weakly shifted transformation methods ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']
@@ -188,7 +189,7 @@ for args.ood_score in [['T']]:
 
                 
                 train_dl, valid_dl, test_dl, ood_test_loader, novel_class = data_generator_nd(
-                    args, configs, training_mode, positive_aug, num_classes, datalist, labellist)
+                    args, configs, training_mode, positive_list, num_classes, datalist, labellist)
                 logger.debug("Data loaded ...")
 
                 # Load Model
@@ -205,7 +206,7 @@ for args.ood_score in [['T']]:
 
                 # Trainer
                 model = Trainer(model, model_optimizer, classifier, classifier_optimizer, 
-                                train_dl, device, logger, configs, experiment_log_dir, args, negative_list)
+                                train_dl, device, logger, configs, experiment_log_dir, args, negative_list, positive_list)
 
                 
                 # load saved model of this experiment
@@ -283,18 +284,18 @@ for args.ood_score in [['T']]:
     final_rs =[]
     for i in final_auroc:
         final_rs.append(i)
-    for i in final_aupr:
-        final_rs.append(i)
-    for i in final_fpr:
-        final_rs.append(i)
-    for i in final_de:
-        final_rs.append(i)
+    # for i in final_aupr:
+    #     final_rs.append(i)
+    # for i in final_fpr:
+    #     final_rs.append(i)
+    # for i in final_de:
+    #     final_rs.append(i)
 
     print("Finished")
 
     df = pd.DataFrame(final_rs, columns=['mean', 'std'])
     df.to_excel('result_files/final_result_dataAug_' + str(args.ood_score[0])+'_'+
-                data_type+'_'+(str(args.K_shift-1))+'.xlsx', sheet_name='the results')
+                data_type+'_ST'+(str(args.K_shift-1))+'_NT'+str(args.K_pos)+'.xlsx', sheet_name='the results')
 
     logger.debug(f"Training time is : {datetime.now()-start_time}")
 

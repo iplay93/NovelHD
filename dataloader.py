@@ -11,7 +11,7 @@ import math
 
 class Load_Dataset(Dataset):
     # Initialize your data, download, etc.
-    def __init__(self, data_list, label_list, args, training_mode, aug_method):
+    def __init__(self, data_list, label_list, args, training_mode, positive_list):
         super(Load_Dataset, self).__init__()
         self.training_mode = training_mode
 
@@ -37,7 +37,7 @@ class Load_Dataset(Dataset):
         self.len = X_train.shape[0]
     
         # select positive transformation method        
-        pos_aug = select_transformation(aug_method)
+        pos_aug = select_transformation(positive_list[0])
         # (N, C, T) -> (N, T, C)-> (N, C, T)
         self.aug1 = torch.from_numpy(np.array(pos_aug.augment(self.x_data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
         # (N, C, T)
@@ -49,7 +49,7 @@ class Load_Dataset(Dataset):
     def __len__(self):
         return self.len
 
-def data_generator_nd(args, configs, training_mode, positive_aug, 
+def data_generator_nd(args, configs, training_mode, positive_list, 
                                             num_classes, datalist, labellist):
     test_ratio = args.test_ratio
     valid_ratio = args.valid_ratio
@@ -126,7 +126,7 @@ def data_generator_nd(args, configs, training_mode, positive_aug,
         # one class idx exit
         ood_test_set = Load_Dataset(test_list[np.where(test_label_list == ood)],
                                     test_label_list[np.where(test_label_list == ood)], 
-                                    args, training_mode, positive_aug)
+                                    args, training_mode, positive_list)
         ood = f'one_class_{ood}'  # change save name
 
         ood_test_loader[ood] = DataLoader(ood_test_set, batch_size=configs.batch_size, shuffle=True)          
@@ -135,13 +135,13 @@ def data_generator_nd(args, configs, training_mode, positive_aug,
     print("Length of OOD test loader", len(ood_test_loader))
    
     # build data loader (N, T, C) -> (N, C, T)
-    dataset = Load_Dataset(train_list, train_label_list, args, training_mode, positive_aug)    
+    dataset = Load_Dataset(train_list, train_label_list, args, training_mode, positive_list)    
     train_loader = DataLoader(dataset, batch_size = configs.batch_size, shuffle=True)
 
-    dataset = Load_Dataset(valid_list,valid_label_list, args, training_mode, positive_aug)
+    dataset = Load_Dataset(valid_list,valid_label_list, args, training_mode, positive_list)
     finetune_loader = DataLoader(dataset, batch_size = configs.batch_size, shuffle=True)
 
-    dataset = Load_Dataset(test_list, test_label_list, args, training_mode, positive_aug)
+    dataset = Load_Dataset(test_list, test_label_list, args, training_mode, positive_list)
     test_loader = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
 
 

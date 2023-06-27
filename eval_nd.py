@@ -87,23 +87,23 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
         args.weight_shi_f = [0] * args.K_shift# weight_shi_f or [0,0]        
     elif ood_score == 'TCON':
         args.weight_sim_t = [1] * args.K_shift
-        args.weight_shi_t = [0, 0]
-        args.weight_sim_f = [0, 0]
-        args.weight_shi_f = [0, 0]
+        args.weight_shi_t = [0] * args.K_shift
+        args.weight_sim_f = [0] * args.K_shift
+        args.weight_shi_f = [0] * args.K_shift
     elif ood_score == 'TCLS':
-        args.weight_sim_t = [0, 0]
-        args.weight_shi_t = [1, 1]
-        args.weight_sim_f = [0, 0]
-        args.weight_shi_f = [0, 0]
+        args.weight_sim_t = [0] * args.K_shift
+        args.weight_shi_t = [1] * args.K_shift
+        args.weight_sim_f = [0] * args.K_shift
+        args.weight_shi_f = [0] * args.K_shift
     elif ood_score == 'FCON':
         args.weight_sim_t = weight_sim_t # weight_sim_t or [0,0]
         args.weight_shi_t = weight_shi_t # weight_shi_t or [0,0]
         args.weight_sim_f = weight_sim_f   # weight_sim_f or [0,0] 
-        args.weight_shi_f = [0, 0] # weight_shi_f or [0,0]  
+        args.weight_shi_f = [0] * args.K_shift # weight_shi_f or [0,0]  
     elif ood_score == 'FCLS':
         args.weight_sim_t = weight_sim_t # weight_sim_t or [0,0]
         args.weight_shi_t = weight_shi_t # weight_shi_t or [0,0]
-        args.weight_sim_f = [0, 0]   # weight_sim_f or [0,0] 
+        args.weight_sim_f = [0] * args.K_shift   # weight_sim_f or [0,0] 
         args.weight_shi_f = weight_shi_f # weight_shi_f or [0,0]       
     elif ood_score == 'NovelHD' or ood_score == 'NovelHD_TF' :
         args.weight_sim_t = weight_sim_t # weight_sim_t or [0,0]

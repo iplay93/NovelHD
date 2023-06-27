@@ -13,7 +13,7 @@ from data_preprocessing.augmentations import select_transformation
 # shifted data transformations for negative pairs
  
 def Trainer(model, model_optimizer, classifier, classifier_optimizer, 
-            train_dl, device, logger, configs, experiment_log_dir, args, negative_list):
+            train_dl, device, logger, configs, experiment_log_dir, args, negative_list, positive_list):
     # Start training
     logger.debug("Training started ....")
 
@@ -24,7 +24,7 @@ def Trainer(model, model_optimizer, classifier, classifier_optimizer,
             logger.debug(f'\nEpoch : {epoch}\n')
         # Train and validate
         train_loss, train_acc = model_train(epoch, logger, model, model_optimizer, classifier, 
-                    classifier_optimizer, criterion, train_dl, configs, device, args, negative_list)
+                    classifier_optimizer, criterion, train_dl, configs, device, args, negative_list, positive_list)
         if epoch % 50 == 0 : 
             logger.debug(f'Train Loss   : {train_loss:.4f}\t | \tTrain Accuracy     : {train_acc:2.4f}\n')
     
@@ -40,7 +40,7 @@ def normalize(x, dim=1, eps=1e-8):
     return x / (x.norm(dim=dim, keepdim=True) + eps)
 
 def model_train(epoch, logger, model, model_optimizer, classifier, classifier_optimizer, 
-                criterion, train_loader, configs, device, args, negative_list):
+                criterion, train_loader, configs, device, args, negative_list, positive_list):
     assert args.K_shift > 1
     total_loss = []
     total_acc = []
@@ -63,16 +63,28 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
         if configs.batch_size == batch_size:
             original_data = data
             original_aug = aug1
+
+            aug_list =[]
+            # 1부터 시작 : 이미 data loader에서 하나를 함
+            for positive_num in range(0, args.K_pos):
+                normal_aug = select_transformation(positive_list[positive_num])
+                temp_data = torch.from_numpy(np.array(normal_aug.augment(original_data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1) 
+                aug_list.append(temp_data.to(device))
+
+            original_aug_list = aug_list.copy()
+
             for shifted_num in range(args.K_shift-1):
                 #print(shifted_num, negative_list[shifted_num], data.shape)
                 shifted_aug = select_transformation(negative_list[shifted_num])
             # (N, C, T) -> (N, T, C) -> (N, C, T)
-                temp_data = torch.from_numpy(np.array(shifted_aug.augment(original_data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
-                temp_aug1 = torch.from_numpy(np.array(shifted_aug.augment(original_aug.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
-                
+                temp_data = torch.from_numpy(np.array(shifted_aug.augment(original_data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)                        
                 data = torch.cat((data, temp_data.to(device)), 0)
-                aug1 = torch.cat((aug1, temp_aug1.to(device)), 0)
-            
+                
+                # for each positive_num
+                for positive_num in range(0, args.K_pos):
+                    temp_aug1 = torch.from_numpy(np.array(shifted_aug.augment(original_aug_list[positive_num].permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
+                    aug_list[positive_num] = torch.cat((aug_list[positive_num], temp_aug1.to(device)), 0)
+                    print(aug_list[positive_num].shape)
             # # adding shifted transformation
             # for k in range(data.size(0)):      
             #     transpose_data = np.transpose(data[k].cpu().numpy())
@@ -84,19 +96,24 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
     
             data_f = fft.fft(data).abs().to(device)
             #torch.cat((data_f, fft.rfft(temp_data.permute(0, 2, 1)).abs().permute(0, 2, 1).to(device)), 0)
-            aug1_f = fft.fft(aug1).abs().to(device)
+            aug_f = [ ]
+            for positive_num in range(0, args.K_pos):
+                aug_f.append(fft.fft(aug_list[positive_num]).abs().to(device))
+                print(aug_f[positive_num].shape)
             #= torch.cat((aug1_f, fft.rfft(temp_aug1.permute(0, 2, 1)).abs().permute(0, 2, 1).to(device)), 0)
 
             shift_labels = torch.cat([torch.ones_like(labels) * k for k in range(args.K_shift)], 0)  # B -> 2B (+1 for original data)
-            shift_labels = shift_labels.repeat(2)
+            shift_labels = shift_labels.repeat(args.K_pos+1)
+            print(shift_labels.shape)
             
-            sensor_pair = torch.cat([data, aug1], dim=0) # B -> 4B       
-            sensor_pair_f = torch.cat([data_f, aug1_f], dim=0) 
+            for positive_num in range(0, args.K_pos):
+                data = torch.cat([data, aug_list[positive_num]], dim=0) # B -> 4B       
+                data_f = torch.cat([data_f, aug_f[positive_num]], dim=0) 
 
             #print(sensor_pair.shape , shift_labels)
   
             # original data and augmented data 
-            h_t, z_t, s_t, h_f, z_f, s_f  = model(sensor_pair, sensor_pair_f)
+            h_t, z_t, s_t, h_f, z_f, s_f  = model(data, data_f)
         
             
             # for constructing loss functions
@@ -105,7 +122,7 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
 
             simclr = normalize(z_t)  # normalize
             sim_matrix = get_similarity_matrix(simclr)            
-            loss_sim = NT_xent(sim_matrix, temperature=0.5) * sim_lambda
+            loss_sim = NT_xent(sim_matrix, temperature=0.5, chunk = args.K_pos+1) * sim_lambda
             
             loss_shift = criterion(s_t, shift_labels)
 
@@ -115,7 +132,7 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
             sim_lambda_f = 0.1
             simclr_f = normalize(z_f)  # normalize
             sim_matrix_f = get_similarity_matrix(simclr_f)            
-            loss_sim_f = NT_xent(sim_matrix_f, temperature=0.5) * sim_lambda_f 
+            loss_sim_f = NT_xent(sim_matrix_f, temperature=0.5, chunk= args.K_pos+1) * sim_lambda_f 
             
             loss_shift_f = criterion(s_f, shift_labels)
             

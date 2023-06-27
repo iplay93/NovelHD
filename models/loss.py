@@ -267,9 +267,12 @@ def NT_xent(sim_matrix, temperature=0.5, chunk=2, eps=1e-8):
     denom = torch.sum(sim_matrix, dim=1, keepdim=True)
     sim_matrix = -torch.log(sim_matrix / (denom + eps) + eps)  # loss matrix
     
-
+    sum_value = 0
     # normal & orginal closer and shifted & shifted closer / negative pairs are not calculated 
-    loss = torch.sum(sim_matrix[:B, B:].diag() + sim_matrix[B:, :B].diag()) / (2 * B)
+    for mul in range(1, chunk):
+        sum_value += sim_matrix[:B, mul*B:(mul+1)*B].diag() + sim_matrix[mul*B:(mul+1)*B, :B].diag()
+        print(mul, "B", B, mul*B, (mul+1)*B)
+    loss = torch.sum(sum_value) / ((chunk-1)*2* B)
 
     return loss
 
