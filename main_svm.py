@@ -8,63 +8,72 @@ import numpy as np
 from data_preprocessing.dataloader import loading_data
 from torch.utils.data import DataLoader, Dataset
 
+# class CAE(nn.Module):
+#     def __init__(self, seq_length=100, input_dim=1, d_model=64, nhead=1, num_encoder_layers=2, num_decoder_layers=2):
+#         super(CAE, self).__init__()
+#         self.seq_length = seq_length
+#         self.input_dim = input_dim
+
+#         self.nhead = nhead
+#         self.num_encoder_layers = num_encoder_layers
+#         self.num_decoder_layers = num_decoder_layers
+
+#         # Transformer Encoder
+#         encoder_layer = nn.TransformerEncoderLayer(seq_length, nhead)
+#         self.encoder = nn.TransformerEncoder(encoder_layer, num_encoder_layers)
+
+#         # Transformer Decoder
+#         decoder_layer = nn.TransformerDecoderLayer(seq_length, nhead)
+#         self.decoder = nn.TransformerDecoder(decoder_layer, num_decoder_layers)
+
+#         # Linear layer to map the decoder output to the original input dimension
+#         self.linear = nn.Linear(seq_length, input_dim)
+
+#     def forward(self, x):
+#         # Transformer Encoder
+#         print(x)
+#         encoded = self.encoder(x)
+#         print(encoded)
+#         # Transformer Decoder
+#         decoded = self.decoder(encoded, encoded)
+#         print(decoded)
+#         # Linear layer to map the decoder output to the original input dimension
+#         return decoded
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-
 
 class CAE(nn.Module):
-    def __init__(self, seq_length=100, input_dim=1, d_model=64, nhead=4, num_encoder_layers=2, num_decoder_layers=2):
+    def __init__(self, seq_length=100, input_dim=1):
         super(CAE, self).__init__()
         self.seq_length = seq_length
         self.input_dim = input_dim
-        self.d_model = d_model
-        self.nhead = nhead
-        self.num_encoder_layers = num_encoder_layers
-        self.num_decoder_layers = num_decoder_layers
 
-        # Transformer Encoder
-        encoder_layer = nn.TransformerEncoderLayer(d_model, nhead)
-        self.encoder = nn.TransformerEncoder(encoder_layer, num_encoder_layers)
+        #self.embedding = nn.Linear(seq_length, 64)
 
-        # Transformer Decoder
-        decoder_layer = nn.TransformerDecoderLayer(d_model, nhead)
-        self.decoder = nn.TransformerDecoder(decoder_layer, num_decoder_layers)
-
-        # Positional Encoding
-        self.positional_encoding = self.generate_positional_encoding(seq_length, d_model)
-
-        # Linear layer to map the decoder output to the original input dimension
-        self.linear = nn.Linear(d_model, input_dim)
+        self.transformer_encoder = nn.TransformerEncoder(
+            nn.TransformerEncoderLayer(d_model=seq_length, nhead=1),
+            num_layers=2
+        )
+        self.transformer_decoder = nn.TransformerDecoder(
+            nn.TransformerDecoderLayer(d_model=seq_length, nhead=1),
+            num_layers=2
+        )
+        #self.linear = nn.Linear(64, seq_length)
+        self.activation = nn.Sigmoid()
 
     def forward(self, x):
-        x = x.unsqueeze(0)  # Add a batch dimension
+        #x = self.embedding(x)
 
-        # Adjust positional encoding shape
-        positional_encoding = self.positional_encoding[:, :x.size(1)].unsqueeze(0)
+        encoded = self.transformer_encoder(x)
+        decoded = self.transformer_decoder(encoded, encoded)
 
-        # Apply positional encoding to the input
-        x = x + positional_encoding
-
-        # Transformer Encoder
-        encoded = self.encoder(x)
-
-        # Transformer Decoder
-        decoded = self.decoder(encoded)
-
-        # Linear layer to map the decoder output to the original input dimension
-        decoded = self.linear(decoded.squeeze(0))
+        #decoded = self.linear(decoded)
+        decoded = self.activation(decoded)
 
         return decoded
 
-    def generate_positional_encoding(self, seq_length, d_model):
-        positional_encoding = torch.zeros(seq_length, d_model)
-        positions = torch.arange(0, seq_length, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-torch.log(torch.tensor(10000.0)) / d_model))
-        positional_encoding[:, 0::2] = torch.sin(positions * div_term)
-        positional_encoding[:, 1::2] = torch.cos(positions * div_term)
-        return positional_encoding
+
 
 
 def parse_args():
@@ -125,6 +134,7 @@ def main_svm():
         seq_length = 598
         channel = 7
     elif data_type == 'casas': 
+        args.aug_wise = 'Temporal2'
         seq_length = 46
         channel = 37
     elif data_type == 'opportunity': 
@@ -167,7 +177,8 @@ def main_svm():
         epoch_loss = running_loss / len(dataloader)
         print(f"Epoch [{epoch+1}/{num_epoch}], Loss: {epoch_loss:.4f}")
  
-    encoded_data = autoencoder.encoder(datalist)
+    #encoded_data = autoencoder.encoder(datalist)
+    encoded_data = autoencoder.transformer_encoder(datalist)
     encoded_data = encoded_data.detach().numpy()
 
 

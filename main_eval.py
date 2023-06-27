@@ -65,6 +65,7 @@ parser.add_argument('--save_freq', type=int, default=50, help='save frequency')
 parser.add_argument('--data_folder', type=str, default=None, help='path to custom dataset')
     
 parser.add_argument('--aug_method', type=str, default='AddNoise', help='choose the data augmentation method')
+parser.add_argument('--K_shift', action='store_true',help='warm-up for large batch training')
 parser.add_argument('--aug_wise', type=str, default='Temporal', 
                         help='choose the data augmentation wise : "None,  Temporal, Sensor" ')
 
@@ -128,10 +129,15 @@ for args.ood_score in [['T'], ['NovelHD'],['NovelHD_TF']]:
     # casas : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, -1]
     # aras_a : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
     # opportunity : [0, 1, 2, 3, 4, -1]
-    
+
+    # applying multiple strong augmentation
+    negative_list = ['Crop', 'Drift', 'Dropout','Reverse']
+    positive_list = ['AddNoise', 'TimeWarp']
+    args.K_shift = len(negative_list)+1
+
     for args.one_class_idx in class_num:
     # give weakly shifted transformation methods ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']
-        for positive_aug in ['TimeWarp']: #, 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
+        for positive_aug in ['AddNoise']: #, 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
         #for shifted_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
             # overall performance
             auroc_a = []
@@ -140,7 +146,7 @@ for args.ood_score in [['T'], ['NovelHD'],['NovelHD_TF']]:
             de_a    = []
             
             # give strongly shifted transformation
-            shifted_aug = 'Dropout'
+            shifted_aug = 'Drift'
             
             if args.one_class_idx != -1:
                 seed_num = [20, 40, 60, 80, 100]
@@ -170,8 +176,8 @@ for args.ood_score in [['T'], ['NovelHD'],['NovelHD_TF']]:
                 logger.debug(f'Dataset: {data_type}')
                 logger.debug(f'Method:  {method}')
                 logger.debug(f'Mode:    {training_mode}')
-                logger.debug(f'Positive Augmentation:    {positive_aug}')
-                logger.debug(f'Negative Augmentation:    {shifted_aug}')
+                logger.debug(f'Positive Augmentation:    {positive_list}')
+                logger.debug(f'Negative Augmentation:    {negative_list}')
                 logger.debug(f'Seed:    {SEED}')
                 logger.debug(f'Version:    {args.ood_score}')
                 logger.debug(f'One_class_idx:    {args.one_class_idx}')
@@ -186,7 +192,7 @@ for args.ood_score in [['T'], ['NovelHD'],['NovelHD_TF']]:
                 logger.debug("Data loaded ...")
 
                 # Load Model
-                model = TFC(configs).to(device)
+                model = TFC(configs, args).to(device)
                 classifier = target_classifier(configs).to(device)
 
                 model_optimizer = torch.optim.Adam(model.parameters(), 
@@ -199,7 +205,7 @@ for args.ood_score in [['T'], ['NovelHD'],['NovelHD_TF']]:
 
                 # Trainer
                 model = Trainer(model, model_optimizer, classifier, classifier_optimizer, 
-                                train_dl, device, logger, configs, experiment_log_dir, args, select_transformation(shifted_aug))
+                                train_dl, device, logger, configs, experiment_log_dir, args, negative_list)
 
                 
                 # load saved model of this experiment
@@ -213,7 +219,7 @@ for args.ood_score in [['T'], ['NovelHD'],['NovelHD_TF']]:
                 with torch.no_grad():
                     auroc_dict, aupr_dict, fpr_dict, de_dict, one_class_total, one_class_aupr, one_class_fpr, one_class_de\
                         = eval_ood_detection(args, path, model, valid_dl, 
-                                             ood_test_loader, args.ood_score, train_dl, select_transformation(shifted_aug))
+                                             ood_test_loader, args.ood_score, train_dl, negative_list)
 
                     auroc_a.append(one_class_total)     
                     aupr_a.append(one_class_aupr)   

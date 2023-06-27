@@ -4,7 +4,7 @@ from torch.nn import TransformerEncoder, TransformerEncoderLayer
 
 """Two contrastive encoders"""
 class TFC(nn.Module):
-    def __init__(self, configs):
+    def __init__(self, configs, args):
         super(TFC, self).__init__()
 
         encoder_layers_t = TransformerEncoderLayer(configs.TSlength_aligned, dim_feedforward=2*configs.TSlength_aligned, nhead=1, )
@@ -16,7 +16,7 @@ class TFC(nn.Module):
             nn.ReLU(),
             nn.Linear(256, 128)
         )
-        self.shift_cls_layer_t = nn.Linear(configs.TSlength_aligned * configs.input_channels, 2)
+        self.shift_cls_layer_t = nn.Linear(configs.TSlength_aligned * configs.input_channels, args.K_shift)
 
         encoder_layers_f = TransformerEncoderLayer(configs.TSlength_aligned, dim_feedforward=2*configs.TSlength_aligned,nhead=1,)
         self.transformer_encoder_f = TransformerEncoder(encoder_layers_f, 2)
@@ -27,7 +27,7 @@ class TFC(nn.Module):
             nn.ReLU(),
             nn.Linear(256, 128)
         )                   
-        self.shift_cls_layer_f = nn.Linear(configs.TSlength_aligned * configs.input_channels_2, 2)
+        self.shift_cls_layer_f = nn.Linear(configs.TSlength_aligned * configs.input_channels_2, args.K_shift)
 
         self.linear = nn.Linear(configs.TSlength_aligned * configs.input_channels, configs.num_classes)    
         # Positional Encoding
@@ -35,8 +35,8 @@ class TFC(nn.Module):
 
 
     def forward(self, x_in_t, x_in_f):
-        x_in_t = x_in_t + self.positional_encoding.T.cuda()
-        x_in_f = x_in_f + self.positional_encoding.T.cuda()
+        #x_in_t = x_in_t + self.positional_encoding.T.cuda()
+        #x_in_f = x_in_f + self.positional_encoding.T.cuda()
 
         """Use Transformer"""
         x = self.transformer_encoder_t(x_in_t.float())
@@ -67,6 +67,9 @@ class TFC(nn.Module):
         positional_encoding[:, :input_channels:2] = torch.sin(positions * div_term)
         positional_encoding[:, 1:input_channels:2] = torch.cos(positions[:, :input_channels//2] * div_term[:input_channels//2])
         return positional_encoding
+
+
+
 
 """Downstream classifier only used in finetuning"""
 class target_classifier(nn.Module):

@@ -8,12 +8,12 @@ from models.loss import NTXentLoss, SupConLoss, get_similarity_matrix, NT_xent, 
 from sklearn.metrics import f1_score, roc_auc_score
 from tsaug import *
 import torch.fft as fft
-
+from data_preprocessing.augmentations import select_transformation
 
 # shifted data transformations for negative pairs
  
 def Trainer(model, model_optimizer, classifier, classifier_optimizer, 
-            train_dl, device, logger, configs, experiment_log_dir, args, shifted_aug):
+            train_dl, device, logger, configs, experiment_log_dir, args, negative_list):
     # Start training
     logger.debug("Training started ....")
 
@@ -24,7 +24,7 @@ def Trainer(model, model_optimizer, classifier, classifier_optimizer,
             logger.debug(f'\nEpoch : {epoch}\n')
         # Train and validate
         train_loss, train_acc = model_train(epoch, logger, model, model_optimizer, classifier, 
-                    classifier_optimizer, criterion, train_dl, configs, device, args, shifted_aug)
+                    classifier_optimizer, criterion, train_dl, configs, device, args, negative_list)
         if epoch % 50 == 0 : 
             logger.debug(f'Train Loss   : {train_loss:.4f}\t | \tTrain Accuracy     : {train_acc:2.4f}\n')
     
@@ -40,7 +40,8 @@ def normalize(x, dim=1, eps=1e-8):
     return x / (x.norm(dim=dim, keepdim=True) + eps)
 
 def model_train(epoch, logger, model, model_optimizer, classifier, classifier_optimizer, 
-                criterion, train_loader, configs, device, args, shifted_aug):
+                criterion, train_loader, configs, device, args, negative_list):
+    assert args.K_shift > 1
     total_loss = []
     total_acc = []
     model.train()
@@ -60,9 +61,17 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
         classifier_optimizer.zero_grad()
         
         if configs.batch_size == batch_size:
+            original_data = data
+            original_aug = aug1
+            for shifted_num in range(args.K_shift-1):
+                #print(shifted_num, negative_list[shifted_num], data.shape)
+                shifted_aug = select_transformation(negative_list[shifted_num])
             # (N, C, T) -> (N, T, C) -> (N, C, T)
-            temp_data = torch.from_numpy(np.array(shifted_aug.augment(data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
-            temp_aug1 = torch.from_numpy(np.array(shifted_aug.augment(aug1.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
+                temp_data = torch.from_numpy(np.array(shifted_aug.augment(original_data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
+                temp_aug1 = torch.from_numpy(np.array(shifted_aug.augment(original_aug.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
+                
+                data = torch.cat((data, temp_data.to(device)), 0)
+                aug1 = torch.cat((aug1, temp_aug1.to(device)), 0)
             
             # # adding shifted transformation
             # for k in range(data.size(0)):      
@@ -72,19 +81,19 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
             #     temp_data = torch.from_numpy(shifted_aug.augment(np.reshape(transpose_data,(1, transpose_data.shape[0],-1)))).permute(0, 2, 1)
             #     temp_aug1 = torch.from_numpy(shifted_aug.augment(np.reshape(transpose_aug ,(1, transpose_aug.shape[0],-1)))).permute(0, 2, 1)
 
-            data = torch.cat((data, temp_data.to(device)), 0)
-            aug1 = torch.cat((aug1, temp_aug1.to(device)), 0)
     
             data_f = fft.fft(data).abs().to(device)
             #torch.cat((data_f, fft.rfft(temp_data.permute(0, 2, 1)).abs().permute(0, 2, 1).to(device)), 0)
             aug1_f = fft.fft(aug1).abs().to(device)
             #= torch.cat((aug1_f, fft.rfft(temp_aug1.permute(0, 2, 1)).abs().permute(0, 2, 1).to(device)), 0)
 
-            shift_labels = torch.cat([torch.ones_like(labels) * k for k in range(2)], 0)  # B -> 2B
+            shift_labels = torch.cat([torch.ones_like(labels) * k for k in range(args.K_shift)], 0)  # B -> 2B (+1 for original data)
             shift_labels = shift_labels.repeat(2)
             
             sensor_pair = torch.cat([data, aug1], dim=0) # B -> 4B       
             sensor_pair_f = torch.cat([data_f, aug1_f], dim=0) 
+
+            #print(sensor_pair.shape , shift_labels)
   
             # original data and augmented data 
             h_t, z_t, s_t, h_f, z_f, s_f  = model(sensor_pair, sensor_pair_f)
