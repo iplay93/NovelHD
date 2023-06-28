@@ -132,7 +132,7 @@ for args.ood_score in [['T']]:
 
     # applying multiple strong augmentation
     negative_list = ['Dropout', 'Drift', 'Reverse','Crop', 'Quantize'] #,'Dropout', 'Dropout', 'Dropout','Dropout']
-    positive_list = ['AddNoise', 'TimeWarp', 'Convolve', 'Pool']
+    positive_list = ['AddNoise', 'TimeWarp', 'Convolve', 'Pool', 'AddNoise2'] #'AddNoise2'
     args.K_shift = len(negative_list)+1 # Since original data included
     args.K_pos = len(positive_list) # Normal augmentation numbers
 

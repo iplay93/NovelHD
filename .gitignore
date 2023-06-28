@@ -2,3 +2,4 @@ data/
 __pycache__/utils.cpython-37.pyc
 __pycache__
 experiments_logs/
+result_files/

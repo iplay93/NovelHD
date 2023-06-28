@@ -26,6 +26,8 @@ def select_transformation(aug_method):
         my_aug = (Reverse())
     elif(aug_method == 'TimeWarp'):
         my_aug = (TimeWarp(n_speed_change=5, max_speed_ratio=3))
+    elif(aug_method == 'AddNoise2'):
+        my_aug = (AddNoise(scale=0.05))
     else:
         return ValueError
         
