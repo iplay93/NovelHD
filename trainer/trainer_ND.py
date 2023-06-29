@@ -84,7 +84,7 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
                 for positive_num in range(0, args.K_pos):
                     temp_aug1 = torch.from_numpy(np.array(shifted_aug.augment(original_aug_list[positive_num].permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
                     aug_list[positive_num] = torch.cat((aug_list[positive_num], temp_aug1.to(device)), 0)
-                    print(aug_list[positive_num].shape)
+                    #print(aug_list[positive_num].shape)
             # # adding shifted transformation
             # for k in range(data.size(0)):      
             #     transpose_data = np.transpose(data[k].cpu().numpy())
@@ -99,12 +99,12 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
             aug_f = [ ]
             for positive_num in range(0, args.K_pos):
                 aug_f.append(fft.fft(aug_list[positive_num]).abs().to(device))
-                print(aug_f[positive_num].shape)
+                #print(aug_f[positive_num].shape)
             #= torch.cat((aug1_f, fft.rfft(temp_aug1.permute(0, 2, 1)).abs().permute(0, 2, 1).to(device)), 0)
 
             shift_labels = torch.cat([torch.ones_like(labels) * k for k in range(args.K_shift)], 0)  # B -> 2B (+1 for original data)
             shift_labels = shift_labels.repeat(args.K_pos+1)
-            print(shift_labels.shape)
+            #print(shift_labels.shape)
             
             for positive_num in range(0, args.K_pos):
                 data = torch.cat([data, aug_list[positive_num]], dim=0) # B -> 4B       

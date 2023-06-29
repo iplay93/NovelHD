@@ -13,6 +13,7 @@ from eval_nd import eval_ood_detection
 import pandas as pd
 import openpyxl
 from data_preprocessing.augmentations import select_transformation
+import random
 
 # Args selections
 start_time = datetime.now()
@@ -107,6 +108,10 @@ elif data_type == 'opportunity': args.timespan = 1000
 elif data_type == 'aras_a': args.timespan = 10000
 elif data_type == 'aras_b': args.timespan = 10000
 
+
+strong_num = 5
+weak_num = 5
+
 num_classes, datalist, labellist = loading_data(data_type, args)
 
 # each mode ood_score == ['T'], ['TCON'], ['TCLS'], ['FCON'], ['FCLS'], ['NovelHD'], ['NovelHD_TF']
@@ -118,7 +123,7 @@ for args.ood_score in [['T']]:
     final_fpr   = []
     final_de    = []
 
-    if data_type == 'lapras': class_num = [0,1,2,3,-1]
+    if data_type == 'lapras': class_num = [0, 1, 2, 3, -1]
     elif data_type == 'casas': 
         class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, -1]
         args.aug_wise = 'Temporal2'
@@ -130,11 +135,6 @@ for args.ood_score in [['T']]:
     # aras_a : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
     # opportunity : [0, 1, 2, 3, 4, -1]
 
-    # applying multiple strong augmentation
-    negative_list = ['Dropout', 'Drift', 'Reverse','Crop', 'Quantize'] #,'Dropout', 'Dropout', 'Dropout','Dropout']
-    positive_list = ['AddNoise', 'TimeWarp', 'Convolve', 'Pool', 'AddNoise2'] #'AddNoise2'
-    args.K_shift = len(negative_list)+1 # Since original data included
-    args.K_pos = len(positive_list) # Normal augmentation numbers
 
     for args.one_class_idx in class_num:
     # give weakly shifted transformation methods ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']
@@ -147,12 +147,12 @@ for args.ood_score in [['T']]:
             de_a    = []
             
             # give strongly shifted transformation
-            shifted_aug = 'Drift'
+            #shifted_aug = 'Drift'
             
-            if args.one_class_idx != -1:
-                seed_num = [20, 40, 60, 80, 100]
-            else:
-                seed_num = [20, 40, 60, 80, 100, 120, 140, 160, 180, 200]
+            # if args.one_class_idx != -1:
+            #     seed_num = [20, 40, 60, 80, 100]
+            # else:
+            seed_num = [20, 40, 60, 80, 100, 120, 140, 160, 180, 200]
             # Training for five seed #
             for test_num in seed_num :
                 # ##### fix random seeds for reproducibility ########
@@ -161,7 +161,31 @@ for args.ood_score in [['T']]:
                 torch.backends.cudnn.deterministic = False
                 torch.backends.cudnn.benchmark = False
                 np.random.seed(SEED)
+                random.seed(SEED)
                 #####################################################
+                negative_list = []
+                positive_list  =[]
+                # applying multi
+                # ple strong augmentation 
+                # 중복 허용 안됨
+                if strong_num > 5 :
+                    negative_list = [random.choice(['Dropout', 'Drift', 'Reverse','Crop', 'Quantize']) for i in range(strong_num-5)]
+                    string_num = 5
+
+                negative_list += random.sample(['Dropout', 'Drift', 'Reverse','Crop', 'Quantize', 'Resize'], strong_num) #,'Dropout', 'Dropout', 'Dropout','Dropout']
+                if weak_num > 5 :
+                    positive_list = [random.choice(['AddNoise', 'TimeWarp', 'Convolve', 'Pool', 'AddNoise2']) for i in range(weak_num-5)]
+                    weak_num = 5
+                positive_list += random.sample(['AddNoise', 'TimeWarp', 'Convolve', 'Pool', 'AddNoise2'], weak_num) #'AddNoise2'
+                args.K_shift = len(negative_list)+1 # Since original data included
+                args.K_pos = len(positive_list) # Normal augmentation numbers
+
+                # applying multiple strong augmentation 
+                # 중복 허용됨
+                # negative_list = [random.choice(['Dropout', 'Drift', 'Reverse','Crop', 'Quantize']) for i in range(strong_num)] #,'Dropout', 'Dropout', 'Dropout','Dropout']
+                # positive_list = [random.choice(['AddNoise', 'TimeWarp', 'Convolve', 'Pool', 'AddNoise2']) for i in range(weak_num)] #'AddNoise2'
+                # args.K_shift = len(negative_list)+1 # Since original data included
+                # args.K_pos = len(positive_list) # Normal augmentation numbers
 
                 experiment_log_dir = os.path.join(logs_save_dir, experiment_description, run_description, training_mode + f"_seed_{SEED}")
                 os.makedirs(experiment_log_dir, exist_ok=True)

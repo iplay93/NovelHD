@@ -271,7 +271,7 @@ def NT_xent(sim_matrix, temperature=0.5, chunk=2, eps=1e-8):
     # normal & orginal closer and shifted & shifted closer / negative pairs are not calculated 
     for mul in range(1, chunk):
         sum_value += sim_matrix[:B, mul*B:(mul+1)*B].diag() + sim_matrix[mul*B:(mul+1)*B, :B].diag()
-        print(mul, "B", B, mul*B, (mul+1)*B, (chunk-1))
+        #print(mul, "B", B, mul*B, (mul+1)*B, (chunk-1))
     loss = torch.sum(sum_value) / ((chunk-1)*2* B)
 
     return loss

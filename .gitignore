@@ -1,5 +1,8 @@
 data/
+result_files/
 __pycache__/utils.cpython-37.pyc
 __pycache__
 experiments_logs/
-result_files/
+final_result_
+result_files/final_result_dataAug_T_lapras_ST1_NT1.xlsx
+result_files/final_result_dataAug_T_lapras_ST1_NT2.xlsx
