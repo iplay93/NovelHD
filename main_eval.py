@@ -109,9 +109,8 @@ elif data_type == 'aras_a': args.timespan = 10000
 elif data_type == 'aras_b': args.timespan = 10000
 
 
-strong_num = 5
-weak_num = 5
-
+strong_num = 8
+weak_num = 1
 num_classes, datalist, labellist = loading_data(data_type, args)
 
 # each mode ood_score == ['T'], ['TCON'], ['TCLS'], ['FCON'], ['FCLS'], ['NovelHD'], ['NovelHD_TF']
@@ -168,17 +167,24 @@ for args.ood_score in [['T']]:
                 # applying multi
                 # ple strong augmentation 
                 # 중복 허용 안됨
+
                 if strong_num > 5 :
                     negative_list = [random.choice(['Dropout', 'Drift', 'Reverse','Crop', 'Quantize']) for i in range(strong_num-5)]
-                    string_num = 5
+                    strong_num = 5
 
                 negative_list += random.sample(['Dropout', 'Drift', 'Reverse','Crop', 'Quantize', 'Resize'], strong_num) #,'Dropout', 'Dropout', 'Dropout','Dropout']
+                
                 if weak_num > 5 :
                     positive_list = [random.choice(['AddNoise', 'TimeWarp', 'Convolve', 'Pool', 'AddNoise2']) for i in range(weak_num-5)]
                     weak_num = 5
                 positive_list += random.sample(['AddNoise', 'TimeWarp', 'Convolve', 'Pool', 'AddNoise2'], weak_num) #'AddNoise2'
+               
                 args.K_shift = len(negative_list)+1 # Since original data included
                 args.K_pos = len(positive_list) # Normal augmentation numbers
+                
+                # Reset
+                strong_num = args.K_shift -1
+                weak_num = args.K_pos
 
                 # applying multiple strong augmentation 
                 # 중복 허용됨
