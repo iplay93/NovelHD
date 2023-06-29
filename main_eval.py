@@ -51,7 +51,7 @@ parser.add_argument('--one_class_idx', type=int, default=0,
                     help='choose of one class label number that wants to deal with. -1 is for multi-classification')
 
 parser.add_argument("--ood_score", help='score function for OOD detection',
-                        default = ['NovelHD'], nargs="+", type=str)
+                        default = ['T'], nargs="+", type=str)
 parser.add_argument("--ood_samples", help='number of samples to compute OOD score',
                         default = 1, type=int)
 parser.add_argument("--print_score", help='print quantiles of ood score',
@@ -109,15 +109,17 @@ elif data_type == 'opportunity': args.timespan = 1000
 elif data_type == 'aras_a': args.timespan = 10000
 elif data_type == 'aras_b': args.timespan = 10000
 
-
 strong_num = args.K_shift
-weak_num = args.K_pos
+args.K_shift = args.K_shift + 1
+
 num_classes, datalist, labellist = loading_data(data_type, args)
 
 # each mode ood_score == ['T'], ['TCON'], ['TCLS'], ['FCON'], ['FCLS'], ['NovelHD'], ['NovelHD_TF']
 # ['T'],['NovelHD'], ['NovelHD_TF']
-for args.ood_score in [['T']]:    
-        
+#for args.ood_score in [['T']]:    
+for args.K_pos in range(1,11):
+    weak_num = args.K_pos
+
     final_auroc = []
     final_aupr  = []
     final_fpr   = []
@@ -180,12 +182,12 @@ for args.ood_score in [['T']]:
                     weak_num = 5
                 positive_list += random.sample(['AddNoise', 'TimeWarp', 'Convolve', 'Pool', 'AddNoise2'], weak_num) #'AddNoise2'
                
-                args.K_shift = len(negative_list)+1 # Since original data included
-                args.K_pos = len(positive_list) # Normal augmentation numbers
+                #args.K_shift = len(negative_list)+1 # Since original data included
+                #args.K_pos = len(positive_list) # Normal augmentation numbers
                 
                 # Reset
-                strong_num = args.K_shift -1
-                weak_num = args.K_pos
+                strong_num = len(negative_list)
+                weak_num = len(positive_list) 
 
                 # applying multiple strong augmentation 
                 # 중복 허용됨
