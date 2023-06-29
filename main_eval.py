@@ -66,7 +66,8 @@ parser.add_argument('--save_freq', type=int, default=50, help='save frequency')
 parser.add_argument('--data_folder', type=str, default=None, help='path to custom dataset')
     
 parser.add_argument('--aug_method', type=str, default='AddNoise', help='choose the data augmentation method')
-parser.add_argument('--K_shift', action='store_true',help='warm-up for large batch training')
+parser.add_argument('--K_shift', type=int, default=5 ,help='warm-up for large batch training')
+parser.add_argument('--K_pos',  type=int, default=5,help='warm-up for large batch training')
 parser.add_argument('--aug_wise', type=str, default='Temporal', 
                         help='choose the data augmentation wise : "None,  Temporal, Sensor" ')
 
@@ -109,8 +110,8 @@ elif data_type == 'aras_a': args.timespan = 10000
 elif data_type == 'aras_b': args.timespan = 10000
 
 
-strong_num = 8
-weak_num = 1
+strong_num = args.K_shift
+weak_num = args.K_pos
 num_classes, datalist, labellist = loading_data(data_type, args)
 
 # each mode ood_score == ['T'], ['TCON'], ['TCLS'], ['FCON'], ['FCLS'], ['NovelHD'], ['NovelHD_TF']
