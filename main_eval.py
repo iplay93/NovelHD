@@ -14,6 +14,7 @@ import pandas as pd
 import openpyxl
 from data_preprocessing.augmentations import select_transformation
 import random
+import os.path
 
 # Args selections
 start_time = datetime.now()
@@ -109,21 +110,24 @@ elif data_type == 'opportunity': args.timespan = 1000
 elif data_type == 'aras_a': args.timespan = 10000
 elif data_type == 'aras_b': args.timespan = 10000
 
-strong_num = args.K_shift
-args.K_shift = args.K_shift + 1
+
 
 num_classes, datalist, labellist = loading_data(data_type, args)
 
 # each mode ood_score == ['T'], ['TCON'], ['TCLS'], ['FCON'], ['FCLS'], ['NovelHD'], ['NovelHD_TF']
 # ['T'],['NovelHD'], ['NovelHD_TF']
-#for args.ood_score in [['T']]:    
-for args.K_pos in range(1,11):
-    weak_num = args.K_pos
-
-    final_auroc = []
-    final_aupr  = []
-    final_fpr   = []
-    final_de    = []
+#for args.ood_score in [['T']]:  
+# 
+final_auroc = []
+final_aupr  = []
+final_fpr   = []
+final_de    = []  
+#2 ->8, 6->7
+for args.K_shift in range(1,10):
+    #weak_num = args.K_pos = 10 - args.K_shift
+    weak_num = args.K_pos = 1
+    strong_num = args.K_shift
+    args.K_shift = args.K_shift + 1
 
     if data_type == 'lapras': class_num = [0, 1, 2, 3, -1]
     elif data_type == 'casas': 
@@ -165,22 +169,29 @@ for args.K_pos in range(1,11):
                 np.random.seed(SEED)
                 random.seed(SEED)
                 #####################################################
+                
                 negative_list = []
                 positive_list  =[]
                 # applying multi
                 # ple strong augmentation 
                 # 중복 허용 안됨
 
+                # strong_transformation = ['Dropout', 'Drift', 'Reverse','Crop', 'Quantize'] 
+                # weak_transformation = ['AddNoise', 'TimeWarp', 'Convolve', 'Pool', 'AddNoise2']
+
+                strong_transformation = ['Dropout', 'Drift', 'Reverse','Crop', 'Quantize'] 
+                weak_transformation = ['AddNoise', 'TimeWarp', 'Convolve', 'Pool', 'AddNoise2']
+
                 if strong_num > 5 :
-                    negative_list = [random.choice(['Dropout', 'Drift', 'Reverse','Crop', 'Quantize']) for i in range(strong_num-5)]
+                    negative_list = [random.choice(strong_transformation) for i in range(strong_num-5)]
                     strong_num = 5
 
-                negative_list += random.sample(['Dropout', 'Drift', 'Reverse','Crop', 'Quantize', 'Resize'], strong_num) #,'Dropout', 'Dropout', 'Dropout','Dropout']
+                negative_list += random.sample( strong_transformation, strong_num) #,'Dropout', 'Dropout', 'Dropout','Dropout']
                 
                 if weak_num > 5 :
-                    positive_list = [random.choice(['AddNoise', 'TimeWarp', 'Convolve', 'Pool', 'AddNoise2']) for i in range(weak_num-5)]
+                    positive_list = [random.choice(weak_transformation) for i in range(weak_num-5)]
                     weak_num = 5
-                positive_list += random.sample(['AddNoise', 'TimeWarp', 'Convolve', 'Pool', 'AddNoise2'], weak_num) #'AddNoise2'
+                positive_list += random.sample(weak_transformation, weak_num) #'AddNoise2'
                
                 #args.K_shift = len(negative_list)+1 # Since original data included
                 #args.K_pos = len(positive_list) # Normal augmentation numbers
@@ -302,6 +313,26 @@ for args.K_pos in range(1,11):
             final_fpr.append([np.mean(fpr_a), np.std(fpr_a)])
             final_de.append([np.mean(de_a), np.std(de_a)])
 
+
+            df = pd.DataFrame(final_auroc, columns=['mean', 'std'])     
+
+            # path = 'result_files/final_result_dataAug_' + str(args.ood_score[0])+'_'+ \
+            #    data_type+'_ST'+(str(args.K_shift-1))+'_NT'+(str(args.K_pos))+'.xlsx'
+            path = 'result_files/final_result_dataAug_' + str(args.ood_score[0])+'_'+ \
+                 data_type+'_NT_1.xlsx'
+            # path = 'result_files/final_result_dataAug_' + str(args.ood_score[0])+'_'+ \
+            #     data_type+'_ST_NT_ratio_RV.xlsx'
+            
+            file_exists = os.path.exists(path)
+
+            if file_exists == True:
+                with pd.ExcelWriter(path, mode="a", engine="openpyxl", if_sheet_exists="replace") as writer:
+                    df.to_excel(writer, sheet_name="the results")  
+            else:
+                with pd.ExcelWriter(path, engine="openpyxl") as writer:
+                    df.to_excel(writer, sheet_name="the results")  
+
+
     # overall
     # print(f'{auroc_a}')
     # print(f'{aupr_a}')
@@ -314,23 +345,23 @@ for args.K_pos in range(1,11):
     # print(f'{final_de}')
 
     # for extrating results to an excel file
-    final_rs =[]
-    for i in final_auroc:
-        final_rs.append(i)
-    # for i in final_aupr:
-    #     final_rs.append(i)
-    # for i in final_fpr:
-    #     final_rs.append(i)
-    # for i in final_de:
-    #     final_rs.append(i)
+final_rs =[]
+for i in final_auroc:
+    final_rs.append(i)
+# for i in final_aupr:
+#     final_rs.append(i)
+# for i in final_fpr:
+#     final_rs.append(i)
+# for i in final_de:
+#     final_rs.append(i)
 
-    print("Finished")
+print("Finished")
 
-    df = pd.DataFrame(final_rs, columns=['mean', 'std'])
-    df.to_excel('result_files/final_result_dataAug_' + str(args.ood_score[0])+'_'+
-                data_type+'_ST'+(str(args.K_shift-1))+'_NT'+str(args.K_pos)+'.xlsx', sheet_name='the results')
+# df = pd.DataFrame(final_rs, columns=['mean', 'std'])
+# df.save('result_files/final_result_dataAug_' + str(args.ood_score[0])+'_'+
+#                 data_type+'_ST'+(str(args.K_shift-1))+'.xlsx', sheet_name='the results')
 
-    logger.debug(f"Training time is : {datetime.now()-start_time}")
+logger.debug(f"Training time is : {datetime.now()-start_time}")
 
 torch.cuda.empty_cache()
 
