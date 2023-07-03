@@ -111,7 +111,6 @@ elif data_type == 'aras_a': args.timespan = 10000
 elif data_type == 'aras_b': args.timespan = 10000
 
 
-
 num_classes, datalist, labellist = loading_data(data_type, args)
 
 # each mode ood_score == ['T'], ['TCON'], ['TCLS'], ['FCON'], ['FCLS'], ['NovelHD'], ['NovelHD_TF']
@@ -140,7 +139,6 @@ for args.K_shift in range(1,10):
     # casas : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, -1]
     # aras_a : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
     # opportunity : [0, 1, 2, 3, 4, -1]
-
 
     for args.one_class_idx in class_num:
     # give weakly shifted transformation methods ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']

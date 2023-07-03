@@ -119,8 +119,8 @@ parser.add_argument('--save_freq', type=int,
 parser.add_argument('--data_folder', type=str, default=None, help='path to custom dataset')
     
 parser.add_argument('--aug_method', type=str, default='AddNoise', help='choose the data augmentation method')
-parser.add_argument('--aug_wise', type=str, default='None', 
-                        help='choose the data augmentation wise : "Nothing, Temporal, Sensor" ')
+parser.add_argument('--aug_wise', type=str, default='Temporal', 
+                        help='choose the data augmentation wise : "None, Temporal, Sensor" ')
 
 parser.add_argument('--test_ratio', type=float, default=0.2, 
                     help='choose the number of test ratio')
@@ -173,8 +173,10 @@ final_auroc = []
 
 num_classes, datalist, labellist = loading_data(data_type, args)
 
+args.K_shift = 2
+
 for positive_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 
-                     'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
+                     'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp', 'AddNoise']:
     acc_rs = []
     f1_rs  = []
     auroc_rs = []
@@ -242,7 +244,7 @@ for positive_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout',
         logger.debug("Data loaded ...")
 
         # Load Model
-        model = TFC(configs).to(device)
+        model = TFC(configs, args).to(device)
         classifier = target_classifier(configs).to(device)
 
         model_optimizer = torch.optim.Adam(model.parameters(), lr=configs.lr, 
