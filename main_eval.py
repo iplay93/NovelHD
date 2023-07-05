@@ -52,7 +52,7 @@ parser.add_argument('--one_class_idx', type=int, default=0,
                     help='choose of one class label number that wants to deal with. -1 is for multi-classification')
 
 parser.add_argument("--ood_score", help='score function for OOD detection',
-                        default = ['T'], nargs="+", type=str)
+                        default = ['NovelHD'], nargs="+", type=str)
 parser.add_argument("--ood_samples", help='number of samples to compute OOD score',
                         default = 1, type=int)
 parser.add_argument("--print_score", help='print quantiles of ood score',
@@ -111,6 +111,7 @@ elif data_type == 'aras_a': args.timespan = 10000
 elif data_type == 'aras_b': args.timespan = 10000
 
 
+
 num_classes, datalist, labellist = loading_data(data_type, args)
 
 # each mode ood_score == ['T'], ['TCON'], ['TCLS'], ['FCON'], ['FCLS'], ['NovelHD'], ['NovelHD_TF']
@@ -121,24 +122,39 @@ final_auroc = []
 final_aupr  = []
 final_fpr   = []
 final_de    = []  
+
+store_path = 'result_files/final_result_dataAug_' + str(args.ood_score[0])+'_'+ \
+                 data_type+'_NT_1.xlsx'
 #2 ->8, 6->7
-for args.K_shift in range(1,10):
+for args.K_shift in range(1, 10):
     #weak_num = args.K_pos = 10 - args.K_shift
     weak_num = args.K_pos = 1
     strong_num = args.K_shift
     args.K_shift = args.K_shift + 1
 
-    if data_type == 'lapras': class_num = [0, 1, 2, 3, -1]
+    if data_type == 'lapras': 
+        class_num = [0, 1, 2, 3, -1]
+        strong_transformation = ['Dropout', 'Drift','Crop'] 
+        weak_transformation = ['AddNoise', 'AddNoise2']
     elif data_type == 'casas': 
         class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, -1]
         args.aug_wise = 'Temporal2'
-    elif data_type == 'opportunity': class_num = [0, 1, 2, 3, 4, -1]
-    elif data_type == 'aras_a': class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
+        strong_transformation = ['Convolve', 'Dropout', 'Drift', 'Crop', 'Pool', 'Resize'] 
+        weak_transformation = ['AddNoise', 'AddNoise2']
+    elif data_type == 'opportunity': 
+        class_num = [0, 1, 2, 3, 4, -1]
+        strong_transformation = ['Convolve', 'Drift', 'Crop', 'Quantize', 'Pool'] 
+        weak_transformation = ['AddNoise', 'AddNoise2']
+    elif data_type == 'aras_a': 
+        class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
+        strong_transformation = ['Convolve', 'Drift', 'Crop', 'Dropout', 'Pool', 'Quantize', 'Resize', 'TimeWarp'] 
+        weak_transformation = ['AddNoise', 'AddNoise2']
 
     # lapras : [0, 1, 2, 3, -1]
     # casas : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, -1]
     # aras_a : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
     # opportunity : [0, 1, 2, 3, 4, -1]
+
 
     for args.one_class_idx in class_num:
     # give weakly shifted transformation methods ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']
@@ -177,18 +193,17 @@ for args.K_shift in range(1,10):
                 # strong_transformation = ['Dropout', 'Drift', 'Reverse','Crop', 'Quantize'] 
                 # weak_transformation = ['AddNoise', 'TimeWarp', 'Convolve', 'Pool', 'AddNoise2']
 
-                strong_transformation = ['Dropout', 'Drift', 'Reverse','Crop', 'Quantize'] 
-                weak_transformation = ['AddNoise', 'TimeWarp', 'Convolve', 'Pool', 'AddNoise2']
 
-                if strong_num > 5 :
-                    negative_list = [random.choice(strong_transformation) for i in range(strong_num-5)]
-                    strong_num = 5
 
-                negative_list += random.sample( strong_transformation, strong_num) #,'Dropout', 'Dropout', 'Dropout','Dropout']
+                if strong_num > len(strong_transformation) :
+                    negative_list = [random.choice(strong_transformation) for i in range(strong_num - len(strong_transformation))]
+                    strong_num = len(strong_transformation)
+
+                negative_list += random.sample(strong_transformation, strong_num) #,'Dropout', 'Dropout', 'Dropout','Dropout']
                 
-                if weak_num > 5 :
-                    positive_list = [random.choice(weak_transformation) for i in range(weak_num-5)]
-                    weak_num = 5
+                if weak_num > len(weak_transformation):
+                    positive_list = [random.choice(weak_transformation) for i in range(weak_num- len(weak_transformation))]
+                    weak_num = len(weak_transformation)
                 positive_list += random.sample(weak_transformation, weak_num) #'AddNoise2'
                
                 #args.K_shift = len(negative_list)+1 # Since original data included
@@ -316,18 +331,17 @@ for args.K_shift in range(1,10):
 
             # path = 'result_files/final_result_dataAug_' + str(args.ood_score[0])+'_'+ \
             #    data_type+'_ST'+(str(args.K_shift-1))+'_NT'+(str(args.K_pos))+'.xlsx'
-            path = 'result_files/final_result_dataAug_' + str(args.ood_score[0])+'_'+ \
-                 data_type+'_NT_1.xlsx'
+
             # path = 'result_files/final_result_dataAug_' + str(args.ood_score[0])+'_'+ \
             #     data_type+'_ST_NT_ratio_RV.xlsx'
             
-            file_exists = os.path.exists(path)
+            file_exists = os.path.exists(store_path)
 
             if file_exists == True:
-                with pd.ExcelWriter(path, mode="a", engine="openpyxl", if_sheet_exists="replace") as writer:
+                with pd.ExcelWriter(store_path, mode="a", engine="openpyxl", if_sheet_exists="replace") as writer:
                     df.to_excel(writer, sheet_name="the results")  
             else:
-                with pd.ExcelWriter(path, engine="openpyxl") as writer:
+                with pd.ExcelWriter(store_path, engine="openpyxl") as writer:
                     df.to_excel(writer, sheet_name="the results")  
 
 

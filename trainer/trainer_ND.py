@@ -1,6 +1,7 @@
-import os
+
 import sys
 sys.path.append("..")
+import os
 import numpy as np
 import torch
 import torch.nn as nn
@@ -102,9 +103,10 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
                 #print(aug_f[positive_num].shape)
             #= torch.cat((aug1_f, fft.rfft(temp_aug1.permute(0, 2, 1)).abs().permute(0, 2, 1).to(device)), 0)
 
-            shift_labels = torch.cat([torch.ones_like(labels) * k for k in range(args.K_shift)], 0)  # B -> 2B (+1 for original data)
+            shift_labels= torch.cat([torch.ones_like(labels) * k for k in range(args.K_shift)], 0)  # B -> 2B (+1 for original data)
+            #print(shift_labels)
             shift_labels = shift_labels.repeat(args.K_pos+1)
-            #print(shift_labels.shape)
+            
             
             for positive_num in range(0, args.K_pos):
                 data = torch.cat([data, aug_list[positive_num]], dim=0) # B -> 4B       

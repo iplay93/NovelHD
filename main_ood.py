@@ -97,7 +97,7 @@ parser.add_argument('--min_seq', type=int,
                     default=10, help='choose of the minimum number of data points in a example')
 parser.add_argument('--min_samples', type=int, default=20, 
                     help='choose of the minimum number of samples in each label')
-parser.add_argument('--one_class_idx', type=int, default=0, 
+parser.add_argument('--one_class_idx', type=int, default = -1, 
                     help='choose of one class label number that wants to deal with. -1 is for multi-classification')
 
 parser.add_argument("--ood_score", help='score function for OOD detection',
@@ -155,6 +155,7 @@ data_type = args.selected_dataset
 method = 'Test OOD-ness'
 training_mode = args.training_mode
 run_description = args.run_description
+store_path = 'result_files/final_ood_'+ data_type +'_F.xlsx'
 
 logs_save_dir = args.logs_save_dir
 os.makedirs(logs_save_dir, exist_ok=True)
@@ -289,7 +290,7 @@ for i in final_auroc:
 print("Finished")
 
 df = pd.DataFrame(final_rs, columns=['mean', 'std'])
-df.to_excel('result_files/final_ood_'+data_type+'.xlsx', sheet_name='the results')
+df.to_excel(store_path, sheet_name='the results')
 
 logger.debug(f"Training time is : {datetime.now()-start_time}")
 
