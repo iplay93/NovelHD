@@ -389,7 +389,7 @@ def loading_data(dataset, args):
     dataset_list = sort_data_label(dataset_list)
     
     # For data augmentation calculating necessary augmented 
-    if aug_method is not None:
+    if aug_wise is not None:
         dataset_list = data_augmentation(dataset_list, aug_method, aug_wise)
     
     print('-' * 100)

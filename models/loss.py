@@ -285,7 +285,7 @@ def NT_xent_TF(sim_matrix, temperature=0.5, chunk=2, eps=1e-8):
 
     B = sim_matrix.size(0) // chunk  # B = B' / chunk
     eye = torch.eye(B * chunk).to(device)  # (B', B')
-    sim_matrix = torch.exp(sim_matrix / temperature) * (1 - eye)  # remove diagonal
+    sim_matrix = torch.exp(sim_matrix / temperature) #* (1 - eye)  # remove diagonal
 
     #print("B", B)
     
@@ -294,7 +294,7 @@ def NT_xent_TF(sim_matrix, temperature=0.5, chunk=2, eps=1e-8):
     
 
     # normal & orginal closer and shifted & shifted closer / negative pairs are not calculated 
-    loss = torch.sum(sim_matrix[:B, B:].diag() + sim_matrix[B:, :B].diag()) / (2 * B)
+    loss = torch.sum(sim_matrix[:].diag())  / (B)
 
     return loss
 

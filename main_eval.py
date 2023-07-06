@@ -52,7 +52,7 @@ parser.add_argument('--one_class_idx', type=int, default=0,
                     help='choose of one class label number that wants to deal with. -1 is for multi-classification')
 
 parser.add_argument("--ood_score", help='score function for OOD detection',
-                        default = ['NovelHD'], nargs="+", type=str)
+                        default = ['NovelHD_TF'], nargs="+", type=str)
 parser.add_argument("--ood_samples", help='number of samples to compute OOD score',
                         default = 1, type=int)
 parser.add_argument("--print_score", help='print quantiles of ood score',
@@ -105,10 +105,28 @@ os.makedirs(logs_save_dir, exist_ok=True)
 exec(f'from config_files.{data_type}_Configs import Config as Configs')
 configs = Configs()
 
-if data_type == 'lapras': args.timespan = 10000
-elif data_type == 'opportunity': args.timespan = 1000
-elif data_type == 'aras_a': args.timespan = 10000
-elif data_type == 'aras_b': args.timespan = 10000
+if data_type == 'lapras': 
+    args.timespan = 10000
+    class_num = [0, 1, 2, 3, -1]
+    strong_transformation = ['Dropout', 'Drift', 'Crop', 'Pool', 'Quantize']
+    weak_transformation = ['AddNoise']
+elif data_type == 'casas':         
+    class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, -1]
+    args.aug_wise = 'Temporal2'
+    strong_transformation = ['Convolve', 'Dropout', 'Drift', 'Crop', 'Pool', 'Quantize', 'Resize'] 
+    weak_transformation = ['AddNoise']
+
+elif data_type == 'opportunity': 
+    args.timespan = 1000
+    class_num = [0, 1, 2, 3, 4, -1]
+    strong_transformation = ['Convolve', 'Drift', 'Quantize', 'Pool', 'Resize'] 
+    weak_transformation = ['AddNoise']
+elif data_type == 'aras_a': 
+    args.timespan = 10000
+    class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
+    strong_transformation = ['Convolve', 'Drift', 'Crop', 'Dropout', 'Pool', 'Quantize', 'Resize', 'TimeWarp'] 
+    weak_transformation = ['AddNoise']
+
 
 
 
@@ -132,23 +150,23 @@ for args.K_shift in range(1, 10):
     strong_num = args.K_shift
     args.K_shift = args.K_shift + 1
 
-    if data_type == 'lapras': 
-        class_num = [0, 1, 2, 3, -1]
-        strong_transformation = ['Dropout', 'Drift','Crop'] 
-        weak_transformation = ['AddNoise', 'AddNoise2']
-    elif data_type == 'casas': 
-        class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, -1]
-        args.aug_wise = 'Temporal2'
-        strong_transformation = ['Convolve', 'Dropout', 'Drift', 'Crop', 'Pool', 'Resize'] 
-        weak_transformation = ['AddNoise', 'AddNoise2']
-    elif data_type == 'opportunity': 
-        class_num = [0, 1, 2, 3, 4, -1]
-        strong_transformation = ['Convolve', 'Drift', 'Crop', 'Quantize', 'Pool'] 
-        weak_transformation = ['AddNoise', 'AddNoise2']
-    elif data_type == 'aras_a': 
-        class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
-        strong_transformation = ['Convolve', 'Drift', 'Crop', 'Dropout', 'Pool', 'Quantize', 'Resize', 'TimeWarp'] 
-        weak_transformation = ['AddNoise', 'AddNoise2']
+    # if data_type == 'lapras': 
+    #     class_num = [0, 1, 2, 3, -1]
+    #     strong_transformation = ['Dropout', 'Drift', 'Crop', 'Pool', 'Quantize']
+    #     weak_transformation = ['AddNoise']
+    # elif data_type == 'casas': 
+    #     class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, -1]
+    #     args.aug_wise = 'Temporal2'
+    #     strong_transformation = ['Convolve', 'Dropout', 'Drift', 'Crop', 'Pool', 'Quantize', 'Resize'] 
+    #     weak_transformation = ['AddNoise']
+    # elif data_type == 'opportunity': 
+    #     class_num = [0, 1, 2, 3, 4, -1]
+    #     strong_transformation = ['Convolve', 'Drift', 'Quantize', 'Pool', 'Resize'] 
+    #     weak_transformation = ['AddNoise']
+    # elif data_type == 'aras_a': 
+    #     class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
+    #     strong_transformation = ['Convolve', 'Drift', 'Crop', 'Dropout', 'Pool', 'Quantize', 'Resize', 'TimeWarp'] 
+    #     weak_transformation = ['AddNoise']
 
     # lapras : [0, 1, 2, 3, -1]
     # casas : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, -1]

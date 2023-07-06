@@ -68,7 +68,7 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
         # original data and augmented data 
         h_t, z_t, s_t, h_f, z_f, s_f  = model(sensor_pair, sensor_pair_f)            
         shift_labels = torch.cat([torch.ones_like(labels) * k for k in range(2)], 0)   
-        s_t = s_f
+        #s_t = s_f
         # else:
         #     h_t, z_t, s_t, h_f, z_f, s_f  = model(data, data_f)
         #     h_t_aug, z_t_aug, s_t_aug, h_f_aug, z_f_aug, s_f_aug = model(aug1, aug1_f)
@@ -123,7 +123,7 @@ def model_evaluate(model, classifier, test_dl, device, training_mode):
             # original data and augmented data 
             h_t, z_t, s_t, h_f, z_f, s_f  = model(sensor_pair, sensor_pair_f)            
             shift_labels = torch.cat([torch.ones_like(labels) * k for k in range(2)], 0)    
-            s_t = s_f
+            #s_t = s_f
             # else:
             #     h_t, z_t, h_f, z_f = model(data, data_f)
             #     fea_concat = torch.cat((z_t, z_f), dim=1)                

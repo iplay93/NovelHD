@@ -155,7 +155,7 @@ data_type = args.selected_dataset
 method = 'Test OOD-ness'
 training_mode = args.training_mode
 run_description = args.run_description
-store_path = 'result_files/final_ood_'+ data_type +'_F.xlsx'
+store_path = 'result_files/final_ood_'+ data_type +'_T.xlsx'
 
 logs_save_dir = args.logs_save_dir
 os.makedirs(logs_save_dir, exist_ok=True)
@@ -177,7 +177,7 @@ num_classes, datalist, labellist = loading_data(data_type, args)
 args.K_shift = 2
 
 for positive_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 
-                     'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp', 'AddNoise']:
+                     'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp', 'AddNoise2']:
     acc_rs = []
     f1_rs  = []
     auroc_rs = []

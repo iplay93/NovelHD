@@ -16,11 +16,14 @@ def select_transformation(aug_method):
     elif(aug_method == 'Dropout'):
         my_aug = (Dropout(p=0.1,fill=0))        
     elif(aug_method == 'Pool'):
-        my_aug = (Pool(size=2))
+        #my_aug = (Pool(size=2))
+        my_aug = (Pool(size=10))
     elif(aug_method == 'Quantize'):
-        my_aug = (Quantize(n_levels=20))
+        #my_aug = (Quantize(n_levels=20))
+        my_aug = (Quantize(n_levels=5))
     elif(aug_method == 'Resize'):
-        my_aug = SCALE(sigma=1.1, loc = 1.3)
+        #my_aug = SCALE(sigma=1.1, loc = 1.3)
+        my_aug = SCALE(sigma=0.8, loc = 0.5)
         #my_aug = (Resize(size = target_len))
     elif(aug_method == 'Reverse'):
         my_aug = (Reverse())
