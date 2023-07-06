@@ -169,9 +169,9 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
             elif ood_score == 'FCLS':
                 loss = loss_t + loss_shift_f
             elif ood_score == 'NovelHD':
-                loss = loss_t + loss_f
+                loss = loss_t + 0.5 * loss_f
             elif ood_score == 'NovelHD_TF':
-                loss = (loss_t + loss_f) + l_TF
+                loss = (loss_t + loss_f) + 0.01 * l_TF
             else:
                 raise ValueError() 
             

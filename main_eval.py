@@ -16,6 +16,23 @@ from data_preprocessing.augmentations import select_transformation
 import random
 import os.path
 
+import requests
+import json
+
+def send_slack_message(payload, webhook):
+    """Send a Slack message to a channel via a webhook. 
+    
+    Args:
+        payload (dict): Dictionary containing Slack message, i.e. {"text": "This is a test"}
+        webhook (str): Full Slack webhook URL for your chosen channel. 
+    
+    Returns:
+        HTTP response code, i.e. <Response [503]>
+    """
+
+    return requests.post(webhook, json.dumps(payload))
+
+
 # Args selections
 start_time = datetime.now()
 
@@ -23,7 +40,7 @@ parser = argparse.ArgumentParser()
 
 ######################## Model parameters ########################
 home_dir = os.getcwd()
-parser.add_argument('--experiment_description', default='Exp1', type=str,
+parser.add_argument('--experiment_description', default='exp1', type=str,
                     help='Experiment Description')
 parser.add_argument('--run_description', default='run1', type=str,
                     help='Experiment Description')
@@ -123,12 +140,10 @@ elif data_type == 'opportunity':
     weak_transformation = ['AddNoise']
 elif data_type == 'aras_a': 
     args.timespan = 10000
+    args.aug_wise = 'Temporal2'
     class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
     strong_transformation = ['Convolve', 'Drift', 'Crop', 'Dropout', 'Pool', 'Quantize', 'Resize', 'TimeWarp'] 
     weak_transformation = ['AddNoise']
-
-
-
 
 num_classes, datalist, labellist = loading_data(data_type, args)
 
@@ -143,6 +158,9 @@ final_de    = []
 
 store_path = 'result_files/final_result_dataAug_' + str(args.ood_score[0])+'_'+ \
                  data_type+'_NT_1.xlsx'
+# slack
+webhook = "https://hooks.slack.com/services/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"
+payload = {"text": "Experiment "+store_path+" Finished!"}
 #2 ->8, 6->7
 for args.K_shift in range(1, 10):
     #weak_num = args.K_pos = 10 - args.K_shift
@@ -392,6 +410,9 @@ print("Finished")
 #                 data_type+'_ST'+(str(args.K_shift-1))+'.xlsx', sheet_name='the results')
 
 logger.debug(f"Training time is : {datetime.now()-start_time}")
+
+# alert to slack
+send_slack_message(payload, webhook)
 
 torch.cuda.empty_cache()
 
