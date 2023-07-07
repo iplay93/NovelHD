@@ -92,6 +92,8 @@ parser.add_argument('--aug_wise', type=str, default='Temporal',
 parser.add_argument('--test_ratio', type=float, default=0.2, help='choose the number of test ratio')
 parser.add_argument('--valid_ratio', type=float, default=0, help='choose the number of vlaidation ratio')
 parser.add_argument('--overlapped_ratio', type=int, default= 50, help='choose the number of windows''overlapped ratio')
+parser.add_argument('--lam_a', type=float, default= 0.5, help='choose lam_a ratio')
+
 
 # for training   
 parser.add_argument('--loss', type=str, default='SupCon', help='choose one of them: crossentropy loss, contrastive loss')
@@ -132,7 +134,6 @@ elif data_type == 'casas':
     args.aug_wise = 'Temporal2'
     strong_transformation = ['Convolve', 'Dropout', 'Drift', 'Crop', 'Pool', 'Quantize', 'Resize'] 
     weak_transformation = ['AddNoise']
-
 elif data_type == 'opportunity': 
     args.timespan = 1000
     class_num = [0, 1, 2, 3, 4, -1]
@@ -157,15 +158,16 @@ final_fpr   = []
 final_de    = []  
 
 store_path = 'result_files/final_result_dataAug_' + str(args.ood_score[0])+'_'+ \
-                 data_type+'_NT_1.xlsx'
+                 data_type+'_parameter_test.xlsx'
 # slack
-webhook = "https://hooks.slack.com/services/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"
+webhook = "https://hooks.slack.com/services/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"
 payload = {"text": "Experiment "+store_path+" Finished!"}
 #2 ->8, 6->7
-for args.K_shift in range(1, 10):
+for num_lam_a in range(0, 11):
+    args.lam_a = num_lam_a * 0.1
     #weak_num = args.K_pos = 10 - args.K_shift
     weak_num = args.K_pos = 1
-    strong_num = args.K_shift
+    strong_num = args.K_shift = 4
     args.K_shift = args.K_shift + 1
 
     # if data_type == 'lapras': 
@@ -275,6 +277,7 @@ for args.K_shift in range(1, 10):
                 logger.debug(f'Seed:    {SEED}')
                 logger.debug(f'Version:    {args.ood_score}')
                 logger.debug(f'One_class_idx:    {args.one_class_idx}')
+                logger.debug(f'Lambda A:    {args.lam_a}')
                 logger.debug("=" * 45)
 
                 # Load datasets
