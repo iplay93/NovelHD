@@ -15,6 +15,18 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from main_svm import main_svm
 
+import requests
+import json
+
+# visualization
+from itertools import cycle
+from sklearn.metrics import RocCurveDisplay
+from sklearn import preprocessing
+
+def send_slack_message(payload, webhook):
+
+    return requests.post(webhook, json.dumps(payload))
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Anomaly Detection by One Class SVM')
 
@@ -120,10 +132,12 @@ def prepare_data(full_data, full_labels, normal_label, rate_normal_train, TRAIN_
         ano_y = test_label_list[np.isin(test_label_list, novel_class_idx)]
 
     train_label_list[:] = 0
-
     
+    # replace label : anomaly -> 1 : normal -> 0
+    ano_y[:] = 1
+    testy_n[:] = 0
 
-    print( len(train_list), len(test_list), len(test_label_list))
+    print(len(train_list), len(test_list), len(test_label_list))
     
 
     # if(normal_label != -1):
@@ -150,8 +164,7 @@ def prepare_data(full_data, full_labels, normal_label, rate_normal_train, TRAIN_
         # normal_y = full_labels[np.isin(full_labels, known_class_idx)]
         
     # replace label : anomaly -> 1 : normal -> 0
-    ano_y[:] = 1
-    testy_n[:] = 0
+
     
 
     # # shuffle normal data and label
@@ -221,7 +234,6 @@ def make_test_data(split_data, RNG, rate_anomaly_test):
 def calc_metrics(testy, scores):
     return auroc(scores, testy), aupr(scores, testy), fpr_at_95_tpr(scores, testy), detection_error(scores, testy)
 
-
 def anomaly_detection(args):
 
      
@@ -241,12 +253,15 @@ def anomaly_detection(args):
     # load and prepare data
     full_data, full_labels = load_data(data_path)
     
-
-   
+    
     auroc_scores = []
     aupr_scores = []
     fpr_scores = []
     de_scores = []
+
+    best_auroc = 0
+    testy_rs = []
+    scores_rs = []
     
     # nu : the upper limit ratio of anomaly data(0<=nu<=1)
     nus = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
@@ -263,10 +278,9 @@ def anomaly_detection(args):
         plot_testy = np.array([])
         plot_scores = np.array([])
 
-        if normal_label != -1:
-            seed_num = [20, 40, 60, 80, 100]
-        else:
-            seed_num = [20, 40, 60, 80, 100, 120, 140, 160, 180, 200]
+
+        seed_num = [20, 40, 60, 80, 100, 120, 140, 160, 180, 200]
+        
         # repeat test by randomly selected data and evaluate
         for SEED in seed_num:
             # select test data and test
@@ -277,9 +291,9 @@ def anomaly_detection(args):
             testx, testy = make_test_data(split_data, TEST_SEED, rate_anomaly_test)
             scores = clf.decision_function(testx).ravel() * (-1)
 
-            plot_testy = np.append(plot_testy,np.array([testy]))
-            plot_scores = np.append(plot_scores,np.array([scores]))
-            #print(testy, scores)
+            plot_testy = np.append(plot_testy, np.array([testy]))
+            plot_scores = np.append(plot_scores, np.array([scores]))
+            # print(testy, scores)
             # calculate evaluation metrics
             auroc_rs, aupr_rs, fpr_at_95_tpr_rs, detection_error_rs = calc_metrics(testy, scores)
             
@@ -292,6 +306,13 @@ def anomaly_detection(args):
             total_aupr += aupr_rs            
             total_fpr +=  fpr_at_95_tpr_rs
             total_de +=  detection_error_rs 
+
+            if auroc_rs > best_auroc :
+                best_auroc = auroc_rs
+                testy_rs = testy
+                scores_rs = scores
+
+                
 
         # # calculate average
         # total_auroc /= len(seed_num)
@@ -330,7 +351,7 @@ def anomaly_detection(args):
 
     # print('ROC_MAX_NU : ', nus[int(np.argmax(auroc_scores))])
 
-    return [np.mean(auroc_scores), np.std(auroc_scores)],[np.mean(aupr_scores), np.std(aupr_scores)], [np.mean(fpr_scores), np.std(fpr_scores)], [np.mean(de_scores), np.std(de_scores)]
+    return [np.mean(auroc_scores), np.std(auroc_scores)],[np.mean(aupr_scores), np.std(aupr_scores)], [np.mean(fpr_scores), np.std(fpr_scores)], [np.mean(de_scores), np.std(de_scores)], testy_rs, scores_rs 
 
 if __name__ == '__main__':
 #def start_test():
@@ -340,26 +361,55 @@ if __name__ == '__main__':
     final_aupr  = []
     final_fpr   = []
     final_de    = []
-    
-    if args.dataset == 'lapras': class_num = [0, 1, 2, 3, -1]
+    final_visu = []
+    y_onehot_test=[]
+    y_score = []
+
+    if args.dataset == 'lapras': 
+        class_num = [0, 1, 2, 3, -1]
     elif args.dataset == 'casas': 
         class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, -1]
         args.aug_wise = 'Temporal2'
-    elif args.dataset == 'opportunity': class_num = [0, 1, 2, 3, 4, -1]
-    elif args.dataset == 'aras_a': class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
+    elif args.dataset == 'opportunity': 
+        class_num = [0, 1, 2, 3, 4, -1]
+    elif args.dataset == 'aras_a': 
+        class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
     
-    for args.one_class_idx in class_num:
-        main_svm()
-        a,b,c,d = anomaly_detection(args)
+    main_svm()
+    #lb = preprocessing.LabelBinarizer()
+
+    from sklearn.preprocessing import LabelBinarizer
+    
+
+    for args.one_class_idx in class_num:        
+        a,b,c,d, testy_rs, scores_rs = anomaly_detection(args)
         final_auroc.append(a)
         final_aupr.append(b)
         final_fpr.append(c)
         final_de .append(d)
 
+        onehot_encoded = list()
+        
+        label_binarizer = LabelBinarizer().fit(testy_rs)
+        
+        # for num in range(len(testy_rs)):
+        #     letter = [0 for _ in range(len([0,1]))]
+        #     letter[testy_rs[num]] = 1
+        #     onehot_encoded.append(letter)
+        # print(testy_rs)
+        onehot_encoded = label_binarizer.transform(testy_rs)
+        print(onehot_encoded.shape)
+        print(label_binarizer.transform([1]))
+        y_onehot_test.append(onehot_encoded)
+        y_score.append(scores_rs)
+
+    #print(testy_rs)
+
     # for extrating results to an excel file
     final_rs =[]
     for i in final_auroc:
         final_rs.append(i)
+        print(i)
     for i in final_aupr:
         final_rs.append(i)
     for i in final_fpr:
@@ -368,8 +418,36 @@ if __name__ == '__main__':
         final_rs.append(i)
 
     print("Finished")
-    
+
+
     df = pd.DataFrame(final_rs, columns=['mean', 'std'])
-    df.to_excel('result_files/final_result_OCSVM_'+args.dataset+'.xlsx', sheet_name='the results')
+    df.to_excel('result_files/OCSVM_'+args.dataset+'.xlsx', sheet_name='the results')
+    # alert to slack
+    webhook = "https://hooks.slack.com/services/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"
+    payload = {"text": "Experiment_"+args.dataset+" Finished!"}
+    send_slack_message(payload, webhook)
 
+    #visualization    
+    
+    fig, ax = plt.subplots(figsize=(6, 6))
+    colors = cycle(["tomato", "sandybrown", "darkorange", "gold", "darkseagreen", "darkgreen", "dodgerblue"])
+    
+    for class_id, color in zip(range(len(class_num)), colors):
+        #print(y_onehot_test[class_id])
+        #print(y_score[class_id].tolist())
+        RocCurveDisplay.from_predictions(
+            y_onehot_test[class_id].tolist(),
+            y_score[class_id].tolist(),
+            name=f"ROC curve for {class_num[class_id]}",
+            color=color,
+            ax=ax, 
 
+        )
+    plt.axis("square")
+    ax.plot([0, 1], [0, 1], color='gray', linestyle='--', label='Chance Level (0.5)')
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    plt.title("ROC curves of OC-SVM")
+    plt.legend()
+    plt.show()
+    plt.savefig('figure/OC-SVM_ROC_'+args.dataset+'.png')

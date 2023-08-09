@@ -1,5 +1,3 @@
-import torch
-
 import os
 import numpy as np
 from datetime import datetime
@@ -10,8 +8,11 @@ from trainer.trainer_OODness import Trainer, model_evaluate
 from models.TC import TC
 from utils import _calc_metrics
 from models.TFC import TFC, target_classifier
+
+import torch
 from torch.utils.data import DataLoader, Dataset
 import torch.fft as fft
+
 from data_preprocessing.dataloader import loading_data
 from tsaug import *
 from data_preprocessing.augmentations import select_transformation
@@ -49,8 +50,7 @@ class Load_Dataset(Dataset):
             self.x_data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
 
         # (N, C, T)
-        self.aug1_f = fft.fft(self.aug1).abs() 
-    
+        self.aug1_f = fft.fft(self.aug1).abs()     
         
         # normal_aug = select_transformation('Drift')
         # self.x_data = torch.from_numpy(np.array(normal_aug.augment(
@@ -163,10 +163,12 @@ os.makedirs(logs_save_dir, exist_ok=True)
 exec(f'from config_files.{data_type}_Configs import Config as Configs')
 configs = Configs()
 
-if data_type == 'lapras': args.timespan =10000
-elif data_type == 'opportunity': args.timespan =1000
-elif data_type == 'aras_a': args.timespan =10000
-elif data_type == 'aras_b': args.timespan =10000
+if data_type == 'lapras': 
+    args.timespan =10000
+elif data_type == 'opportunity': 
+    args.timespan =1000
+elif data_type == 'aras_a': 
+    args.timespan =1000
 
 final_acc = []
 final_f1  = []
@@ -192,7 +194,8 @@ for positive_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout',
         np.random.seed(SEED)
         #####################################################
 
-        experiment_log_dir = os.path.join(logs_save_dir, experiment_description, run_description, training_mode + f"_seed_{SEED}")
+        experiment_log_dir = os.path.join(logs_save_dir, experiment_description, 
+                                          run_description, training_mode + f"_seed_{SEED}")
         os.makedirs(experiment_log_dir, exist_ok=True)
 
         # loop through domains
