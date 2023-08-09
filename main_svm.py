@@ -7,39 +7,6 @@ import torch.optim as optim
 import numpy as np
 from data_preprocessing.dataloader import loading_data
 from torch.utils.data import DataLoader, Dataset
-
-# class CAE(nn.Module):
-#     def __init__(self, seq_length=100, input_dim=1, d_model=64, nhead=1, num_encoder_layers=2, num_decoder_layers=2):
-#         super(CAE, self).__init__()
-#         self.seq_length = seq_length
-#         self.input_dim = input_dim
-
-#         self.nhead = nhead
-#         self.num_encoder_layers = num_encoder_layers
-#         self.num_decoder_layers = num_decoder_layers
-
-#         # Transformer Encoder
-#         encoder_layer = nn.TransformerEncoderLayer(seq_length, nhead)
-#         self.encoder = nn.TransformerEncoder(encoder_layer, num_encoder_layers)
-
-#         # Transformer Decoder
-#         decoder_layer = nn.TransformerDecoderLayer(seq_length, nhead)
-#         self.decoder = nn.TransformerDecoder(decoder_layer, num_decoder_layers)
-
-#         # Linear layer to map the decoder output to the original input dimension
-#         self.linear = nn.Linear(seq_length, input_dim)
-
-#     def forward(self, x):
-#         # Transformer Encoder
-#         print(x)
-#         encoded = self.encoder(x)
-#         print(encoded)
-#         # Transformer Decoder
-#         decoded = self.decoder(encoded, encoded)
-#         print(decoded)
-#         # Linear layer to map the decoder output to the original input dimension
-#         return decoded
-
 import torch
 import torch.nn as nn
 
@@ -47,7 +14,7 @@ class CAE(nn.Module):
     def __init__(self, seq_length=100, input_dim=1):
         super(CAE, self).__init__()
         self.seq_length = seq_length
-        self.input_dim = input_dim
+        self.input_dim  = input_dim
 
         #self.embedding = nn.Linear(seq_length, 64)
 
@@ -72,10 +39,7 @@ class CAE(nn.Module):
         decoded = self.activation(decoded)
 
         return decoded
-
-
-
-
+    
 def parse_args():
     parser = argparse.ArgumentParser(description='Train Convolutional AutoEncoder and inference')
     parser.add_argument('--data_path', default='./data/cifar10.npz', type=str, help='path to dataset')
@@ -142,8 +106,8 @@ def main_svm():
         seq_length = 169
         channel = 241
     elif data_type == 'aras_a': 
-        args.timespan = 10000
-        seq_length = 24
+        args.timespan = 1000
+        seq_length = 63
         channel = 19
     
     # load CIFAR-10 data from data directory

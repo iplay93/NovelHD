@@ -5,7 +5,7 @@ import os
 import numpy as np
 import torch
 import torch.nn as nn
-from models.loss import NTXentLoss, SupConLoss, get_similarity_matrix, NT_xent, get_similarity_two_matrix, NT_xent_TF
+from models.loss import NTXentLoss, NTXentLoss_poly, SupConLoss, get_similarity_matrix, NT_xent, get_similarity_two_matrix, NT_xent_TF
 from sklearn.metrics import f1_score, roc_auc_score
 from tsaug import *
 import torch.fft as fft
@@ -66,6 +66,7 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
             original_aug = aug1
 
             aug_list =[]
+
             # 1부터 시작 : 이미 data loader에서 하나를 함
             for positive_num in range(0, args.K_pos):
                 normal_aug = select_transformation(positive_list[positive_num])
@@ -96,10 +97,12 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
 
     
             data_f = fft.fft(data).abs().to(device)
+            #data_f = fft.fft(data).to(device)
             #torch.cat((data_f, fft.rfft(temp_data.permute(0, 2, 1)).abs().permute(0, 2, 1).to(device)), 0)
             aug_f = [ ]
             for positive_num in range(0, args.K_pos):
                 aug_f.append(fft.fft(aug_list[positive_num]).abs().to(device))
+                #aug_f.append(fft.fft(aug_list[positive_num]).to(device))
                 #print(aug_f[positive_num].shape)
             #= torch.cat((aug1_f, fft.rfft(temp_aug1.permute(0, 2, 1)).abs().permute(0, 2, 1).to(device)), 0)
 
@@ -124,7 +127,7 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
 
             simclr = normalize(z_t)  # normalize
             sim_matrix = get_similarity_matrix(simclr)            
-            loss_sim = NT_xent(sim_matrix, temperature=0.5, chunk = args.K_pos+1) * sim_lambda
+            loss_sim = NT_xent(sim_matrix, temperature=0.5, chunk = args.K_pos+1) #* sim_lambda
             
             loss_shift = criterion(s_t, shift_labels)
 
@@ -134,19 +137,18 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
             sim_lambda_f = 0.1
             simclr_f = normalize(z_f)  # normalize
             sim_matrix_f = get_similarity_matrix(simclr_f)            
-            loss_sim_f = NT_xent(sim_matrix_f, temperature=0.5, chunk= args.K_pos+1) * sim_lambda_f 
+            loss_sim_f = NT_xent(sim_matrix_f, temperature=0.5, chunk= args.K_pos+1) #* sim_lambda_f 
             
             loss_shift_f = criterion(s_f, shift_labels)
             
             loss_f = loss_sim_f + loss_shift_f
             
             # combined two latent space
-            sim_two_matrix = get_similarity_two_matrix(simclr, simclr_f)
-            #nt_xent_criterion = NTXentLoss(device, configs.batch_size, configs.Context_Cont.temperature,
-                                           #configs.Context_Cont.use_cosine_similarity)
+            #sim_two_matrix = get_similarity_two_matrix(simclr, simclr_f)
+            nt_xent_criterion = NTXentLoss_poly(device, batch_size, 0.2,True)
                         
-            #l_TF = nt_xent_criterion(z_t, z_f)
-            l_TF = NT_xent_TF(sim_two_matrix, temperature=0.5)
+            l_TF = nt_xent_criterion(simclr[:batch_size], simclr_f[:batch_size])
+            #l_TF = NT_xent_TF(sim_two_matrix, temperature=0.5)
 
             if epoch % 20 == 0 : 
                 logger.debug(f'Temporal: {loss_sim.item():.4f}, {loss_shift.item():.4f}, {loss_t.item():.4f}')
@@ -165,11 +167,16 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
             elif ood_score == 'TCLS':
                 loss = loss_shift
             elif ood_score == 'FCON':
-                loss = loss_t + loss_sim_f
+                loss = loss_t + loss_sim_f 
             elif ood_score == 'FCLS':
                 loss = loss_t + loss_shift_f
             elif ood_score == 'NovelHD':
-                loss = args.lam_a * loss_t + (1-args.lam_a) * loss_f
+                loss = loss_t +  loss_f + l_TF
+                #loss = loss_t + loss_f
+            elif ood_score == 'CON':
+                loss = loss_sim + loss_sim_f
+            elif ood_score == 'CLS':
+                loss = loss_shift + loss_shift_f
             elif ood_score == 'NovelHD_TF':
                 loss = (loss_t + loss_f) + 0.05 * l_TF
             else:

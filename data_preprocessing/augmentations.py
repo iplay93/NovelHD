@@ -12,7 +12,7 @@ def select_transformation(aug_method):
         my_aug = PERMUTE(min_segments=10, max_segments=15, seg_mode="random")
     #     my_aug = (Crop(size = target_len))
     elif(aug_method == 'Drift'):
-        my_aug = (Drift(max_drift=0.7, n_drift_points=5))
+        my_aug = (Drift(max_drift=0.8, n_drift_points=10))
     elif(aug_method == 'Dropout'):
         my_aug = (Dropout(p=0.1,fill=0))        
     elif(aug_method == 'Pool'):
@@ -20,10 +20,10 @@ def select_transformation(aug_method):
         my_aug = (Pool(size=10))
     elif(aug_method == 'Quantize'):
         #my_aug = (Quantize(n_levels=20))
-        my_aug = (Quantize(n_levels=5))
+        my_aug = (Quantize(n_levels=3))
     elif(aug_method == 'Resize'):
         #my_aug = SCALE(sigma=1.1, loc = 1.3)
-        my_aug = SCALE(sigma=0.8, loc = 0.5)
+        my_aug = SCALE(sigma=0.8, loc = 1.5)
         #my_aug = (Resize(size = target_len))
     elif(aug_method == 'Reverse'):
         my_aug = (Reverse())

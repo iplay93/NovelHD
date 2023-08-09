@@ -12,6 +12,8 @@ from sklearn.model_selection import train_test_split
 from data_preprocessing.dataloader import count_label_labellist
 from torch.utils.data import DataLoader, Dataset
 import pandas as pd
+import requests
+import json
 
 ################################################################################
 # Settings
@@ -46,7 +48,12 @@ class Load_Dataset(Dataset):
 
     def __len__(self):
         return self.len
-    
+
+
+def send_slack_message(payload, webhook):
+
+    return requests.post(webhook, json.dumps(payload))
+
 def data_generator(args, configs, num_classes, datalist, labellist):
     test_ratio = args.test_ratio
     valid_ratio = args.valid_ratio
@@ -249,10 +256,10 @@ elif data_type == 'opportunity':
     seq_length = 169
     channel = 241
 elif data_type == 'aras_a': 
-    args.timespan = 10000
-    class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
-    seq_length = 24
+    args.timespan = 1000
+    seq_length = 63
     channel = 19
+    class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
 
 final_auroc = []
 final_aupr  = []
@@ -319,20 +326,25 @@ for args.one_class_idx in class_num:
 
 # for extrating results to an excel file
     
-    final_rs =[]
-    for i in final_auroc:
-        final_rs.append(i)
-    for i in final_aupr:
-        final_rs.append(i)
-    for i in final_fpr:
-        final_rs.append(i)
-    for i in final_de:
-        final_rs.append(i)
+final_rs =[]
+for i in final_auroc:
+    final_rs.append(i)
+for i in final_aupr:
+    final_rs.append(i)
+for i in final_fpr:
+    final_rs.append(i)
+for i in final_de:
+    final_rs.append(i)
 
-    print("Finished")
+print("Finished")
 
-    df = pd.DataFrame(final_rs, columns=['mean', 'std'])
-    df.to_excel('result_files/final_result_DeepSVDD_'+data_type+'.xlsx', sheet_name='the results')
+df = pd.DataFrame(final_rs, columns=['mean', 'std'])
+df.to_excel('result_files/DeepSVDD_'+data_type+'.xlsx', sheet_name='the results')
+
+webhook = "https://hooks.slack.com/services/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"
+payload = {"text": "Experiment_"+data_type+" Finished!"}
+send_slack_message(payload, webhook)
+    
 
 # If specified, load Deep SVDD model (radius R, center c, network weights, and possibly autoencoder weights)
 # if load_model:

@@ -20,18 +20,7 @@ import requests
 import json
 
 def send_slack_message(payload, webhook):
-    """Send a Slack message to a channel via a webhook. 
-    
-    Args:
-        payload (dict): Dictionary containing Slack message, i.e. {"text": "This is a test"}
-        webhook (str): Full Slack webhook URL for your chosen channel. 
-    
-    Returns:
-        HTTP response code, i.e. <Response [503]>
-    """
-
     return requests.post(webhook, json.dumps(payload))
-
 
 # Args selections
 start_time = datetime.now()
@@ -137,11 +126,11 @@ elif data_type == 'casas':
 elif data_type == 'opportunity': 
     args.timespan = 1000
     class_num = [0, 1, 2, 3, 4, -1]
-    strong_transformation = ['Convolve', 'Drift', 'Quantize', 'Pool', 'Resize'] 
+    strong_transformation = ['Convolve', 'Drift', 'Quantize', 'Pool', 'Crop'] 
     weak_transformation = ['AddNoise']
 elif data_type == 'aras_a': 
-    args.timespan = 10000
-    args.aug_wise = 'Temporal2'
+    args.timespan = 1000
+    #args.aug_wise = 'Temporal2'
     class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
     strong_transformation = ['Convolve', 'Drift', 'Crop', 'Dropout', 'Pool', 'Quantize', 'Resize', 'TimeWarp'] 
     weak_transformation = ['AddNoise']
@@ -157,17 +146,20 @@ final_aupr  = []
 final_fpr   = []
 final_de    = []  
 
-store_path = 'result_files/final_result_dataAug_' + str(args.ood_score[0])+'_'+ \
-                 data_type+'_parameter_test.xlsx'
+store_path = 'result_files/' + str(args.ood_score[0])+'_'+ \
+                 data_type+'.xlsx'
 # slack
-webhook = "https://hooks.slack.com/services/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"
+webhook = "https://hooks.slack.com/services/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"
 payload = {"text": "Experiment "+store_path+" Finished!"}
 #2 ->8, 6->7
-for num_lam_a in range(0, 11):
-    args.lam_a = num_lam_a * 0.1
+for args.K_shift in range(5,6):
+#for num_lam_a in range(1, 10):
+    #args.lam_a = round(num_lam_a * 0.1, 1)
+    args.lam_a = 1
     #weak_num = args.K_pos = 10 - args.K_shift
     weak_num = args.K_pos = 1
-    strong_num = args.K_shift = 4
+    strong_num = args.K_shift
+    #strong_transformation = ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']
     args.K_shift = args.K_shift + 1
 
     # if data_type == 'lapras': 

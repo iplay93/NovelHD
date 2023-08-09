@@ -29,6 +29,7 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
     aupr_dict   = dict()
     fpr_dict    = dict()
     de_dict     = dict()
+
     for ood in ood_loaders.keys():
         auroc_dict[ood] = dict()
         aupr_dict[ood]  = dict()
@@ -64,11 +65,12 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
     f_sim_f = [f.mean(dim=1) for f in feats_train['simclr_f'].chunk(args.K_shift, dim=1)]  # list of (M, d)
     f_shi_f = [f.mean(dim=1) for f in feats_train['shift_f'].chunk(args.K_shift, dim=1)]  # list of (M, 4)
 
+    # weight
     weight_sim_t = []
     weight_shi_t = []
-    
     weight_sim_f = []
     weight_shi_f = []
+    
     for shi in range(args.K_shift):
         sim_norm_t = f_sim_t[shi].norm(dim=1)  # (M)
         shi_mean_t = f_shi_t[shi][:, shi]  # (M)
@@ -86,13 +88,13 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
         args.weight_sim_f = [0] * args.K_shift  # weight_sim_f or [0,0] 
         args.weight_shi_f = [0] * args.K_shift# weight_shi_f or [0,0]        
     elif ood_score == 'TCON':
-        args.weight_sim_t = [1] * args.K_shift
+        args.weight_sim_t = weight_sim_t 
         args.weight_shi_t = [0] * args.K_shift
         args.weight_sim_f = [0] * args.K_shift
         args.weight_shi_f = [0] * args.K_shift
     elif ood_score == 'TCLS':
         args.weight_sim_t = [0] * args.K_shift
-        args.weight_shi_t = [1] * args.K_shift
+        args.weight_shi_t = weight_shi_t
         args.weight_sim_f = [0] * args.K_shift
         args.weight_shi_f = [0] * args.K_shift
     elif ood_score == 'FCON':
@@ -110,6 +112,16 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
         args.weight_shi_t = weight_shi_t # weight_shi_t or [0,0]
         args.weight_sim_f = weight_sim_f # weight_sim_f or [0,0] 
         args.weight_shi_f = weight_shi_f # weight_shi_f or [0,0]
+    elif ood_score == 'CON':
+        args.weight_sim_t = weight_sim_t # weight_sim_t or [0,0]
+        args.weight_shi_t = [0] * args.K_shift # weight_shi_t or [0,0]
+        args.weight_sim_f = weight_sim_f   # weight_sim_f or [0,0] 
+        args.weight_shi_f = [0] * args.K_shift # weight_shi_f or [0,0] 
+    elif ood_score == 'CLS':
+        args.weight_sim_t = [0] * args.K_shift # weight_sim_t or [0,0]
+        args.weight_shi_t = weight_shi_t # weight_shi_t or [0,0]
+        args.weight_sim_f = [0] * args.K_shift   # weight_sim_f or [0,0] 
+        args.weight_shi_f = weight_shi_f # weight_shi_f or [0,0] 
     else:
         raise ValueError()
 
@@ -179,6 +191,7 @@ def get_scores(args, feats_dict, ood_score):
         f_shi_t = [f.mean(dim=0, keepdim=True) for f in f_shi_t.chunk(args.K_shift)]  # list of (1, 4)
         f_sim_f = [f.mean(dim=0, keepdim=True) for f in f_sim_f.chunk(args.K_shift)]  # list of (1, d)
         f_shi_f = [f.mean(dim=0, keepdim=True) for f in f_shi_f.chunk(args.K_shift)]  # list of (1, 4)
+        
         score = 0
         lam = 1
         for shi in range(args.K_shift):

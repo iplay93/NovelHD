@@ -89,6 +89,7 @@ def laprasLoader(file_name, timespan, min_seq):
     for file in file_list:
         # 0: sensor type, 1: sensor state, 2: start_time, 3: end_ time, 4: duration
         temp_df = pd.read_csv(file, sep = ',', header = None).to_numpy()
+        check_sensors = [0]* len(sensor_list)
 
         # if the file is not empty
         if(len(temp_df)>0):              
@@ -105,6 +106,9 @@ def laprasLoader(file_name, timespan, min_seq):
                 for i in range(0, len(temp_df)):
                 #print("1", temp_df[i, 3], temp_df[i, 2], time_list[count_file][0] )
                 #print(int((temp_df[i, 3]-time_list[count_file][0])/(timespan)), int((temp_df[i, 2]-time_list[count_file][0])/(timespan)))
+                    if check_sensors[sensor_list.index(temp_df[i, 0])] == 0:
+                        check_sensors[sensor_list.index(temp_df[i, 0])] =1
+
                     # for each timestamp, fill in np if any value exists
                     for j in range(int((temp_df[i, 2]-start_time)/(timespan)), \
                                 int((temp_df[i, 3]-start_time)/(timespan))):                    
@@ -117,6 +121,8 @@ def laprasLoader(file_name, timespan, min_seq):
 
                 # append an instance into a dataset
                 dataset_list.append(TSDataSet(temp_dataset, label_num(file), len(temp_dataset)))
+                #if sum(check_sensors) == len(sensor_list):
+                #    print(file)
         
         # for next file
         file_loc+=1
