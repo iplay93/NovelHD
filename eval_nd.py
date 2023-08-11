@@ -86,7 +86,12 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
         args.weight_sim_t = weight_sim_t # weight_sim_t or [0,0]
         args.weight_shi_t = weight_shi_t # weight_shi_t or [0,0]
         args.weight_sim_f = [0] * args.K_shift  # weight_sim_f or [0,0] 
-        args.weight_shi_f = [0] * args.K_shift# weight_shi_f or [0,0]        
+        args.weight_shi_f = [0] * args.K_shift# weight_shi_f or [0,0]
+    elif ood_score == 'simclr':
+        args.weight_sim_t = [1] * args.K_shift
+        args.weight_shi_t = [0] * args.K_shift
+        args.weight_sim_f = [0] * args.K_shift
+        args.weight_shi_f = [0] * args.K_shift         
     elif ood_score == 'TCON':
         args.weight_sim_t = weight_sim_t 
         args.weight_shi_t = [0] * args.K_shift
@@ -173,7 +178,10 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
         for ood, scores in scores_ood.items():
             print_score(ood, scores)
 
-    return auroc_dict, aupr_dict, fpr_dict, de_dict, one_class_total, one_class_aupr, one_class_fpr, one_class_de
+    scores = np.concatenate([scores_id, one_class_score])
+    labels = np.concatenate([np.ones_like(scores_id, dtype=int), np.zeros_like(one_class_score, dtype=int)])
+
+    return auroc_dict, aupr_dict, fpr_dict, de_dict, one_class_total, one_class_aupr, one_class_fpr, one_class_de, scores, labels
 
 
 def get_scores(args, feats_dict, ood_score):

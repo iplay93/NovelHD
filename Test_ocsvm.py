@@ -1,5 +1,6 @@
 import argparse
 from collections import namedtuple
+import itertools
 import sys
 
 import numpy as np
@@ -10,18 +11,18 @@ from data_preprocessing.dataloader import count_label_labellist
 import random, math
 from sklearn.model_selection import train_test_split
 import torch
-import scikitplot as skplt
-import matplotlib.pyplot as plt
 import pandas as pd
-from main_svm import main_svm
+
 
 import requests
 import json
 
 # visualization
+import matplotlib.pyplot as plt
 from itertools import cycle
 from sklearn.metrics import RocCurveDisplay
 from sklearn import preprocessing
+from sklearn.preprocessing import LabelBinarizer
 
 def send_slack_message(payload, webhook):
 
@@ -265,24 +266,21 @@ def anomaly_detection(args):
     
     # nu : the upper limit ratio of anomaly data(0<=nu<=1)
     nus = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
-
+    seed_num = [20, 40, 60, 80, 100, 120, 140, 160, 180, 200]
     # train model and evaluate with changing parameter nu
-    for nu in nus:
-        # train with nu
-        clf = svm.OneClassSVM(nu=nu, kernel='rbf', gamma='auto')
+    for SEED in seed_num:
 
-        total_auroc  = 0
-        total_aupr = 0
-        total_fpr = 0
-        total_de = 0
-        plot_testy = np.array([])
-        plot_scores = np.array([])
-
-
-        seed_num = [20, 40, 60, 80, 100, 120, 140, 160, 180, 200]
+        # total_auroc  = 0
+        # total_aupr = 0
+        # total_fpr = 0
+        # total_de = 0    
+        seed_testy, seed_scores =[],[]
         
-        # repeat test by randomly selected data and evaluate
-        for SEED in seed_num:
+        # repeat test by randomly selected data and evaluate   
+        for nu in nus:
+            # train with nu
+            clf = svm.OneClassSVM(nu=nu, kernel='rbf', gamma='auto')
+
             # select test data and test
             TEST_SEED = np.random.RandomState(SEED)
             split_data = prepare_data(full_data, full_labels, normal_label, test_ratio, SEED)
@@ -290,27 +288,34 @@ def anomaly_detection(args):
             
             testx, testy = make_test_data(split_data, TEST_SEED, rate_anomaly_test)
             scores = clf.decision_function(testx).ravel() * (-1)
-
-            plot_testy = np.append(plot_testy, np.array([testy]))
-            plot_scores = np.append(plot_scores, np.array([scores]))
-            # print(testy, scores)
-            # calculate evaluation metrics
-            auroc_rs, aupr_rs, fpr_at_95_tpr_rs, detection_error_rs = calc_metrics(testy, scores)
             
-            auroc_scores.append(auroc_rs)
-            aupr_scores.append(aupr_rs)
-            fpr_scores.append(fpr_at_95_tpr_rs)
-            de_scores.append(detection_error_rs)
+            testy_rs.append(testy.tolist())
+            scores_rs.append(scores.tolist())
 
-            total_auroc +=  auroc_rs
-            total_aupr += aupr_rs            
-            total_fpr +=  fpr_at_95_tpr_rs
-            total_de +=  detection_error_rs 
+            seed_testy.append(testy.tolist())
+            seed_scores.append(scores.tolist())
 
-            if auroc_rs > best_auroc :
-                best_auroc = auroc_rs
-                testy_rs = testy
-                scores_rs = scores
+        # calculate evaluation metrics
+        seed_testy, seed_scores = list(itertools.chain.from_iterable(seed_testy)), list(itertools.chain.from_iterable(seed_scores))
+        print(seed_testy)
+        auroc_rs, aupr_rs, fpr_at_95_tpr_rs, detection_error_rs = calc_metrics(seed_testy, seed_scores)
+
+                        
+        auroc_scores.append(auroc_rs)
+        aupr_scores.append(aupr_rs)
+        fpr_scores.append(fpr_at_95_tpr_rs)
+        de_scores.append(detection_error_rs)
+            
+
+            # total_auroc +=  auroc_rs
+            # total_aupr += aupr_rs            
+            # total_fpr +=  fpr_at_95_tpr_rs
+            # total_de +=  detection_error_rs 
+
+            # if auroc_rs > best_auroc :
+            #     best_auroc = auroc_rs
+            #     testy_rs = testy
+            #     scores_rs = scores
 
                 
 
@@ -350,8 +355,20 @@ def anomaly_detection(args):
     # print('DE MAX : ', max(de_scores))
 
     # print('ROC_MAX_NU : ', nus[int(np.argmax(auroc_scores))])
+    
+    print(len(testy_rs), len(scores_rs))
 
-    return [np.mean(auroc_scores), np.std(auroc_scores)],[np.mean(aupr_scores), np.std(aupr_scores)], [np.mean(fpr_scores), np.std(fpr_scores)], [np.mean(de_scores), np.std(de_scores)], testy_rs, scores_rs 
+    #testy_rs, scores_rs = np.array(testy_rs), np.array(scores_rs)
+    testy_rs, scores_rs = list(itertools.chain.from_iterable(testy_rs)), list(itertools.chain.from_iterable(scores_rs))
+    
+    
+    # print(np.mean(auroc_scores))
+    # auroc_rs, aupr_rs, fpr_at_95_tpr_rs, detection_error_rs = calc_metrics(testy_rs, scores_rs)
+    # print(auroc_rs)
+    
+    return [np.mean(auroc_scores), np.std(auroc_scores)],[np.mean(aupr_scores), np.std(aupr_scores)], \
+           [np.mean(fpr_scores), np.std(fpr_scores)], [np.mean(de_scores), np.std(de_scores)], \
+           testy_rs, scores_rs
 
 if __name__ == '__main__':
 #def start_test():
@@ -364,6 +381,7 @@ if __name__ == '__main__':
     final_visu = []
     y_onehot_test=[]
     y_score = []
+    validation = []
 
     if args.dataset == 'lapras': 
         class_num = [0, 1, 2, 3, -1]
@@ -375,21 +393,16 @@ if __name__ == '__main__':
     elif args.dataset == 'aras_a': 
         class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
     
-    main_svm()
     #lb = preprocessing.LabelBinarizer()
-
-    from sklearn.preprocessing import LabelBinarizer
-    
 
     for args.one_class_idx in class_num:        
         a,b,c,d, testy_rs, scores_rs = anomaly_detection(args)
         final_auroc.append(a)
         final_aupr.append(b)
         final_fpr.append(c)
-        final_de .append(d)
-
-        onehot_encoded = list()
-        
+        final_de .append(d)        
+        #print(testy_rs)
+        onehot_encoded = list()        
         label_binarizer = LabelBinarizer().fit(testy_rs)
         
         # for num in range(len(testy_rs)):
@@ -402,8 +415,12 @@ if __name__ == '__main__':
         print(label_binarizer.transform([1]))
         y_onehot_test.append(onehot_encoded)
         y_score.append(scores_rs)
+        
+        auroc_rs, aupr_rs, fpr_at_95_tpr_rs, detection_error_rs = calc_metrics(testy_rs, scores_rs)
+        validation.append([auroc_rs,0])
 
-    #print(testy_rs)
+        # print(len(y_onehot_test))
+        # print(len(y_score))
 
     # for extrating results to an excel file
     final_rs =[]
@@ -416,8 +433,10 @@ if __name__ == '__main__':
         final_rs.append(i)
     for i in final_de:
         final_rs.append(i)
+    for i in validation:
+        final_rs.append(i)
 
-    print("Finished")
+
 
 
     df = pd.DataFrame(final_rs, columns=['mean', 'std'])
@@ -427,22 +446,35 @@ if __name__ == '__main__':
     payload = {"text": "Experiment_"+args.dataset+" Finished!"}
     send_slack_message(payload, webhook)
 
-    #visualization    
-    
+    # visualization        
     fig, ax = plt.subplots(figsize=(6, 6))
-    colors = cycle(["tomato", "sandybrown", "darkorange", "gold", "darkseagreen", "darkgreen", "dodgerblue"])
-    
+    if(len(class_num)<=5):
+        colors = cycle(["tomato", "darkorange", "gold", "darkseagreen","dodgerblue"])
+    else:
+        colors = cycle(["firebrick", "tomato", "sandybrown", "darkorange", "olive", "gold", 
+                        "darkseagreen", "darkgreen", "dodgerblue", "royalblue","slategrey",
+                        "slateblue", "mediumpurple","indigo", "orchid", "hotpink"])
     for class_id, color in zip(range(len(class_num)), colors):
         #print(y_onehot_test[class_id])
         #print(y_score[class_id].tolist())
-        RocCurveDisplay.from_predictions(
-            y_onehot_test[class_id].tolist(),
-            y_score[class_id].tolist(),
-            name=f"ROC curve for {class_num[class_id]}",
-            color=color,
-            ax=ax, 
+        if class_num[class_id] != -1:
+            RocCurveDisplay.from_predictions(
+                y_onehot_test[class_id],
+                y_score[class_id],
+                name=f"ROC curve for {(class_num[class_id]+1)}",
+                color=color,
+                ax=ax, 
+            )
+        else:
+            RocCurveDisplay.from_predictions(
+                y_onehot_test[class_id],
+                y_score[class_id],
+                name=f"ROC curve for Multi",
+                color="black",
+                ax=ax, 
+            )
 
-        )
+            
     plt.axis("square")
     ax.plot([0, 1], [0, 1], color='gray', linestyle='--', label='Chance Level (0.5)')
     plt.xlabel("False Positive Rate")
@@ -451,3 +483,5 @@ if __name__ == '__main__':
     plt.legend()
     plt.show()
     plt.savefig('figure/OC-SVM_ROC_'+args.dataset+'.png')
+
+    print("Finished")

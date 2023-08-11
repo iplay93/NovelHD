@@ -1,4 +1,5 @@
 import argparse
+import itertools
 import torch
 import data_preprocessing.augmentations as ts
 import models.opt_tc as tc
@@ -8,6 +9,14 @@ from sklearn.model_selection import train_test_split
 import random, math
 #from data_loader import Data_Loader
 import pandas as pd
+
+# visualization
+import matplotlib.pyplot as plt
+from itertools import cycle
+from sklearn.metrics import RocCurveDisplay
+from sklearn import preprocessing
+from sklearn.preprocessing import LabelBinarizer
+
 
 def transform_data(data, trans):
     trans_inds = np.tile(np.arange(trans.n_transforms), len(data))
@@ -36,6 +45,8 @@ def data_generator_goad(args, datalist, labellist):
     test_list = torch.tensor(test_list).cuda().cpu()
     test_label_list = torch.tensor(test_label_list).cuda().cpu()
     
+
+    
     if (args.one_class_idx != -1):
         
         train_list = train_list[np.where(train_label_list == args.one_class_idx)]
@@ -58,9 +69,9 @@ def data_generator_goad(args, datalist, labellist):
     # only use for testing novelty
     return train_list, test_list, torch.tensor(test_label_list).cuda().cpu()
 
-def load_trans_data(args, trans):
+def load_trans_data(args, trans, datalist, labellist):
     #dl = Data_Loader()
-    _, datalist, labellist = loading_data(args.dataset, args)
+    #_, datalist, labellist = loading_data(args.dataset, args)
     x_train, x_test, y_test = data_generator_goad(args, datalist, labellist)
     
     x_train_trans, _ = transform_data(x_train, trans)
@@ -73,15 +84,17 @@ def load_trans_data(args, trans):
     return x_train_trans, x_test_trans, y_test
 
 
-def train_anomaly_detector(args, config):
+def train_anomaly_detector(args, config, datalist, labellist):
+
     transformer = ts.get_transformer(args, config)
-    x_train, x_test, y_test = load_trans_data(args, transformer)
+    x_train, x_test, y_test = load_trans_data(args, transformer, datalist, labellist)
     print("final shape:",x_train.shape, x_test.shape, y_test.shape, transformer.n_transforms)
+    
     # train 은 하나의 idx를 기반으로 하기 때문에 test의 크기가 더 클 수 있음
     tc_obj = tc.TransClassifier(transformer.n_transforms, args, configs)
-    auroc_rs, aupr_rs, fpr_rs, de_rs = tc_obj.fit_trans_classifier(x_train, x_test, y_test)
+    auroc_rs, aupr_rs, fpr_rs, de_rs, scores, labels = tc_obj.fit_trans_classifier(x_train, x_test, y_test)
     
-    return auroc_rs, aupr_rs, fpr_rs, de_rs
+    return auroc_rs, aupr_rs, fpr_rs, de_rs, scores, labels
 
 
 if __name__ == '__main__':
@@ -143,25 +156,30 @@ if __name__ == '__main__':
         args.timespan = 1000
     elif data_type == 'aras_a': 
         class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
-        args.timespan = 10000
+        args.timespan = 1000
 
     final_auroc = []
     final_aupr  = []
     final_fpr   = []
     final_de    = []
 
+    y_onehot_test=[]
+    y_score = []
+
+    num_classes, datalist, labellist = loading_data(data_type, args)
+
     for args.one_class_idx in class_num:
         auroc_a = []
         aupr_a  = []
         fpr_a   = []
         de_a    = []
-        
-        if args.one_class_idx != -1:
-            seed_num = [20, 40, 60, 80, 100]
-        else:
-            seed_num = [20, 40, 60, 80, 100, 120, 140, 160, 180, 200]
 
-            # Training for five seed #
+        testy_rs = []
+        scores_rs = []
+        
+        seed_num = [20, 40, 60, 80, 100, 120, 140, 160, 180, 200]
+
+        # Training for five seed #
         for test_num in seed_num :
             # ##### fix random seeds for reproducibility ########
             SEED = args.seed = test_num
@@ -170,21 +188,35 @@ if __name__ == '__main__':
             torch.backends.cudnn.benchmark = False
             np.random.seed(SEED)            
             #####################################################
-            
+            print("=" * 45)
             print("Dataset:", args.dataset)
             print("True Class:", args.one_class_idx)
-            one_class_total, one_class_aupr, one_class_fpr, one_class_de = train_anomaly_detector(args, configs)
+            print(f'Seed:    {SEED}')
+            print("=" * 45)
+            one_class_total, one_class_aupr, one_class_fpr, one_class_de, scores, labels = train_anomaly_detector(args, configs, datalist, labellist)
             
             
             auroc_a.append(one_class_total)     
             aupr_a.append(one_class_aupr)   
             fpr_a.append(one_class_fpr)
             de_a.append(one_class_de)
-
+            testy_rs.append(labels.tolist())
+            scores_rs.append(scores.tolist())
+        
+        testy_rs, scores_rs = list(itertools.chain.from_iterable(testy_rs)), list(itertools.chain.from_iterable(scores_rs))
         final_auroc.append([np.mean(auroc_a), np.std(auroc_a)])
         final_aupr.append([np.mean(aupr_a), np.std(aupr_a)])
         final_fpr.append([np.mean(fpr_a), np.std(fpr_a)])
         final_de.append([np.mean(de_a), np.std(de_a)])
+
+        # for visualization
+        onehot_encoded = list()        
+        label_binarizer = LabelBinarizer().fit(testy_rs)
+        onehot_encoded = label_binarizer.transform(testy_rs)
+        #print(onehot_encoded.shape)
+        #print(label_binarizer.transform([1]))
+        y_onehot_test.append(onehot_encoded)
+        y_score.append(scores_rs)
 
 
     # for extrating results to an excel file
@@ -202,6 +234,47 @@ if __name__ == '__main__':
     print("Finished")
 
     df = pd.DataFrame(final_rs, columns=['mean', 'std'])
-    df.to_excel('result_files/final_result_GOAD_'+data_type+'_comparison.xlsx', sheet_name='the results')
+    df.to_excel('result_files/GOAD_'+data_type+'.xlsx', sheet_name='the results')
+
+    
+    # visualization        
+    fig, ax = plt.subplots(figsize=(6, 6))
+    if(len(class_num)<=5):
+        colors = cycle(["tomato", "darkorange", "gold", "darkseagreen","dodgerblue"])
+    else:
+        colors = cycle(["firebrick", "tomato", "sandybrown", "darkorange", "olive", "gold", 
+                        "darkseagreen", "darkgreen", "dodgerblue", "royalblue","slategrey",
+                        "slateblue", "mediumpurple","indigo", "orchid", "hotpink"])
+        
+    for class_id, color in zip(range(len(class_num)), colors):
+        #print(y_onehot_test[class_id])
+        #print(y_score[class_id].tolist())
+        if class_num[class_id] != -1:
+            RocCurveDisplay.from_predictions(
+                y_onehot_test[class_id],
+                y_score[class_id],
+                name=f"ROC curve for {(class_num[class_id]+1)}",
+                color=color,
+                ax=ax, 
+            )
+        else:
+            RocCurveDisplay.from_predictions(
+                y_onehot_test[class_id],
+                y_score[class_id],
+                name=f"ROC curve for Multi",
+                color="black",
+                ax=ax, 
+            )
+
+            
+    plt.axis("square")
+    ax.plot([0, 1], [0, 1], color='gray', linestyle='--', label='Chance Level (0.5)')
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    plt.title("ROC curves of GOAD")
+    plt.legend()
+    plt.show()
+    plt.savefig('figure/GOAD_ROC_'+args.dataset+'.png')
+
 
 

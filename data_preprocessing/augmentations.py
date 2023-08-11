@@ -187,7 +187,6 @@ class PERMUTE():
     
 
 # from GOAD
-
 import abc
 import itertools
 import numpy as np
@@ -212,7 +211,7 @@ class AffineTransformation(object):
         self.m = m
         self.config = config
         self.trans_list = trans_list
-        print(self.trans_list)                    
+        #print(self.trans_list)                    
 
     def __call__(self, x):
         res_x = x
@@ -226,8 +225,8 @@ class AffineTransformation(object):
             #res_x = jitter(res_x, self.config.augmentation.jitter_ratio)
         if self.s:
             #trans = select_transformation(self.trans_list[1])
-            trans = (AddNoise(scale=0.01))
-            res_x = trans.augment(np.reshape(res_x,(1, res_x .shape[0], -1)))[0]
+            #trans = (AddNoise(scale=0.01))
+            #res_x = trans.augment(np.reshape(res_x,(1, res_x .shape[0], -1)))[0]
             trans  = SCALE(sigma=1.1, loc = 1.3)
             res_x = trans.augment(np.reshape(res_x,(1, res_x .shape[0], -1)))[0]
             #jitter(res_x, self.config.augmentation.jitter_ratio)
@@ -235,20 +234,21 @@ class AffineTransformation(object):
         if self.p:
             #trans = select_transformation(self.trans_list[2])
             trans = (AddNoise(scale=0.01))
-            res_x = trans.augment(np.reshape(res_x,(1, res_x .shape[0], -1)))[0]
-            trans = PERMUTE(min_segments=2, max_segments=5, seg_mode="random")
+            #res_x = trans.augment(np.reshape(res_x,(1, res_x .shape[0], -1)))[0]
+            #trans = PERMUTE(min_segments=2, max_segments=5, seg_mode="random")
             res_x = trans.augment(np.reshape(res_x,(1, res_x .shape[0], -1)))[0]
             #res_x = jitter(res_x, self.config.augmentation.jitter_ratio)
             #res_x = permutation(res_x, max_segments= self.config.augmentation.max_seg)
             #res_x = apply_affine_transform(res_x,
             #tx=self.tx, ty=self.ty, channel_axis=2, fill_mode='reflect')
         if self.m:
-            trans = (AddNoise(scale=0.01))
+            trans = select_transformation(self.trans_list[3])
+            #trans = (AddNoise(scale=0.1))
+            #res_x = trans.augment(np.reshape(res_x,(1, res_x .shape[0], -1)))[0]
+            trans = PERMUTE(min_segments=5, max_segments=20, seg_mode="random")
             res_x = trans.augment(np.reshape(res_x,(1, res_x .shape[0], -1)))[0]
-            trans = PERMUTE(min_segments=2, max_segments=5, seg_mode="random")
-            res_x = trans.augment(np.reshape(res_x,(1, res_x .shape[0], -1)))[0]
-            trans = SCALE(sigma=1.1, loc = 1.3)
-            res_x = trans.augment(np.reshape(res_x,(1, res_x .shape[0], -1)))[0]
+            #trans = SCALE(sigma=1.1, loc = 1.3)
+            #res_x = trans.augment(np.reshape(res_x,(1, res_x .shape[0], -1)))[0]
             #res_x = jitter(res_x, self.config.augmentation.jitter_ratio)
             #res_x = permutation(res_x, max_segments= self.config.augmentation.max_seg)
             #res_x = masking(res_x, keepratio=0.9)

@@ -1,3 +1,4 @@
+import itertools
 import torch
 import os
 import numpy as np
@@ -18,6 +19,13 @@ import os.path
 
 import requests
 import json
+
+# visualization
+import matplotlib.pyplot as plt
+from itertools import cycle
+from sklearn.metrics import RocCurveDisplay
+from sklearn import preprocessing
+from sklearn.preprocessing import LabelBinarizer
 
 def send_slack_message(payload, webhook):
     return requests.post(webhook, json.dumps(payload))
@@ -152,39 +160,32 @@ store_path = 'result_files/' + str(args.ood_score[0])+'_'+ \
 webhook = "https://hooks.slack.com/services/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"
 payload = {"text": "Experiment "+store_path+" Finished!"}
 #2 ->8, 6->7
-for args.K_shift in range(5,6):
+
+visualization = True
+randomness = False
+
+# if simclr(0,1)
+for args.K_shift in range(0,1):
+#for args.K_shift in range(5,6):
+    
+    # for visualization
+    y_onehot_test=[]
+    y_score = []
+
+
 #for num_lam_a in range(1, 10):
     #args.lam_a = round(num_lam_a * 0.1, 1)
     args.lam_a = 1
     #weak_num = args.K_pos = 10 - args.K_shift
     weak_num = args.K_pos = 1
     strong_num = args.K_shift
-    #strong_transformation = ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']
     args.K_shift = args.K_shift + 1
 
-    # if data_type == 'lapras': 
-    #     class_num = [0, 1, 2, 3, -1]
-    #     strong_transformation = ['Dropout', 'Drift', 'Crop', 'Pool', 'Quantize']
-    #     weak_transformation = ['AddNoise']
-    # elif data_type == 'casas': 
-    #     class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, -1]
-    #     args.aug_wise = 'Temporal2'
-    #     strong_transformation = ['Convolve', 'Dropout', 'Drift', 'Crop', 'Pool', 'Quantize', 'Resize'] 
-    #     weak_transformation = ['AddNoise']
-    # elif data_type == 'opportunity': 
-    #     class_num = [0, 1, 2, 3, 4, -1]
-    #     strong_transformation = ['Convolve', 'Drift', 'Quantize', 'Pool', 'Resize'] 
-    #     weak_transformation = ['AddNoise']
-    # elif data_type == 'aras_a': 
-    #     class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
-    #     strong_transformation = ['Convolve', 'Drift', 'Crop', 'Dropout', 'Pool', 'Quantize', 'Resize', 'TimeWarp'] 
-    #     weak_transformation = ['AddNoise']
-
-    # lapras : [0, 1, 2, 3, -1]
-    # casas : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, -1]
-    # aras_a : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
-    # opportunity : [0, 1, 2, 3, 4, -1]
-
+    if randomness:
+        strong_transformation = ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']
+    if str(args.ood_score[0]) == "simclr":
+        weak_transformation= ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']
+    
 
     for args.one_class_idx in class_num:
     # give weakly shifted transformation methods ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']
@@ -195,7 +196,9 @@ for args.K_shift in range(5,6):
             aupr_a  = []
             fpr_a   = []
             de_a    = []
-            
+
+            testy_rs = []
+            scores_rs = []
             # give strongly shifted transformation
             #shifted_aug = 'Drift'
             
@@ -216,14 +219,6 @@ for args.K_shift in range(5,6):
                 
                 negative_list = []
                 positive_list  =[]
-                # applying multi
-                # ple strong augmentation 
-                # 중복 허용 안됨
-
-                # strong_transformation = ['Dropout', 'Drift', 'Reverse','Crop', 'Quantize'] 
-                # weak_transformation = ['AddNoise', 'TimeWarp', 'Convolve', 'Pool', 'AddNoise2']
-
-
 
                 if strong_num > len(strong_transformation) :
                     negative_list = [random.choice(strong_transformation) for i in range(strong_num - len(strong_transformation))]
@@ -236,19 +231,11 @@ for args.K_shift in range(5,6):
                     weak_num = len(weak_transformation)
                 positive_list += random.sample(weak_transformation, weak_num) #'AddNoise2'
                
-                #args.K_shift = len(negative_list)+1 # Since original data included
-                #args.K_pos = len(positive_list) # Normal augmentation numbers
                 
                 # Reset
                 strong_num = len(negative_list)
                 weak_num = len(positive_list) 
 
-                # applying multiple strong augmentation 
-                # 중복 허용됨
-                # negative_list = [random.choice(['Dropout', 'Drift', 'Reverse','Crop', 'Quantize']) for i in range(strong_num)] #,'Dropout', 'Dropout', 'Dropout','Dropout']
-                # positive_list = [random.choice(['AddNoise', 'TimeWarp', 'Convolve', 'Pool', 'AddNoise2']) for i in range(weak_num)] #'AddNoise2'
-                # args.K_shift = len(negative_list)+1 # Since original data included
-                # args.K_pos = len(positive_list) # Normal augmentation numbers
 
                 experiment_log_dir = os.path.join(logs_save_dir, experiment_description, run_description, training_mode + f"_seed_{SEED}")
                 os.makedirs(experiment_log_dir, exist_ok=True)
@@ -306,7 +293,7 @@ for args.K_shift in range(5,6):
                     
                     # Evlauation
                 with torch.no_grad():
-                    auroc_dict, aupr_dict, fpr_dict, de_dict, one_class_total, one_class_aupr, one_class_fpr, one_class_de\
+                    auroc_dict, aupr_dict, fpr_dict, de_dict, one_class_total, one_class_aupr, one_class_fpr, one_class_de, scores, labels\
                         = eval_ood_detection(args, path, model, valid_dl, 
                                              ood_test_loader, args.ood_score, train_dl, negative_list)
 
@@ -314,6 +301,10 @@ for args.K_shift in range(5,6):
                     aupr_a.append(one_class_aupr)   
                     fpr_a.append(one_class_fpr)
                     de_a.append(one_class_de)
+
+                    testy_rs.append(labels.tolist())
+                    scores_rs.append(scores.tolist())
+                    
 
                     mean_dict = dict()
                     for ood_score in args.ood_score:
@@ -352,28 +343,47 @@ for args.K_shift in range(5,6):
             # print(f'{np.std(fpr_a):.3f}')
             # print(f'{np.std(de_a):.3f}')
 
+            
+            testy_rs, scores_rs = np.concatenate(testy_rs), np.concatenate(scores_rs)
             final_auroc.append([np.mean(auroc_a), np.std(auroc_a)])
             final_aupr.append([np.mean(aupr_a), np.std(aupr_a)])
             final_fpr.append([np.mean(fpr_a), np.std(fpr_a)])
             final_de.append([np.mean(de_a), np.std(de_a)])
-
-
-            df = pd.DataFrame(final_auroc, columns=['mean', 'std'])     
-
-            # path = 'result_files/final_result_dataAug_' + str(args.ood_score[0])+'_'+ \
-            #    data_type+'_ST'+(str(args.K_shift-1))+'_NT'+(str(args.K_pos))+'.xlsx'
-
-            # path = 'result_files/final_result_dataAug_' + str(args.ood_score[0])+'_'+ \
-            #     data_type+'_ST_NT_ratio_RV.xlsx'
             
-            file_exists = os.path.exists(store_path)
 
-            if file_exists == True:
-                with pd.ExcelWriter(store_path, mode="a", engine="openpyxl", if_sheet_exists="replace") as writer:
-                    df.to_excel(writer, sheet_name="the results")  
-            else:
-                with pd.ExcelWriter(store_path, engine="openpyxl") as writer:
-                    df.to_excel(writer, sheet_name="the results")  
+            # for visualization
+            onehot_encoded = list()        
+            label_binarizer = LabelBinarizer().fit(testy_rs)                    
+            onehot_encoded = label_binarizer.transform(testy_rs)
+            y_onehot_test.append(onehot_encoded)
+            y_score.append(scores_rs)
+
+
+            final_rs =[]
+            for i in final_auroc:
+                final_rs.append(i)
+            for i in final_aupr:
+                final_rs.append(i)                
+            for i in final_fpr:
+                final_rs.append(i)
+            for i in final_de:
+                final_rs.append(i)
+
+            df = pd.DataFrame(final_rs, columns=['mean', 'std'])
+            df.to_excel(store_path, sheet_name='the results')
+
+
+            
+            # if not visualization:
+            #     df = pd.DataFrame(final_auroc, columns=['mean', 'std'])                     
+            #     file_exists = os.path.exists(store_path)
+
+            #     if file_exists == True:
+            #         with pd.ExcelWriter(store_path, mode="a", engine="openpyxl", if_sheet_exists="replace") as writer:
+            #             df.to_excel(writer, sheet_name="the results")  
+            #     else:
+            #         with pd.ExcelWriter(store_path, engine="openpyxl") as writer:
+            #             df.to_excel(writer, sheet_name="the results")  
 
 
     # overall
@@ -388,15 +398,19 @@ for args.K_shift in range(5,6):
     # print(f'{final_de}')
 
     # for extrating results to an excel file
-final_rs =[]
-for i in final_auroc:
-    final_rs.append(i)
-# for i in final_aupr:
-#     final_rs.append(i)
-# for i in final_fpr:
-#     final_rs.append(i)
-# for i in final_de:
-#     final_rs.append(i)
+# if visualization:
+#     final_rs =[]
+#     for i in final_auroc:
+#         final_rs.append(i)
+#     for i in final_aupr:
+#         final_rs.append(i)
+#     for i in final_fpr:
+#         final_rs.append(i)
+#     for i in final_de:
+#         final_rs.append(i)
+
+#     df = pd.DataFrame(final_rs, columns=['mean', 'std'])
+#     df.to_excel(store_path, sheet_name='the results')
 
 print("Finished")
 
@@ -408,6 +422,48 @@ logger.debug(f"Training time is : {datetime.now()-start_time}")
 
 # alert to slack
 send_slack_message(payload, webhook)
+
+
+if visualization:
+# visualization        
+    fig, ax = plt.subplots(figsize=(6, 6))
+    if(len(class_num)<=5):
+        colors = cycle(["tomato", "darkorange", "gold", "darkseagreen","dodgerblue"])
+    else:
+        colors = cycle(["firebrick", "tomato", "sandybrown", "darkorange", "olive", "gold", 
+                            "darkseagreen", "darkgreen", "dodgerblue", "royalblue","slategrey",
+                            "slateblue", "mediumpurple","indigo", "orchid", "hotpink"])
+    for class_id, color in zip(range(len(class_num)), colors):
+
+        if class_num[class_id] != -1:
+            RocCurveDisplay.from_predictions(
+                y_onehot_test[class_id],
+                y_score[class_id],
+                name=f"ROC curve for {(class_num[class_id]+1)}",
+                color=color,
+                ax=ax, 
+            )
+        else:
+            RocCurveDisplay.from_predictions(
+                y_onehot_test[class_id],
+                y_score[class_id],
+                name=f"ROC curve for Multi",
+                color="black",
+                ax=ax, 
+            )
+
+                
+    plt.axis("square")
+    ax.plot([0, 1], [0, 1], color='gray', linestyle='--', label='Chance Level (0.5)')
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    plt.title("ROC curves of "+str(args.ood_score[0]))
+    plt.legend()
+    plt.show()
+    plt.savefig('figure/'+str(args.ood_score[0])+'_ROC_'+data_type+'.png')
+
+    print("Finished")
+
 
 torch.cuda.empty_cache()
 

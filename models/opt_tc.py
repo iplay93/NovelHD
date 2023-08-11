@@ -124,6 +124,7 @@ class TransClassifier():
 
             val_probs_rots = val_probs_rots.sum(1)
             print("Epoch:", epoch, ", AUC: ", roc_auc_score(y_test, -val_probs_rots))
+            
 
-        return auroc(-val_probs_rots, y_test), aupr(-val_probs_rots, y_test), fpr_at_95_tpr(-val_probs_rots, y_test), detection_error(-val_probs_rots, y_test)
+        return auroc(-val_probs_rots, y_test), aupr(-val_probs_rots, y_test), fpr_at_95_tpr(-val_probs_rots, y_test), detection_error(-val_probs_rots, y_test), -val_probs_rots, y_test, 
 

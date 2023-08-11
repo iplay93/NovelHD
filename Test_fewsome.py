@@ -13,125 +13,7 @@ import random
 from sklearn.metrics import f1_score
 import time
 
-class Load_Dataset(Dataset):
-    # Initialize your data, download, etc.
-    def __init__(self, args, dataset_name, indexes, normal_class,task, seed, N):
-        super(Load_Dataset, self).__init__()
-        self.task = task 
-
-        self.task = task  # training set or test set
-
-        self.indexes = indexes
-        self.normal_class = normal_class
-
-
-        self.data =[]
-        self.targets=[]
-        
-        num_classes, datalist, labellist = loading_data(dataset_name, args)
-        random.seed(seed)
-        # Split train and valid dataset
-        train_list, test_list, train_label_list, test_label_list = train_test_split(datalist, 
-                                                                                labellist, test_size=test_ratio, stratify= labellist, random_state=seed) 
-
-        print(f"Train Data: {len(train_list)} --------------")
-        exist_labels, _ = count_label_labellist(train_label_list)
-
-
-        print(f"Test Data: {len(test_list)} --------------")
-        count_label_labellist(test_label_list) 
-        
-        train_list = torch.tensor(train_list).cuda().cpu()
-        train_label_list = torch.tensor(train_label_list).cuda().cpu()
-
-        test_list = torch.tensor(test_list).cuda().cpu()
-        test_label_list = torch.tensor(test_label_list).cuda().cpu()
-
-
-        if(args.one_class_idx != -1): # one-class
-            sup_class_idx = [x for x in exist_labels]
-            known_class_idx = [args.one_class_idx]
-            novel_class_idx = [item for item in sup_class_idx if item not in set(known_class_idx)]
-            
-            train_list = train_list[np.where(train_label_list == args.one_class_idx)]
-            train_label_list = train_label_list[np.where(train_label_list == args.one_class_idx)]
-
-            valid_list = test_list[np.where(test_label_list == args.one_class_idx)]
-            valid_label_list = test_label_list[np.where(test_label_list == args.one_class_idx)]
-
-            # only use for testing novelty
-            test_list = test_list[np.where(test_label_list != args.one_class_idx)]
-            test_label_list = test_label_list[np.where(test_label_list != args.one_class_idx)]
-
-        else: # multi-class
-            sup_class_idx = [x for x in exist_labels]
-            random.seed(args.seed)
-            known_class_idx = random.sample(sup_class_idx, math.ceil(len(sup_class_idx)/2))
-            #known_class_idx = [x for x in range(0, (int)(len(sup_class_idx)/2))]
-            #known_class_idx = [0, 1]
-            novel_class_idx = [item for item in sup_class_idx if item not in set(known_class_idx)]
-            
-            train_list = train_list[np.isin(train_label_list, known_class_idx)]
-            train_label_list = train_label_list[np.isin(train_label_list, known_class_idx)]
-            valid_list = test_list[np.isin(test_label_list, known_class_idx)]
-            valid_label_list =test_label_list[np.isin(test_label_list, known_class_idx)]
-
-            # only use for testing novelty
-            test_list = test_list[np.isin(test_label_list, novel_class_idx)]
-            test_label_list = test_label_list[np.isin(test_label_list, novel_class_idx)]    
-
-        if self.task == 'train':
-            self.indexes = random.sample(list(range(0,len(train_list))), N)
-            for ind in self.indexes:
-                self.data.append(train_list[ind])
-                self.targets.append(0)
-
-        elif self.task == 'test':
-            valid_label_list[:] = 0
-            test_label_list[:] = 1
-            self.data = np.concatenate((valid_list, test_list),axis=0)
-            self.targets = np.concatenate((valid_label_list, test_label_list),axis=0)
-
-        print(len(self.data))
-        print(len(self.targets))
-
-        # make sure the Channels in second dim
-        self.data = np.transpose(self.data,(0, 2, 1))
-        # (N, C, T)
-
-
-    def __getitem__(self, index: int, seed = 1, base_ind=-1):
-        
-        base=False
-        img, target = self.data[index], int(self.targets[index])
-        img = torch.FloatTensor(img)
-
-        if self.task == 'train':
-            np.random.seed(seed)
-            ind = np.random.randint(len(self.indexes) )
-            c=1
-            while (ind == index):
-                np.random.seed(seed * c)
-                ind = np.random.randint(len(self.indexes) )
-                c=c+1
-
-            if ind == base_ind:
-              base = True
-
-            img2, target2 = self.data[ind], int(self.targets[ind])
-            img2 = torch.FloatTensor(img2)
-            label = torch.FloatTensor([0])
-        else:
-            img2 = torch.Tensor([1])
-            label = target
-
-
-
-        return img, img2, label, base
-
-    def __len__(self):
-        return len(self.data)
-    
+   
 class ContrastiveLoss(torch.nn.Module):
     def __init__(self, v=0.0,margin=0.8):
         super(ContrastiveLoss, self).__init__()
@@ -165,7 +47,7 @@ class ContrastiveLoss(torch.nn.Module):
 
 
 def evaluate(feat1, seed, base_ind, ref_dataset, val_dataset, model, 
-             dataset_name, normal_class, output_name, model_name, indexes,criterion, alpha, num_ref_eval):
+             dataset_name, normal_class, indexes,criterion, alpha, num_ref_eval):
 
     model.eval()
 
@@ -176,17 +58,17 @@ def evaluate(feat1, seed, base_ind, ref_dataset, val_dataset, model,
     ref_images={} #dictionary for feature vectors of reference set
     ind = list(range(0, num_ref_eval))
     np.random.shuffle(ind)
+
     #loop through the reference images and 1) get the reference image from the dataloader, 2) get the feature vector for the reference image and 3) initialise the values of the 'out' dictionary as a list.
+    
     for i in ind:
-      img1, _, _, _ = ref_dataset.__getitem__(i)
+      data1, _, _, _ = ref_dataset.__getitem__(i)
       if (i == base_ind):
         ref_images['images{}'.format(i)] = feat1
       else:
-        ref_images['images{}'.format(i)] = model.forward( img1.cuda().float())
+        ref_images['images{}'.format(i)] = model(data1.cuda().float())
 
       outs['outputs{}'.format(i)] =[]
-
-
 
 
     means = []
@@ -253,6 +135,7 @@ def evaluate(feat1, seed, base_ind, ref_dataset, val_dataset, model,
 
     fpr, tpr, thresholds = roc_curve(np.array(df['label']),np.array(df['minimum_dists']))
     auc_min = metrics.auc(fpr, tpr)
+    print(auc_min)
     outputs = np.array(df['minimum_dists'])
     thres = np.percentile(outputs, 10)
     outputs[outputs > thres] =1
@@ -262,6 +145,7 @@ def evaluate(feat1, seed, base_ind, ref_dataset, val_dataset, model,
     tn = len(df.loc[(outputs== 0) & (df['label'] == 0)])
     fn = len(df.loc[(outputs == 0) & (df['label'] == 1)])
     tp = len(df.loc[(outputs == 1) & (df['label'] == 1)])
+    print(fp, tn, fn, tp)
     spec = tn / (fp + tn)
     recall = tp / (tp+fn)
     acc = (recall + spec) / 2

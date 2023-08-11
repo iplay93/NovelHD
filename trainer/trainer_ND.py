@@ -42,7 +42,15 @@ def normalize(x, dim=1, eps=1e-8):
 
 def model_train(epoch, logger, model, model_optimizer, classifier, classifier_optimizer, 
                 criterion, train_loader, configs, device, args, negative_list, positive_list):
-    assert args.K_shift > 1
+    
+    assert len(args.ood_score) == 1  # assume single ood_score for simplicity
+    ood_score = args.ood_score[0]
+    
+    
+    if ood_score == 'simclr':
+        assert args.K_shift == 1
+    else:
+        assert args.K_shift > 1
     total_loss = []
     total_acc = []
     model.train()
@@ -157,12 +165,11 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
 
             # Select loss according to ood_score
             #loss
-            assert len(args.ood_score) == 1  # assume single ood_score for simplicity
-            ood_score = args.ood_score[0]
+
 
             if ood_score == 'T':
                 loss = loss_t   
-            elif ood_score == 'TCON':
+            elif ood_score == 'TCON' or ood_score == 'simclr' :
                 loss = loss_sim
             elif ood_score == 'TCLS':
                 loss = loss_shift
@@ -187,18 +194,20 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
             loss.backward()
             model_optimizer.step()
 
-            """Post-processing stuffs"""
-            penul_1 = h_t[:batch_size]
-            penul_2 = h_t[2*batch_size:3*batch_size]
-            outputs_penul = torch.cat([penul_1, penul_2]) 
 
-            ### Linear evaluation ###
-            outputs_linear_eval = model.linear(outputs_penul.detach())
-            loss_linear = criterion(outputs_linear_eval, labels.repeat(2)) 
-            
-            classifier_optimizer.zero_grad()
-            loss_linear.backward()
-            classifier_optimizer.step()
+            if ood_score != 'simclr' :
+                """Post-processing stuffs"""
+                penul_1 = h_t[:batch_size]
+                penul_2 = h_t[2*batch_size:3*batch_size]
+                outputs_penul = torch.cat([penul_1, penul_2]) 
+
+                ### Linear evaluation ###
+                outputs_linear_eval = model.linear(outputs_penul.detach())
+                loss_linear = criterion(outputs_linear_eval, labels.repeat(2)) 
+                
+                classifier_optimizer.zero_grad()
+                loss_linear.backward()
+                classifier_optimizer.step()
 
     total_loss = torch.tensor(total_loss).mean()
 

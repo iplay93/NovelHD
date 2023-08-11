@@ -16,7 +16,10 @@ import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.optim as optim
 import torch.utils.data as data
+import torchvision.transforms as transforms
+import torchvision.datasets as datasets
 
+import torchvision
 
 from utils import Bar, Logger, AverageMeter, mkdir_p, savefig
 import math
@@ -25,14 +28,15 @@ import matplotlib.pyplot as plt
 from torch.autograd import Variable
 
 from ocgan.networks import *
+from torchvision.utils import save_image
 
-
+from data_preprocessing.dataloader import loading_data
 
 from data import load_data
 
-parser = argparse.ArgumentParser(description='OCGAN')
+parser = argparse.ArgumentParser(description='PyTorch CIFAR10/100 Training')
 # Datasets
-parser.add_argument('-d', '--dataset', default='lapras', type=str)
+parser.add_argument('-d', '--dataset', default='mnist', type=str)
 parser.add_argument('--dataroot', default='./data', type=str)
 parser.add_argument('--anomaly_class', default='1', type=int)
 parser.add_argument('--isize', default='28', type=int)
@@ -92,149 +96,13 @@ if args.manualSeed is None:
 random.seed(args.manualSeed)
 torch.manual_seed(args.manualSeed)
 if use_cuda:
-    torch.cuda.manual_seed_all(args.manualSeed)
-
+    torch.cuda.manual_seed_all(args.manualSeed
+                               
+global best_acc
 best_acc = 0
 
-def main():
-    global best_acc
-    start_epoch = args.start_epoch  # start from epoch 0 or last checkpoint epoch
-
-    if not os.path.isdir(args.checkpoint):
-        mkdir_p(args.checkpoint)
-
-    # Data
-    print('==> Preparing dataset' )
-    dataloader = load_data(args)
-    Tensor = torch.cuda.FloatTensor
-
-    print("==> creating model")
-    title = 'Pytorch-OCGAN'
-
-    enc = get_encoder().cuda()
-    dec = get_decoder().cuda()
-    disc_v = get_disc_visual().cuda()
-    disc_l = get_disc_latent().cuda() 
-    cl = get_classifier().cuda()
-
-    #load origianal weights
-    disc_v.apply(weights_init)
-    cl.apply(weights_init)
-    enc.apply(weights_init)
-    dec.apply(weights_init)
-    disc_l.apply(weights_init)
-
-
-
-
-    model = torch.nn.DataParallel(enc).cuda()
-    cudnn.benchmark = True
-    print('  enc     Total params: %.2fM' % (sum(p.numel() for p in enc.parameters())/1000000.0))
-    print('  dec     Total params: %.2fM' % (sum(p.numel() for p in dec.parameters())/1000000.0))
-    print('  disc_v  Total params: %.2fM' % (sum(p.numel() for p in disc_v.parameters())/1000000.0))
-    print('  disc_l  Total params: %.2fM' % (sum(p.numel() for p in disc_l.parameters())/1000000.0))
-    print('  cl      Total params: %.2fM' % (sum(p.numel() for p in cl.parameters())/1000000.0))
-
-#Loss Loss Loss Loss Loss Loss Loss
-    print("==> creating optimizer")
-
-    criterion_ce = torch.nn.BCELoss(size_average=True).cuda()
-    criterion_ae = nn.MSELoss(size_average=True).cuda()
-
-    l2_int=torch.empty(size=(args.train_batch, 288,1,1), dtype=torch.float32)
-
-    optimizer_en = optim.Adam(enc.parameters(), lr=args.lr, betas=(0.9, 0.99))
-    optimizer_de = optim.Adam(dec.parameters(), lr=args.lr, betas=(0.9, 0.99))
-    optimizer_dl = optim.Adam(disc_l.parameters(), lr=args.lr, betas=(0.9, 0.99))
-    optimizer_dv = optim.Adam(disc_v.parameters(), lr=args.lr, betas=(0.9, 0.99))
-    optimizer_c   = optim.Adam(cl.parameters(), lr=args.lr, betas=(0.9, 0.99))
-    optimizer_l2 = optim.Adam([{'params':l2_int}], lr=args.lr, betas=(0.9, 0.99))
-
-
-    if args.resume:
-        # Load checkpoint.
-        print('==> Resuming from checkpoint..')
-        assert os.path.isfile(args.resume), 'Error: no checkpoint directory found!'
-        args.checkpoint = os.path.dirname(args.resume)
-
-        checkpoint = torch.load(args.resume)
-        best_acc = checkpoint['best_acc']
-        start_epoch = checkpoint['epoch']
-        model.load_state_dict(checkpoint['state_dict'])
-        # optimizer.load_state_dict(checkpoint['optimizer'])
-        logger = Logger(os.path.join(args.checkpoint, 'log.txt'), title=title, resume=True)
-    else:
-        logger = Logger(os.path.join(args.checkpoint, 'log.txt'), title=title)
-        logger.set_names(['Learning Rate', 'Train Loss', 'Valid Acc.'])
-
-
-
-    # Train and val
-    for epoch in range(start_epoch, args.epochs):
-        # adjust_learning_rate(optimizer, epoch)
-
-        print('\nEpoch: [%d | %d] LR: %f' % (epoch + 1, args.epochs, state['lr']))
-
-        # model = optimize_fore()
-        if epoch < 20:
-        
-            train_loss_ae = train_ae(args,dataloader['train'], enc, dec, optimizer_en, optimizer_de,criterion_ae, epoch, use_cuda)
-            test_acc = test(args,dataloader['test'],  enc, dec,cl,disc_l,disc_v, epoch, use_cuda)
-        else:
-        
-            train_loss = train(args,dataloader['train'], enc, dec,cl,disc_l,disc_v,
-                                            optimizer_en, optimizer_de,optimizer_c,optimizer_dl,optimizer_dv,optimizer_l2,
-                                            criterion_ae, criterion_ce, 
-                                            Tensor,epoch, use_cuda
-                                           )
-            test_acc = test(args,dataloader['test'],  enc, dec,cl,disc_l,disc_v, epoch, use_cuda)
-
-        # append logger file
-
-            logger.append([state['lr'], train_loss,test_acc])
-        
-
-            # save model
-            is_best = train_loss < best_acc
-            best_acc = min(train_loss, best_acc)
-            save_checkpoint({
-                    'epoch': epoch + 1,
-                    'state_dict': enc.state_dict(),
-                    'loss': train_loss,
-                    'best_loss': best_acc,
-                }, is_best, checkpoint=args.checkpoint,filename='enc_model.pth.tar')
-            
-            save_checkpoint({
-                    'epoch': epoch + 1,
-                    'state_dict': dec.state_dict(),
-                    'loss': train_loss,
-                    'best_loss': best_acc,
-                }, is_best, checkpoint=args.checkpoint,filename='dec_model.pth.tar')
-            save_checkpoint({
-                    'epoch': epoch + 1,
-                    'state_dict': cl.state_dict(),
-                    'loss': train_loss,
-                    'best_loss': best_acc,
-                }, is_best, checkpoint=args.checkpoint,filename='cl_model.pth.tar')
-            save_checkpoint({
-                    'epoch': epoch + 1,
-                    'state_dict': disc_l.state_dict(),
-                    'loss': train_loss,
-                    'best_loss': best_acc,
-                }, is_best, checkpoint=args.checkpoint,filename='disc_l_model.pth.tar')
-            save_checkpoint({
-                    'epoch': epoch + 1,
-                    'state_dict': disc_v.state_dict(),
-                    'loss': train_loss,
-                    'best_loss': best_acc,
-                }, is_best, checkpoint=args.checkpoint,filename='disc_v_model.pth.tar')                
-
-    logger.close()
-    logger.plot()
-    savefig(os.path.join(args.checkpoint, 'log.eps'))
-
-    print('Best acc:')
-    print(best_acc)
+   
+    
 def train_ae(args,trainloader, enc, dec, optimizer_en, optimizer_de, criterion, epoch, use_cuda):
 
     batch_time = AverageMeter()
@@ -517,4 +385,143 @@ def adjust_learning_rate(optimizer, epoch):
             param_group['lr'] = state['lr']
 
 if __name__ == '__main__':
-    main()
+    
+    start_epoch = args.start_epoch  # start from epoch 0 or last checkpoint epoch
+
+    if not os.path.isdir(args.checkpoint):
+        mkdir_p(args.checkpoint)
+
+    # Data
+    print('==> Preparing dataset' )
+    num_classes, datalist, labellist = loading_data(data_type, args)
+    
+    dataloader = load_data(args)
+    Tensor = torch.cuda.FloatTensor
+
+    print("==> creating model")
+    title = 'Pytorch-OCGAN'
+
+    enc = get_encoder().cuda()
+    dec = get_decoder().cuda()
+    disc_v = get_disc_visual().cuda()
+    disc_l = get_disc_latent().cuda() 
+    cl = get_classifier().cuda()
+
+    #load origianal weights
+    disc_v.apply(weights_init)
+    cl.apply(weights_init)
+    enc.apply(weights_init)
+    dec.apply(weights_init)
+    disc_l.apply(weights_init)
+
+
+
+
+    model = torch.nn.DataParallel(enc).cuda()
+    cudnn.benchmark = True
+    print('  enc     Total params: %.2fM' % (sum(p.numel() for p in enc.parameters())/1000000.0))
+    print('  dec     Total params: %.2fM' % (sum(p.numel() for p in dec.parameters())/1000000.0))
+    print('  disc_v  Total params: %.2fM' % (sum(p.numel() for p in disc_v.parameters())/1000000.0))
+    print('  disc_l  Total params: %.2fM' % (sum(p.numel() for p in disc_l.parameters())/1000000.0))
+    print('  cl      Total params: %.2fM' % (sum(p.numel() for p in cl.parameters())/1000000.0))
+
+#Loss Loss Loss Loss Loss Loss Loss
+    print("==> creating optimizer")
+
+    criterion_ce = torch.nn.BCELoss(size_average=True).cuda()
+    criterion_ae = nn.MSELoss(size_average=True).cuda()
+
+    l2_int=torch.empty(size=(args.train_batch, 288,1,1), dtype=torch.float32)
+
+    optimizer_en = optim.Adam(enc.parameters(), lr=args.lr, betas=(0.9, 0.99))
+    optimizer_de = optim.Adam(dec.parameters(), lr=args.lr, betas=(0.9, 0.99))
+    optimizer_dl = optim.Adam(disc_l.parameters(), lr=args.lr, betas=(0.9, 0.99))
+    optimizer_dv = optim.Adam(disc_v.parameters(), lr=args.lr, betas=(0.9, 0.99))
+    optimizer_c   = optim.Adam(cl.parameters(), lr=args.lr, betas=(0.9, 0.99))
+    optimizer_l2 = optim.Adam([{'params':l2_int}], lr=args.lr, betas=(0.9, 0.99))
+
+
+    if args.resume:
+        # Load checkpoint.
+        print('==> Resuming from checkpoint..')
+        assert os.path.isfile(args.resume), 'Error: no checkpoint directory found!'
+        args.checkpoint = os.path.dirname(args.resume)
+
+        checkpoint = torch.load(args.resume)
+        best_acc = checkpoint['best_acc']
+        start_epoch = checkpoint['epoch']
+        model.load_state_dict(checkpoint['state_dict'])
+        # optimizer.load_state_dict(checkpoint['optimizer'])
+        logger = Logger(os.path.join(args.checkpoint, 'log.txt'), title=title, resume=True)
+    else:
+        logger = Logger(os.path.join(args.checkpoint, 'log.txt'), title=title)
+        logger.set_names(['Learning Rate', 'Train Loss', 'Valid Acc.'])
+
+
+
+    # Train and val
+    for epoch in range(start_epoch, args.epochs):
+        # adjust_learning_rate(optimizer, epoch)
+
+        print('\nEpoch: [%d | %d] LR: %f' % (epoch + 1, args.epochs, state['lr']))
+
+        # model = optimize_fore()
+        if epoch < 20:
+        
+            train_loss_ae = train_ae(args,dataloader['train'], enc, dec, optimizer_en, optimizer_de,criterion_ae, epoch, use_cuda)
+            test_acc = test(args,dataloader['test'],  enc, dec,cl,disc_l,disc_v, epoch, use_cuda)
+        else:
+        
+            train_loss = train(args,dataloader['train'], enc, dec,cl,disc_l,disc_v,
+                                            optimizer_en, optimizer_de,optimizer_c,optimizer_dl,optimizer_dv,optimizer_l2,
+                                            criterion_ae, criterion_ce, 
+                                            Tensor,epoch, use_cuda
+                                           )
+            test_acc = test(args,dataloader['test'],  enc, dec,cl,disc_l,disc_v, epoch, use_cuda)
+
+        # append logger file
+
+            logger.append([state['lr'], train_loss,test_acc])
+        
+
+            # save model
+            is_best = train_loss < best_acc
+            best_acc = min(train_loss, best_acc)
+            save_checkpoint({
+                    'epoch': epoch + 1,
+                    'state_dict': enc.state_dict(),
+                    'loss': train_loss,
+                    'best_loss': best_acc,
+                }, is_best, checkpoint=args.checkpoint,filename='enc_model.pth.tar')
+            
+            save_checkpoint({
+                    'epoch': epoch + 1,
+                    'state_dict': dec.state_dict(),
+                    'loss': train_loss,
+                    'best_loss': best_acc,
+                }, is_best, checkpoint=args.checkpoint,filename='dec_model.pth.tar')
+            save_checkpoint({
+                    'epoch': epoch + 1,
+                    'state_dict': cl.state_dict(),
+                    'loss': train_loss,
+                    'best_loss': best_acc,
+                }, is_best, checkpoint=args.checkpoint,filename='cl_model.pth.tar')
+            save_checkpoint({
+                    'epoch': epoch + 1,
+                    'state_dict': disc_l.state_dict(),
+                    'loss': train_loss,
+                    'best_loss': best_acc,
+                }, is_best, checkpoint=args.checkpoint,filename='disc_l_model.pth.tar')
+            save_checkpoint({
+                    'epoch': epoch + 1,
+                    'state_dict': disc_v.state_dict(),
+                    'loss': train_loss,
+                    'best_loss': best_acc,
+                }, is_best, checkpoint=args.checkpoint,filename='disc_v_model.pth.tar')                
+
+    logger.close()
+    logger.plot()
+    savefig(os.path.join(args.checkpoint, 'log.eps'))
+
+    print('Best acc:')
+    print(best_acc)

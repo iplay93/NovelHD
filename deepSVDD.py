@@ -77,18 +77,18 @@ class DeepSVDD(object):
         if self.trainer is None:
             self.trainer = DeepSVDDTrainer(self.objective, self.R, self.c, self.nu,
                                            device=device, n_jobs_dataloader=n_jobs_dataloader)
-        auroc_rs, aupr_rs, fpr_at_95_tpr_rs, detection_error_rs = \
+        auroc_rs, aupr_rs, fpr_at_95_tpr_rs, detection_error_rs, scores, labels = \
             self.trainer.test(test_loader, self.net)
         # Get results
         self.results['test_auc'] = self.trainer.test_auc
         self.results['test_time'] = self.trainer.test_time
         self.results['test_scores'] = self.trainer.test_scores
 
-        return auroc_rs, aupr_rs, fpr_at_95_tpr_rs, detection_error_rs
+        return auroc_rs, aupr_rs, fpr_at_95_tpr_rs, detection_error_rs, scores, labels
 
     def pretrain(self, train_loader, test_loader, optimizer_name: str = 'adam', lr: float = 0.001, n_epochs: int = 100,
                  lr_milestones: tuple = (), batch_size: int = 128, weight_decay: float = 1e-6, device: str = 'cuda'):
-        """Pretrains the weights for the Deep SVDD network \phi via autoencoder."""
+        """Pretrains the weights for the Deep SVDD network via autoencoder."""
 
         self.ae_net = TimeSeriesAutoencoder(self.seq_length, self.channel)
         self.ae_optimizer_name = optimizer_name

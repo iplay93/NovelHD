@@ -1,41 +1,39 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn import TransformerEncoder, TransformerEncoderLayer
 
 class TimeSeriesNet(nn.Module):
-    def __init__(self, seq_length=100, input_channels=1, vector_size=64, bias=False):
+    def __init__(self, configs, vector_size):
         super(TimeSeriesNet, self).__init__()
-        self.seq_length = seq_length
-        self.input_dim = input_channels
 
-        # Encoder layers
-        self.encoder = nn.Sequential(
-            nn.Conv1d(input_channels, 16, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool1d(2, stride=2),
-            nn.Conv1d(16, 8, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool1d(2, stride=2),
-            nn.Conv1d(8, 1, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool1d(2, stride=2)
-        )
-        # Linear layer in the encoder
-        self.encoder_linear = nn.Linear((seq_length // 8), vector_size)
-        self.activation = torch.nn.Sigmoid()
+        encoder_layers_t = TransformerEncoderLayer(configs.TSlength_aligned, dim_feedforward=2*configs.TSlength_aligned, nhead=1, )
+        self.transformer_encoder_t = TransformerEncoder(encoder_layers_t, 2)
+
+        # self.projector_t = nn.Sequential(
+        #     nn.Linear(configs.TSlength_aligned * configs.input_channels, 256),
+        #     nn.BatchNorm1d(256),
+        #     nn.ReLU(),
+        #     nn.Linear(256, 128)
+        # )
+
+        self.classifier = nn.Linear(configs.TSlength_aligned * configs.input_channels, vector_size)    
+
 
     def forward(self, x):
-        print("x", x.shape)
-        encoded = self.encoder(x)
-        print("encoded1", encoded.shape)
-        encoded = encoded.view(encoded.size(0), -1)
-        print("encoded2", encoded.shape)
-        x = self.encoder_linear(encoded)
-        print("x2", x.shape)
-        x = self.activation(x)
-        print("x3", x.shape)
-        return x  # output
+        #x_in_t = x_in_t + self.positional_encoding.T.cuda()
+        #x_in_f = x_in_f + self.positional_encoding.T.cuda()
+        x = torch.unsqueeze(x, dim =0)
+        """Use Transformer"""
+        x = self.transformer_encoder_t(x.float())
+        x = x.view(x.size(0), -1)
 
+
+        """Cross-space projector"""
+        x = self.classifier(x)
+        x=nn.Sigmoid()(x)
+
+        return x #output
 
 
 

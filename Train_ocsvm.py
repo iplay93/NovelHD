@@ -83,7 +83,7 @@ def flat_feature(enc_out):
     return np.array(enc_out_flat)
 
 
-def main_svm():
+if __name__ == '__main__':
     """main function"""
     args = parse_args()
     seq_length = 598
@@ -136,7 +136,6 @@ def main_svm():
             optimizer.step()
 
             running_loss += loss.item()
-
 
         epoch_loss = running_loss / len(dataloader)
         print(f"Epoch [{epoch+1}/{num_epoch}], Loss: {epoch_loss:.4f}")

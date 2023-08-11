@@ -153,15 +153,15 @@ class DeepSVDDTrainer():
         scores = np.array(scores)
 
         self.test_auc = roc_auc_score(labels, scores)
-        print('Test set AUC: {:.2f}%'.format(100. * self.test_auc))
-        print('Test set AUC2: {:.2f}%'.format(100. * auroc(scores, labels)))
-        print('Test set AUPR: {:.2f}%'.format(100. * aupr(scores, labels)))
-        print('Test set FPR: {:.2f}%'.format(100. * fpr_at_95_tpr(scores, labels)))
-        print('Test set DE: {:.2f}%'.format(100. * detection_error(scores, labels)))
+        print('Test set AUC: {:.2f}'.format(self.test_auc))
+        print('Test set AUC2: {:.2f}'.format(auroc(scores, labels)))
+        print('Test set AUPR: {:.2f}'.format(aupr(scores, labels)))
+        print('Test set FPR: {:.2f}'.format(fpr_at_95_tpr(scores, labels)))
+        print('Test set DE: {:.2f}'.format(detection_error(scores, labels)))
         print('Finished testing.')
 
         return auroc(scores, labels), aupr(scores, labels), \
-                fpr_at_95_tpr(scores, labels), detection_error(scores, labels)
+                fpr_at_95_tpr(scores, labels), detection_error(scores, labels), scores, labels
 
     def init_center_c(self, train_loader: DataLoader, net, eps=0.1):
         """Initialize hypersphere center c as the mean from an initial forward pass on the data."""
