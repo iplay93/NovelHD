@@ -45,14 +45,31 @@
 # print(clf.predict(X))#array([-1,  1,  1,  1, -1])
 # print(clf.score_samples(X))#array([1.7798..., 2.0547..., 2.0556..., 2.0561..., 1.7332...])
 
-import torch
+import numpy as np
+def factorization(x):
+    d = 2
 
-torch.manual_seed(1)
+    while d <= x:
+        if x % d == 0:
+            print(d)
+            x = x / d
+        else:
+            d = d + 1
 
-x = torch.randn((3, 3, 3))
-y = torch.sigmoid(x)
-print(x.shape)
-print(y.min(), y.max(), y)
+factorization(63)
+# def convert_specific_to_one(arr, target_number):
+#     result = np.where(arr == target_number, 1, 0)
+#     return result
+
+# # Example usage
+# original_array = np.array([2, 4, 1, 3, 1, 5, 6])
+# specific_number = 2
+
+# converted_array = convert_specific_to_one(original_array, specific_number)
+# print("Original Array:", original_array)
+# print("Converted Array:", converted_array)
+
+# 결과
 
 # Expected output
 # (tensor(0.1667), tensor(0.9364))

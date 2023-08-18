@@ -155,17 +155,27 @@ final_fpr   = []
 final_de    = []  
 
 store_path = 'result_files/' + str(args.ood_score[0])+'_'+ \
-                 data_type+'.xlsx'
+                 data_type+'_v2.xlsx'
+vis_path = 'figure/'+str(args.ood_score[0])+'_ROC_'+data_type+'_v2.png'
+vis_title ="ROC curves of "+str(args.ood_score[0])+"-v2"
+
 # slack
 webhook = "https://hooks.slack.com/services/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"
 payload = {"text": "Experiment "+store_path+" Finished!"}
 #2 ->8, 6->7
 
 visualization = True
+args.binary = True
+
+# random test 
 randomness = False
+
 
 # if simclr(0,1)
 for args.K_shift in range(0,1):
+# for one-T
+#for args.K_shift in range(1,2):
+# for multiple- T,
 #for args.K_shift in range(5,6):
     
     # for visualization
@@ -182,7 +192,7 @@ for args.K_shift in range(0,1):
     args.K_shift = args.K_shift + 1
 
     if randomness:
-        strong_transformation = ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']
+        strong_transformation = ['AddNoise''Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']
     if str(args.ood_score[0]) == "simclr":
         weak_transformation= ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']
     
@@ -457,10 +467,10 @@ if visualization:
     ax.plot([0, 1], [0, 1], color='gray', linestyle='--', label='Chance Level (0.5)')
     plt.xlabel("False Positive Rate")
     plt.ylabel("True Positive Rate")
-    plt.title("ROC curves of "+str(args.ood_score[0]))
+    plt.title(vis_title)
     plt.legend()
     plt.show()
-    plt.savefig('figure/'+str(args.ood_score[0])+'_ROC_'+data_type+'.png')
+    plt.savefig(vis_path)
 
     print("Finished")
 

@@ -31,6 +31,12 @@ def select_transformation(aug_method):
         my_aug = (TimeWarp(n_speed_change=5, max_speed_ratio=3))
     elif(aug_method == 'AddNoise2'):
         my_aug = (AddNoise(scale=0.05))
+    elif(aug_method == 'AddNoise3'):
+        my_aug = (AddNoise(scale=0.02))
+    elif(aug_method == 'AddNoise4'):
+        my_aug = (AddNoise(scale=0.03))
+    elif(aug_method == 'AddNoise5'):
+        my_aug = (AddNoise(scale=0.04))
     else:
         return ValueError
         

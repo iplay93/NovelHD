@@ -119,18 +119,36 @@ def data_generator_nd(args, configs, training_mode, positive_list,
         # print(train_label_list)
         # print(valid_label_list)
         # print(test_label_list)
+    
+    
+    if args.binary:
+        # for binary classification
+        train_label_list[:] = 0
+        valid_label_list[:] = 0
+        test_label_list[:] = 1
         
     ood_test_loader = dict()
 
-    for ood in novel_class_idx:
-        # one class idx exit
-        ood_test_set = Load_Dataset(test_list[np.where(test_label_list == ood)],
-                                    test_label_list[np.where(test_label_list == ood)], 
-                                    args, training_mode, positive_list)
-        ood = f'one_class_{ood}'  # change save name
+    if args.binary:
+        for ood in [1]:
+            # one class idx exit
+            ood_test_set = Load_Dataset(test_list[np.where(test_label_list == ood)],
+                                            test_label_list[np.where(test_label_list == ood)], 
+                                            args, training_mode, positive_list)
+            ood = f'one_class_{ood}'  # change save name
 
-        ood_test_loader[ood] = DataLoader(ood_test_set, batch_size=configs.batch_size, shuffle=True)          
-    
+            ood_test_loader[ood] = DataLoader(ood_test_set, batch_size=configs.batch_size, shuffle=True)      
+
+    if args.binary is not True:
+        for ood in novel_class_idx:
+            # one class idx exit
+            ood_test_set = Load_Dataset(test_list[np.where(test_label_list == ood)],
+                                        test_label_list[np.where(test_label_list == ood)], 
+                                        args, training_mode, positive_list)
+            ood = f'one_class_{ood}'  # change save name
+
+            ood_test_loader[ood] = DataLoader(ood_test_set, batch_size=configs.batch_size, shuffle=True)          
+        
    
     print("Length of OOD test loader", len(ood_test_loader))
    
