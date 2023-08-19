@@ -4,34 +4,44 @@ import torch.nn.functional as F
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 
 class TimeSeriesNet(nn.Module):
-    def __init__(self, configs, vector_size):
+    def __init__(self, input_channels, seq_length, vector_size, biases):
         super(TimeSeriesNet, self).__init__()
 
-        encoder_layers_t = TransformerEncoderLayer(configs.TSlength_aligned, dim_feedforward=2*configs.TSlength_aligned, nhead=1, )
-        self.transformer_encoder_t = TransformerEncoder(encoder_layers_t, 2)
+        encoder_layers = TransformerEncoderLayer(seq_length, dim_feedforward=2*seq_length, nhead=1, )
+        self.transformer_encoder = TransformerEncoder(encoder_layers, 2)
 
-        # self.projector_t = nn.Sequential(
-        #     nn.Linear(configs.TSlength_aligned * configs.input_channels, 256),
-        #     nn.BatchNorm1d(256),
-        #     nn.ReLU(),
-        #     nn.Linear(256, 128)
-        # )
+        self.projector = nn.Sequential(
+             nn.Linear(seq_length*input_channels, 256),
+             #nn.BatchNorm1d(256),
+             nn.ReLU(),
+             nn.Linear(256, 128)
+        )
 
-        self.classifier = nn.Linear(configs.TSlength_aligned * configs.input_channels, vector_size)    
+        self.classifier = nn.Linear(128, vector_size, bias=False)
+
+        #self.classifier = nn.Linear(configs.TSlength_aligned * configs.input_channels, vector_size)    
 
 
     def forward(self, x):
         #x_in_t = x_in_t + self.positional_encoding.T.cuda()
         #x_in_f = x_in_f + self.positional_encoding.T.cuda()
+        #x = torch.unsqueeze(x, dim =0)
         x = torch.unsqueeze(x, dim =0)
+        #print(x.shape)
         """Use Transformer"""
-        x = self.transformer_encoder_t(x.float())
-        x = x.view(x.size(0), -1)
-
+        x = self.transformer_encoder(x.float())
+        #print(x.shape)
 
         """Cross-space projector"""
+        x = x.view(x.size(0), -1)
+        #print(x.shape)
+        #print(x)
+        x = self.projector(x)
+        #print(x.shape)
+        
         x = self.classifier(x)
-        x=nn.Sigmoid()(x)
+        #print(x.shape)
+        x = nn.Sigmoid()(x)
 
         return x #output
 
