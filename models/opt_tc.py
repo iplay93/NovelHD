@@ -8,6 +8,7 @@ from sklearn.metrics import roc_auc_score
 from models.TFC import TFC_GOAD, target_classifier
 from ood_metrics import auroc, aupr, fpr_at_95_tpr, detection_error
 
+
 cudnn.benchmark = True
 
 def tc_loss(zs, m):
@@ -124,7 +125,10 @@ class TransClassifier():
 
             val_probs_rots = val_probs_rots.sum(1)
             print("Epoch:", epoch, ", AUC: ", roc_auc_score(y_test, -val_probs_rots))
-            
 
-        return auroc(-val_probs_rots, y_test), aupr(-val_probs_rots, y_test), fpr_at_95_tpr(-val_probs_rots, y_test), detection_error(-val_probs_rots, y_test), -val_probs_rots, y_test, 
+            scores = (-val_probs_rots).tolist()
+            labels = y_test.tolist()
+                       
+
+        return scores, labels
 

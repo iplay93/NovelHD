@@ -6,13 +6,13 @@ import sys
 import numpy as np
 from sklearn import svm
 from sklearn.metrics import precision_recall_curve, auc, roc_auc_score,roc_curve
-from ood_metrics import auroc, aupr, fpr_at_95_tpr, detection_error
+from ood_metrics import auroc, fpr_at_95_tpr
 from data_preprocessing.dataloader import count_label_labellist
 import random, math
 from sklearn.model_selection import train_test_split
 import torch
-import pandas as pd
 
+from util import calculate_acc, visualization_roc, print_rs
 
 import requests
 import json
@@ -80,18 +80,18 @@ def load_data(data_to_path):
     return full_data, full_labels
 
 
-def prepare_data(full_data, full_labels, normal_label, rate_normal_train, TRAIN_RAND_SEED):
+def prepare_data(full_data, full_labels, normal_label,TRAIN_RAND_SEED):
     """prepare data
     split data into anomaly data and normal data
     """
     TRAIN_DATA_RNG = np.random.RandomState(TRAIN_RAND_SEED)
-    test_ratio = rate_normal_train
     seed =   np.random.RandomState(TRAIN_RAND_SEED)
+
     # num_classes, entire_list, train_list, valid_list, test_list, entire_label_list, train_label_list, valid_label_list, test_label_list \
     # = splitting_data(args.selected_dataset, args.test_ratio, args.valid_ratio, args.padding, args.seed, \
     #                  args.timespan, args.min_seq, args.min_samples, args.aug_method, args.aug_wise)
     train_list, test_list, train_label_list, test_label_list = train_test_split(full_data, 
-                                                                                full_labels, test_size=(test_ratio), stratify = full_labels, random_state=seed) 
+                                                                                full_labels, test_size = args.test_ratio, stratify = full_labels, random_state=seed) 
     print(f"Train Data: {len(train_list)} --------------")
     exist_labels, _ = count_label_labellist(train_label_list)    
 
@@ -103,7 +103,7 @@ def prepare_data(full_data, full_labels, normal_label, rate_normal_train, TRAIN_
 
     test_list = torch.tensor(test_list).cuda().cpu()
     test_label_list = torch.tensor(test_label_list).cuda().cpu()
-    print( train_list.shape, test_list.shape, test_label_list.shape)
+    #print( train_list.shape, test_list.shape, test_label_list.shape)
   
 
     if (normal_label != -1):
@@ -112,6 +112,7 @@ def prepare_data(full_data, full_labels, normal_label, rate_normal_train, TRAIN_
         novel_class_idx = [item for item in sup_class_idx if item not in set(known_class_idx)]
 
         train_x = train_list[np.where(train_label_list == normal_label)]
+
         testx_n = test_list [np.where(test_label_list == normal_label)]
         testy_n = test_label_list [np.where(test_label_list == normal_label)]
         ano_x = test_list [np.where(test_label_list != normal_label)]
@@ -127,8 +128,9 @@ def prepare_data(full_data, full_labels, normal_label, rate_normal_train, TRAIN_
         novel_class_idx = [item for item in sup_class_idx if item not in set(known_class_idx)]
         
         train_x = train_list[np.isin(train_label_list, known_class_idx)]
+
         testx_n = test_list [np.isin(test_label_list, known_class_idx)]
-        testy_n = test_label_list [np.isin(test_label_list, known_class_idx)]
+        testy_n = test_label_list [np.isin(test_label_list, known_class_idx)]        
         ano_x = test_list[np.isin(test_label_list, novel_class_idx)]
         ano_y = test_label_list[np.isin(test_label_list, novel_class_idx)]
 
@@ -138,57 +140,8 @@ def prepare_data(full_data, full_labels, normal_label, rate_normal_train, TRAIN_
     ano_y[:] = 1
     testy_n[:] = 0
 
-    print(len(train_list), len(test_list), len(test_label_list))
-    
 
-    # if(normal_label != -1):
-    #     # data whose label corresponds to anomaly label, otherwise treated as normal data
-    #     ano_x = full_data[full_labels != normal_label]
-    #     ano_y = full_labels[full_labels != normal_label]
-    #     normal_x = full_data[full_labels == normal_label]
-    #     normal_y = full_labels[full_labels == normal_label]
-        
-    # elif (normal_label == -1):# multi-class
-    #     exist_labels, _ = count_label_labellist(full_labels)
-    #     sup_class_idx = [x for x in exist_labels]
-    #     random.seed(TRAIN_RAND_SEED)
-    #     known_class_idx = random.sample(sup_class_idx, math.ceil(len(sup_class_idx)/2))
-    #     #known_class_idx = [x for x in range(0, (int)(len(sup_class_idx)/2))]
-    #     #known_class_idx = [0, 1]
-    #     novel_class_idx = [item for item in sup_class_idx if item not in set(known_class_idx)]
-    #     print(novel_class_idx)
-    #     print(known_class_idx)
-
-        # ano_x = full_data[np.isin(full_labels, novel_class_idx)]
-        # ano_y = full_labels[np.isin(full_labels, novel_class_idx)]
-        # normal_x = full_data[np.isin(full_labels, known_class_idx)]
-        # normal_y = full_labels[np.isin(full_labels, known_class_idx)]
-        
-    # replace label : anomaly -> 1 : normal -> 0
-
-    
-
-    # # shuffle normal data and label
-    # inds = TRAIN_DATA_RNG.permutation(normal_x.shape[0])
-    # normal_x_data = normal_x[inds]
-    # normal_y_data = normal_y[inds]
-
-    # split normal data into train and test
-    # index = int(normal_x.shape[0] * rate_normal_train)
-    # trainx = normal_x_data[:index]
-    # testx_n = normal_x_data[index:]
-    # testy_n = normal_y_data[index:]
-
-    # train_x = train_list
-    # testx_n = test_list[np.where(test_label_list == 0)]
-    # testy_n = test_label_list[np.where(test_label_list == 0)]
-    # ano_x = test_list[np.where(test_label_list == 1)]
-    # ano_y = test_label_list[np.where(test_label_list == 1)]
-
-    # print( train_x.shape, testx_n.shape, testy_n.shape, ano_x.shape, ano_y.shape )
-
-    split_data = namedtuple('split_data', ('train_x', 'testx_n', 'testy_n', 'ano_x', 'ano_y'))
-
+    split_data = namedtuple('split_data', ('train_x', 'testx_n', 'testy_n', 'ano_x', 'ano_y'))     
     
 
     return split_data(
@@ -200,7 +153,7 @@ def prepare_data(full_data, full_labels, normal_label, rate_normal_train, TRAIN_
     )
 
 
-def make_test_data(split_data, RNG, rate_anomaly_test):
+def make_test_data(split_data, RNG):
     """make test data which has specified mixed rate(rate_anomaly_test).
     shuffle and concatenate normal and abnormal data"""
 
@@ -208,21 +161,23 @@ def make_test_data(split_data, RNG, rate_anomaly_test):
     ano_y = split_data.ano_y
     testx_n = split_data.testx_n
     testy_n = split_data.testy_n
+    print('Test num',len(ano_x), len(testx_n))
 
     # anomaly data in test
     inds_1 = RNG.permutation(ano_x.shape[0])
     ano_x = ano_x[inds_1]
     ano_y = ano_y[inds_1]
 
-    index_1 = int(testx_n.shape[0] * rate_anomaly_test)
-    testx_a = ano_x[:index_1]
-    testy_a = ano_y[:index_1]
+    # index_1 = int(testx_n.shape[0])
+    testx_a = ano_x
+    testy_a = ano_y
 
+    print('Test num',len(testx_a), len(testx_n))
     # concatenate test normal data and test anomaly data
     testx = np.concatenate([testx_a, testx_n], axis=0)
     testy = np.concatenate([testy_a, testy_n], axis=0)
 
-    return testx, testy
+    return testx, testy.tolist()
 
 
 # def calc_metrics(testy, scores):
@@ -232,28 +187,14 @@ def make_test_data(split_data, RNG, rate_anomaly_test):
 
 #     return roc_auc, prc_auc
 
-def calc_metrics(testy, scores):
-    return auroc(scores, testy), aupr(scores, testy), fpr_at_95_tpr(scores, testy), detection_error(scores, testy)
 
 def anomaly_detection(args):
 
      
     normal_label = args.one_class_idx
-    test_ratio = args.test_ratio
-    rate_anomaly_test = args.rate_anomaly_test
-    test_rep_count = args.test_rep_count
-    TRAIN_RAND_SEED = args.TRAIN_RAND_SEED
-    TEST_RAND_SEED = args.TEST_RAND_SEED
 
     data_type = args.dataset
-    data_path = './data/' + data_type + '_cae.npz' 
-    # ##### fix random seeds for reproducibility ########
-    SEED = args.seed = 20
-    np.random.seed(SEED)
-    #####################################################
-    # load and prepare data
-    full_data, full_labels = load_data(data_path)
-    
+   
     
     auroc_scores = []
     aupr_scores = []
@@ -263,10 +204,13 @@ def anomaly_detection(args):
     best_auroc = 0
     testy_rs = []
     scores_rs = []
-    
+
+
+    seed_num = [20, 40, 60, 80, 100, 120, 140, 160, 180, 200]
+        
     # nu : the upper limit ratio of anomaly data(0<=nu<=1)
     nus = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
-    seed_num = [20, 40, 60, 80, 100, 120, 140, 160, 180, 200]
+
     # train model and evaluate with changing parameter nu
     for SEED in seed_num:
 
@@ -274,97 +218,70 @@ def anomaly_detection(args):
         # total_aupr = 0
         # total_fpr = 0
         # total_de = 0    
-        seed_testy, seed_scores =[],[]
+        data_path = './data/' + data_type + '_cae.npz' 
+        # # ##### fix random seeds for reproducibility ########
+        # SEED = args.seed = 20
+        # np.random.seed(SEED)
+        # #####################################################
+        # load and prepare data
+        full_data, full_labels = load_data(data_path)
+                
+        best_nu_rs = 0 
+        best_nu = 0 
+
+        # select test data and test
+        TEST_SEED = np.random.RandomState(SEED)
+        split_data = prepare_data(full_data, full_labels, normal_label, SEED)   
         
+        scores_nu = []   
+        labels_nu = []
+
         # repeat test by randomly selected data and evaluate   
         for nu in nus:
+            
+            print('='*45)
+            print("True Class:", args.one_class_idx)            
+            print("Dataset:", data_type)
+            print("Seed:", SEED)
+            print('nu',nu )
+            print('='*45)
+
             # train with nu
             clf = svm.OneClassSVM(nu=nu, kernel='rbf', gamma='auto')
 
-            # select test data and test
-            TEST_SEED = np.random.RandomState(SEED)
-            split_data = prepare_data(full_data, full_labels, normal_label, test_ratio, SEED)
+                     
             clf.fit(split_data.train_x)
             
-            testx, testy = make_test_data(split_data, TEST_SEED, rate_anomaly_test)
-            scores = clf.decision_function(testx).ravel() * (-1)
+            testx, l = make_test_data(split_data, TEST_SEED)
+
+            s = clf.decision_function(testx).ravel() * (-1)
             
-            testy_rs.append(testy.tolist())
-            scores_rs.append(scores.tolist())
+            scores_nu = scores_nu + s.tolist()
+            labels_nu = labels_nu + l
+   
+        auroc_rs, fpr, f1, acc  = calculate_acc(labels_nu, scores_nu)   
 
-            seed_testy.append(testy.tolist())
-            seed_scores.append(scores.tolist())
+            #find best nu for each seed
+            #if auroc_rs_nu > best_nu_rs:  
+            #    best_nu_rs = auroc_rs_nu
+            #    best_nu = nu
+        scores, labels = scores_nu, labels_nu
 
-        # calculate evaluation metrics
-        seed_testy, seed_scores = list(itertools.chain.from_iterable(seed_testy)), list(itertools.chain.from_iterable(seed_scores))
-        print(seed_testy)
-        auroc_rs, aupr_rs, fpr_at_95_tpr_rs, detection_error_rs = calc_metrics(seed_testy, seed_scores)
+        print('Best nu,{} AUROC: {:.3f}'.format(best_nu, best_nu_rs))
+           
 
-                        
+        # calculate evaluation metrics       
         auroc_scores.append(auroc_rs)
-        aupr_scores.append(aupr_rs)
-        fpr_scores.append(fpr_at_95_tpr_rs)
-        de_scores.append(detection_error_rs)
-            
+        aupr_scores.append(fpr)
+        fpr_scores.append(f1)
+        de_scores.append(acc)
 
-            # total_auroc +=  auroc_rs
-            # total_aupr += aupr_rs            
-            # total_fpr +=  fpr_at_95_tpr_rs
-            # total_de +=  detection_error_rs 
+        testy_rs = testy_rs + labels
+        scores_rs = scores_rs + scores     
 
-            # if auroc_rs > best_auroc :
-            #     best_auroc = auroc_rs
-            #     testy_rs = testy
-            #     scores_rs = scores
-
-                
-
-        # # calculate average
-        # total_auroc /= len(seed_num)
-        # total_aupr  /= len(seed_num)
-        # total_fpr   /= len(seed_num)
-        # total_de   /= len(seed_num)
-
-       
-        # auroc_scores.append(total_auroc)
-        # aupr_scores.append(total_aupr)
-        # fpr_scores.append(total_fpr)
-        # de_scores.append(total_de)
-
-
-        # print('--- nu : ', nu, ' ---')
-        # print('ROC_AUC : ', total_auroc)
-        # print('AUPR_AUC : ', total_aupr)
-        # print('FPR_AUC : ', total_fpr)
-        # print('DE_AUC : ', total_de)
-
-    # fpr, tpr, threshold = roc_curve(plot_testy, plot_scores)
-    # auc = roc_auc_score(plot_testy, plot_scores)
-    # plt.plot(fpr,tpr,label="data 1, auc="+str(auc))
-    # plt.legend(loc=4)
-    # plt.show()
-    #         # plt.show()
-    #         # skplt.metrics.plot_roc_curve(testy, scores)
-    #         # plt.show()
-    # plt.savefig('rs.png')
-                        
-    # print('***' * 5)
-    # print('ROC_AUC MAX : ', max(auroc_scores))
-    # print('AUPR MAX : ', max(aupr_scores))
-    # print('FPR MAX : ', max(fpr_scores))
-    # print('DE MAX : ', max(de_scores))
-
-    # print('ROC_MAX_NU : ', nus[int(np.argmax(auroc_scores))])
     
     print(len(testy_rs), len(scores_rs))
 
-    #testy_rs, scores_rs = np.array(testy_rs), np.array(scores_rs)
-    testy_rs, scores_rs = list(itertools.chain.from_iterable(testy_rs)), list(itertools.chain.from_iterable(scores_rs))
-    
-    
-    # print(np.mean(auroc_scores))
-    # auroc_rs, aupr_rs, fpr_at_95_tpr_rs, detection_error_rs = calc_metrics(testy_rs, scores_rs)
-    # print(auroc_rs)
     
     return [np.mean(auroc_scores), np.std(auroc_scores)],[np.mean(aupr_scores), np.std(aupr_scores)], \
            [np.mean(fpr_scores), np.std(fpr_scores)], [np.mean(de_scores), np.std(de_scores)], \
@@ -396,7 +313,9 @@ if __name__ == '__main__':
     #lb = preprocessing.LabelBinarizer()
 
     for args.one_class_idx in class_num:        
+        
         a,b,c,d, testy_rs, scores_rs = anomaly_detection(args)
+
         final_auroc.append(a)
         final_aupr.append(b)
         final_fpr.append(c)
@@ -405,83 +324,34 @@ if __name__ == '__main__':
         onehot_encoded = list()        
         label_binarizer = LabelBinarizer().fit(testy_rs)
         
-        # for num in range(len(testy_rs)):
-        #     letter = [0 for _ in range(len([0,1]))]
-        #     letter[testy_rs[num]] = 1
-        #     onehot_encoded.append(letter)
-        # print(testy_rs)
+
         onehot_encoded = label_binarizer.transform(testy_rs)
         print(onehot_encoded.shape)
         print(label_binarizer.transform([1]))
         y_onehot_test.append(onehot_encoded)
         y_score.append(scores_rs)
         
-        auroc_rs, aupr_rs, fpr_at_95_tpr_rs, detection_error_rs = calc_metrics(testy_rs, scores_rs)
+        auroc_rs, aupr_rs, fpr_at_95_tpr_rs, detection_error_rs =  calculate_acc(testy_rs, scores_rs)
         validation.append([auroc_rs,0])
 
         # print(len(y_onehot_test))
         # print(len(y_score))
 
-    # for extrating results to an excel file
-    final_rs =[]
-    for i in final_auroc:
-        final_rs.append(i)
-        print(i)
-    for i in final_aupr:
-        final_rs.append(i)
-    for i in final_fpr:
-        final_rs.append(i)
-    for i in final_de:
-        final_rs.append(i)
-    for i in validation:
-        final_rs.append(i)
+   
 
-
-
-
-    df = pd.DataFrame(final_rs, columns=['mean', 'std'])
-    df.to_excel('result_files/OCSVM_'+args.dataset+'.xlsx', sheet_name='the results')
     # alert to slack
     webhook = "https://hooks.slack.com/services/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"
     payload = {"text": "Experiment_"+args.dataset+" Finished!"}
     send_slack_message(payload, webhook)
 
-    # visualization        
-    fig, ax = plt.subplots(figsize=(6, 6))
-    if(len(class_num)<=5):
-        colors = cycle(["tomato", "darkorange", "gold", "darkseagreen","dodgerblue"])
-    else:
-        colors = cycle(["firebrick", "tomato", "sandybrown", "darkorange", "olive", "gold", 
-                        "darkseagreen", "darkgreen", "dodgerblue", "royalblue","slategrey",
-                        "slateblue", "mediumpurple","indigo", "orchid", "hotpink"])
-    for class_id, color in zip(range(len(class_num)), colors):
-        #print(y_onehot_test[class_id])
-        #print(y_score[class_id].tolist())
-        if class_num[class_id] != -1:
-            RocCurveDisplay.from_predictions(
-                y_onehot_test[class_id],
-                y_score[class_id],
-                name=f"ROC curve for {(class_num[class_id]+1)}",
-                color=color,
-                ax=ax, 
-            )
-        else:
-            RocCurveDisplay.from_predictions(
-                y_onehot_test[class_id],
-                y_score[class_id],
-                name=f"ROC curve for Multi",
-                color="black",
-                ax=ax, 
-            )
+    # file save
+    save_path = 'result_files/OCSVM_'+args.dataset+'.xlsx'
+    print_rs(final_auroc, final_aupr, final_fpr, final_de, validation, save_path)
 
-            
-    plt.axis("square")
-    ax.plot([0, 1], [0, 1], color='gray', linestyle='--', label='Chance Level (0.5)')
-    plt.xlabel("False Positive Rate")
-    plt.ylabel("True Positive Rate")
-    plt.title("ROC curves of OC-SVM")
-    plt.legend()
-    plt.show()
-    plt.savefig('figure/OC-SVM_ROC_'+args.dataset+'.png')
+
+    # visualization
+    vis_title = 'ROC curves of OC-SVM'
+    vis_path = 'figure/OC-SVM_ROC_'+args.dataset+'.png'
+    visualization_roc(class_num, y_onehot_test, y_score, vis_title, vis_path)
 
     print("Finished")

@@ -84,7 +84,7 @@ class DeepSVDD(object):
         self.results['test_time'] = self.trainer.test_time
         self.results['test_scores'] = self.trainer.test_scores
 
-        return auroc_rs, aupr_rs, fpr_at_95_tpr_rs, detection_error_rs, scores, labels
+        return scores, labels
 
     def pretrain(self, train_loader, test_loader, optimizer_name: str = 'adam', lr: float = 0.001, n_epochs: int = 100,
                  lr_milestones: tuple = (), batch_size: int = 128, weight_decay: float = 1e-6, device: str = 'cuda'):

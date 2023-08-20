@@ -18,7 +18,8 @@ from sklearn.metrics import f1_score
 from sklearn.metrics import roc_curve
 from sklearn import metrics
 
-from ood_metrics import auroc, aupr, fpr_at_95_tpr, detection_error
+from util import calculate_acc, visualization_roc, print_rs
+from ood_metrics import auroc, fpr_at_95_tpr
 
 # visualization
 import matplotlib.pyplot as plt
@@ -297,38 +298,35 @@ def evaluate(anchor, seed, base_ind, ref_dataset, val_dataset, model, dataset_na
 
     #calculate metrics
     fpr, tpr, thresholds = roc_curve(np.array(df['label']),np.array(df['minimum_dists']))
-    auc_min = metrics.auc(fpr, tpr)
-    outputs = np.array(df['minimum_dists'])
-    thres = np.percentile(outputs, 10)
-    outputs[outputs > thres] =1
-    outputs[outputs <= thres] =0
-    f1 = f1_score(np.array(df['label']),outputs)
-    fp = len(df.loc[(outputs == 1 ) & (df['label'] == 0)])
-    tn = len(df.loc[(outputs== 0) & (df['label'] == 0)])
-    fn = len(df.loc[(outputs == 0) & (df['label'] == 1)])
-    tp = len(df.loc[(outputs == 1) & (df['label'] == 1)])
-    spec = tn / (fp + tn)
-    recall = tp / (tp+fn)
-    acc = (recall + spec) / 2
-    print('AUC: {}'.format(auc_min))
-    print('F1: {}'.format(f1))
-    print('Balanced accuracy: {}'.format(acc))
-    fpr, tpr, thresholds = roc_curve(np.array(df['label']),np.array(df['means']))
-    auc = metrics.auc(fpr, tpr)
-
-
-
-    #create dataframe of feature vectors for each image in the reference set
-    feat_vecs = pd.DataFrame(ref_images['images0'].detach().cpu().numpy())
-    for j in range(1, num_ref_eval):
-        feat_vecs = pd.concat([feat_vecs, pd.DataFrame(ref_images['images{}'.format(j)].detach().cpu().numpy())], axis =0)
-
-    avg_loss = (loss_sum / num_ref_eval )/ val_dataset.__len__()
-
+    
     scores = np.array(df['minimum_dists']).tolist()
     labels = np.array(df['label']).tolist()
 
-    return auc, auroc(scores, labels), aupr(scores, labels), fpr_at_95_tpr(scores, labels), detection_error(scores, labels), scores, labels
+    # fp = len(df.loc[(outputs == 1 ) & (df['label'] == 0)])
+    # tn = len(df.loc[(outputs== 0) & (df['label'] == 0)])
+    # fn = len(df.loc[(outputs == 0) & (df['label'] == 1)])
+    # tp = len(df.loc[(outputs == 1) & (df['label'] == 1)])
+    # spec = tn / (fp + tn)
+    # recall = tp / (tp+fn)
+    # acc = (recall + spec) / 2
+    # print('AUC: {}'.format(auc_min))
+    # print('F1: {}'.format(f1))
+    # print('Balanced accuracy: {}'.format(acc))
+
+    auroc, fpr, f1, acc = calculate_acc(labels, scores)
+
+    # fpr, tpr, thresholds = roc_curve(np.array(df['label']),np.array(df['means']))
+    # auc = metrics.auc(fpr, tpr)
+
+
+    #create dataframe of feature vectors for each image in the reference set
+    # feat_vecs = pd.DataFrame(ref_images['images0'].detach().cpu().numpy())
+    # for j in range(1, num_ref_eval):
+    #     feat_vecs = pd.concat([feat_vecs, pd.DataFrame(ref_images['images{}'.format(j)].detach().cpu().numpy())], axis =0)
+
+    # avg_loss = (loss_sum / num_ref_eval )/ val_dataset.__len__()
+
+    return auroc, fpr, f1, acc, scores, labels
 
 
 
@@ -645,13 +643,12 @@ def parse_arguments():
     parser.add_argument('-i', '--index', help='string with indices separated with comma and whitespace', type=str, default = [], required=False)
     
     # Modify
-    
     parser.add_argument('--padding', type=str, 
                         default='mean', help='choose one of them : no, max, mean')
     parser.add_argument('--timespan', type=int, 
-                            default=100, help='choose of the number of timespan between data points(1000 = 1sec, 60000 = 1min)')
+                            default = 100, help='choose of the number of timespan between data points(1000 = 1sec, 60000 = 1min)')
     parser.add_argument('--min_seq', type=int, 
-                            default=10, help='choose of the minimum number of data points in a example')
+                            default = 10, help='choose of the minimum number of data points in a example')
     parser.add_argument('--min_samples', type=int, default=20, 
                             help='choose of the minimum number of samples in each label')
     parser.add_argument('--dataset', default='lapras', type=str,
@@ -716,6 +713,8 @@ if __name__ == '__main__':
 
     y_onehot_test=[]
     y_score = []
+    validation = []
+
 
     seed_num = [20, 40, 60, 80, 100, 120, 140, 160, 180, 200]
 
@@ -832,9 +831,9 @@ if __name__ == '__main__':
             train(model,args.lr, args.weight_decay, train_dataset, test_dataset, args.epochs, criterion, args.alpha, model_name, indexes, args.normal_class, args.dataset, args.smart_samp,args.k, args.eval_epoch, args.model_type, args.batch_size, num_ref_eval, num_ref_dist, args.device)
 
             # Testing
-            val_acc, auroc_rs, aupr_rs, fpr_rs, de_re, scores, labels = evaluate(anchor, SEED, base_ind, train_dataset, test_dataset, model, args.dataset, args.normal_class, model_name, indexes, criterion, args.alpha, num_ref_eval, device)
+            auroc_rs, aupr_rs, fpr_rs, de_re, scores, labels = evaluate(anchor, SEED, base_ind, train_dataset, test_dataset, model, args.dataset, args.normal_class, model_name, indexes, criterion, args.alpha, num_ref_eval, device)
 
-            print('Validation AUC is {:.3f} and {:.3f}'.format(val_acc, auroc_rs))
+            print('Validation AUC is {:.3f}'.format(auroc_rs))
 
             auroc_a.append(auroc_rs)     
             aupr_a.append(aupr_rs)   
@@ -856,60 +855,13 @@ if __name__ == '__main__':
         y_onehot_test.append(onehot_encoded)
         y_score.append(scores_rs)
 
-    final_rs =[]
-    for i in final_auroc:
-        final_rs.append(i)
-    for i in final_aupr:
-        final_rs.append(i)                
-    for i in final_fpr:
-        final_rs.append(i)
-    for i in final_de:
-        final_rs.append(i)
+        auroc_rs, aupr_rs, fpr_at_95_tpr_rs, detection_error_rs = calculate_acc(testy_rs, scores_rs)
+        validation.append([auroc_rs,0])
 
-    df = pd.DataFrame(final_rs, columns=['mean', 'std'])
-    df.to_excel(store_path, sheet_name='the results')
+
+    print_rs(final_auroc, final_aupr, final_fpr, final_de, validation, store_path)
+
 
     # visualization    
-    fig, ax = plt.subplots(figsize=(6, 6))
-    if(len(class_num)<=5):
-        colors = cycle(["tomato", "darkorange", "gold", "darkseagreen","dodgerblue"])
-    else:
-        colors = cycle(["firebrick", "tomato", "sandybrown", "darkorange", "olive", "gold", 
-                            "darkseagreen", "darkgreen", "dodgerblue", "royalblue","slategrey",
-                            "slateblue", "mediumpurple","indigo", "orchid", "hotpink"])
-        
-    for class_id, color in zip(range(len(class_num)), colors):
-
-        if class_num[class_id] != -1:
-            RocCurveDisplay.from_predictions(
-                y_onehot_test[class_id],
-                y_score[class_id],
-                pos_label=1,
-                name=f"ROC curve for {(class_num[class_id]+1)}",
-                color=color,
-                ax=ax, 
-            )
-        else:
-            RocCurveDisplay.from_predictions(
-                y_onehot_test[class_id],
-                y_score[class_id],
-                pos_label=1,
-                name=f"ROC curve for Multi",
-                color="black",
-                ax=ax, 
-
-            )
-
-                
-    plt.axis("square")
-    ax.plot([0, 1], [0, 1], color='gray', linestyle='--', label='Chance Level (0.5)')
-    plt.xlabel("False Positive Rate")
-    plt.ylabel("True Positive Rate")
-    plt.title(vis_title)
-    plt.legend()
-    plt.show()
-    plt.savefig(vis_path)
-
-    print("Finished")
-                    
+    visualization_roc(class_num, y_onehot_test, y_score, vis_title, vis_path)
 

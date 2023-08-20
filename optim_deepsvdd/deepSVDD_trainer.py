@@ -105,8 +105,8 @@ class DeepSVDDTrainer():
 
             # log epoch statistics
             epoch_train_time = time.time() - epoch_start_time
-            print('  Epoch {}/{}\t Time: {:.3f}\t Loss: {:.8f}'
-                        .format(epoch + 1, self.n_epochs, epoch_train_time, loss_epoch / n_batches))
+            #print('  Epoch {}/{}\t Time: {:.3f}\t Loss: {:.8f}'
+#                        .format(epoch + 1, self.n_epochs, epoch_train_time, loss_epoch / n_batches))
 
         self.train_time = time.time() - start_time
         print('Training time: %.3f' % self.train_time)
@@ -149,8 +149,8 @@ class DeepSVDDTrainer():
 
         # Compute AUC
         _, labels, scores = zip(*idx_label_score)
-        labels = np.array(labels)
-        scores = np.array(scores)
+        labels = np.array(labels).tolist()
+        scores = np.array(scores).tolist()
 
         self.test_auc = roc_auc_score(labels, scores)
         print('Test set AUC: {:.2f}'.format(self.test_auc))

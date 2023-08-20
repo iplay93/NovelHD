@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import numpy as np
 
 import random
-from sklearn.metrics import roc_auc_score,  f1_score
+from util import calculate_acc_rv
 
 import torch.fft as fft
 from ood_metrics import auroc, aupr, fpr_at_95_tpr, detection_error
@@ -178,10 +178,13 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
         for ood, scores in scores_ood.items():
             print_score(ood, scores)
 
-    scores = np.concatenate([scores_id, one_class_score])
-    labels = np.concatenate([np.ones_like(scores_id, dtype=int), np.zeros_like(one_class_score, dtype=int)])
+    scores = np.concatenate([scores_id, one_class_score]).tolist()
+    labels = np.concatenate([np.ones_like(scores_id, dtype=int), np.zeros_like(one_class_score, dtype=int)]).tolist()
+    auroc, fpr, f1, acc = calculate_acc_rv(labels, scores)
 
-    return auroc_dict, aupr_dict, fpr_dict, de_dict, one_class_total, one_class_aupr, one_class_fpr, one_class_de, scores, labels
+
+
+    return auroc_dict, aupr_dict, fpr_dict, de_dict, auroc, fpr, f1, acc, scores, labels
 
 
 def get_scores(args, feats_dict, ood_score):

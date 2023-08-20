@@ -17,6 +17,9 @@ from sklearn.metrics import RocCurveDisplay
 from sklearn import preprocessing
 from sklearn.preprocessing import LabelBinarizer
 
+from util import calculate_acc_rv, visualization_roc, print_rs
+
+
 
 def transform_data(data, trans):
     trans_inds = np.tile(np.arange(trans.n_transforms), len(data))
@@ -45,18 +48,19 @@ def data_generator_goad(args, datalist, labellist):
     test_list = torch.tensor(test_list).cuda().cpu()
     test_label_list = torch.tensor(test_label_list).cuda().cpu()
     
-
+    random.seed(args.seed)
     
     if (args.one_class_idx != -1):
+
+        known_class_idx  =[args.one_class_idx]
         
         train_list = train_list[np.where(train_label_list == args.one_class_idx)]
         train_label_list = train_label_list[np.where(train_label_list == args.one_class_idx)]
-        test_label_list  = np.array(test_label_list ) == args.one_class_idx
+        test_label_list  = [1 if i in known_class_idx else 0 for i in test_label_list]
 
     else:
     # multi-class
-        sup_class_idx = [x for x in exist_labels]
-        random.seed(args.seed)
+        sup_class_idx = [x for x in exist_labels]        
         known_class_idx = random.sample(sup_class_idx, math.ceil(len(sup_class_idx)/2))
         #known_class_idx = [x for x in range(0, (int)(len(sup_class_idx)/2))]
         #known_class_idx = [0, 1]
@@ -64,7 +68,7 @@ def data_generator_goad(args, datalist, labellist):
         
         train_list = train_list[np.isin(train_label_list, known_class_idx)]
         train_label_list = train_label_list[np.isin(train_label_list, known_class_idx)]
-        test_label_list = [True if i in known_class_idx else False for i in test_label_list]
+        test_label_list = [1 if i in known_class_idx else 0 for i in test_label_list]
 
     # only use for testing novelty
     return train_list, test_list, torch.tensor(test_label_list).cuda().cpu()
@@ -92,9 +96,11 @@ def train_anomaly_detector(args, config, datalist, labellist):
     
     # train 은 하나의 idx를 기반으로 하기 때문에 test의 크기가 더 클 수 있음
     tc_obj = tc.TransClassifier(transformer.n_transforms, args, configs)
-    auroc_rs, aupr_rs, fpr_rs, de_rs, scores, labels = tc_obj.fit_trans_classifier(x_train, x_test, y_test)
+    scores, labels = tc_obj.fit_trans_classifier(x_train, x_test, y_test)
+
+    auroc, fpr, f1, acc = calculate_acc_rv(labels, scores)
     
-    return auroc_rs, aupr_rs, fpr_rs, de_rs, scores, labels
+    return auroc, fpr, f1, acc, scores, labels
 
 
 if __name__ == '__main__':
@@ -165,6 +171,7 @@ if __name__ == '__main__':
 
     y_onehot_test=[]
     y_score = []
+    validation = []
 
     num_classes, datalist, labellist = loading_data(data_type, args)
 
@@ -200,10 +207,12 @@ if __name__ == '__main__':
             aupr_a.append(one_class_aupr)   
             fpr_a.append(one_class_fpr)
             de_a.append(one_class_de)
-            testy_rs.append(labels.tolist())
-            scores_rs.append(scores.tolist())
+            testy_rs= testy_rs + labels
+            scores_rs= scores_rs + scores
+
+            print("Length!!!!!!!!!!!!!!!!!", len(testy_rs), len(scores_rs))
         
-        testy_rs, scores_rs = list(itertools.chain.from_iterable(testy_rs)), list(itertools.chain.from_iterable(scores_rs))
+        #testy_rs, scores_rs = list(itertools.chain.from_iterable(testy_rs)), list(itertools.chain.from_iterable(scores_rs))
         final_auroc.append([np.mean(auroc_a), np.std(auroc_a)])
         final_aupr.append([np.mean(aupr_a), np.std(aupr_a)])
         final_fpr.append([np.mean(fpr_a), np.std(fpr_a)])
@@ -217,64 +226,22 @@ if __name__ == '__main__':
         #print(label_binarizer.transform([1]))
         y_onehot_test.append(onehot_encoded)
         y_score.append(scores_rs)
+        auroc_rs, _,_,_ = calculate_acc_rv(testy_rs, scores_rs)
+        validation.append([auroc_rs,0])
 
 
     # for extrating results to an excel file
-    
-    final_rs =[]
-    for i in final_auroc:
-        final_rs.append(i)
-    for i in final_aupr:
-        final_rs.append(i)
-    for i in final_fpr:
-        final_rs.append(i)
-    for i in final_de:
-        final_rs.append(i)
+    store_path = 'result_files/GOAD_'+data_type+'.xlsx'
+    print_rs(final_auroc, final_aupr, final_fpr, final_de, validation, store_path)
 
-    print("Finished")
 
-    df = pd.DataFrame(final_rs, columns=['mean', 'std'])
-    df.to_excel('result_files/GOAD_'+data_type+'.xlsx', sheet_name='the results')
 
-    
+    vis_title = 'ROC curves of GOAD'
+    vis_path  = 'figure/GOAD_ROC_'+args.dataset+'.png'
+
     # visualization        
-    fig, ax = plt.subplots(figsize=(6, 6))
-    if(len(class_num)<=5):
-        colors = cycle(["tomato", "darkorange", "gold", "darkseagreen","dodgerblue"])
-    else:
-        colors = cycle(["firebrick", "tomato", "sandybrown", "darkorange", "olive", "gold", 
-                        "darkseagreen", "darkgreen", "dodgerblue", "royalblue","slategrey",
-                        "slateblue", "mediumpurple","indigo", "orchid", "hotpink"])
-        
-    for class_id, color in zip(range(len(class_num)), colors):
-        #print(y_onehot_test[class_id])
-        #print(y_score[class_id].tolist())
-        if class_num[class_id] != -1:
-            RocCurveDisplay.from_predictions(
-                y_onehot_test[class_id],
-                y_score[class_id],
-                name=f"ROC curve for {(class_num[class_id]+1)}",
-                color=color,
-                ax=ax, 
-            )
-        else:
-            RocCurveDisplay.from_predictions(
-                y_onehot_test[class_id],
-                y_score[class_id],
-                name=f"ROC curve for Multi",
-                color="black",
-                ax=ax, 
-            )
-
-            
-    plt.axis("square")
-    ax.plot([0, 1], [0, 1], color='gray', linestyle='--', label='Chance Level (0.5)')
-    plt.xlabel("False Positive Rate")
-    plt.ylabel("True Positive Rate")
-    plt.title("ROC curves of GOAD")
-    plt.legend()
-    plt.show()
-    plt.savefig('figure/GOAD_ROC_'+args.dataset+'.png')
+    visualization_roc(class_num, y_onehot_test, y_score, vis_title, vis_path)
+    
 
 
 

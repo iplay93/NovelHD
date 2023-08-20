@@ -14,18 +14,14 @@ from eval_nd import eval_ood_detection
 import pandas as pd
 import openpyxl
 from data_preprocessing.augmentations import select_transformation
+from sklearn.preprocessing import LabelBinarizer
 import random
 import os.path
 
 import requests
 import json
 
-# visualization
-import matplotlib.pyplot as plt
-from itertools import cycle
-from sklearn.metrics import RocCurveDisplay
-from sklearn import preprocessing
-from sklearn.preprocessing import LabelBinarizer
+from util import calculate_acc, visualization_roc, print_rs
 
 def send_slack_message(payload, webhook):
     return requests.post(webhook, json.dumps(payload))
@@ -149,15 +145,12 @@ num_classes, datalist, labellist = loading_data(data_type, args)
 # ['T'],['NovelHD'], ['NovelHD_TF']
 #for args.ood_score in [['T']]:  
 # 
-final_auroc = []
-final_aupr  = []
-final_fpr   = []
-final_de    = []  
+
 
 store_path = 'result_files/' + str(args.ood_score[0])+'_'+ \
-                 data_type+'_v2.xlsx'
-vis_path = 'figure/'+str(args.ood_score[0])+'_ROC_'+data_type+'_v2.png'
-vis_title ="ROC curves of "+str(args.ood_score[0])+"-v2"
+                 data_type+'_multipleST.xlsx'
+vis_path = 'figure/'+str(args.ood_score[0])+'_ROC_'+data_type+'_multipleST.png'
+vis_title ="ROC curves of "+str(args.ood_score[0])+"-multiple ST"
 
 # slack
 webhook = "https://hooks.slack.com/services/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"
@@ -172,16 +165,21 @@ randomness = False
 
 
 # if simclr(0,1)
-for args.K_shift in range(0,1):
+#for args.K_shift in range(0,1):
 # for one-T
 #for args.K_shift in range(1,2):
-# for multiple- T,
-#for args.K_shift in range(5,6):
+# for multiple- T, lapras = 4,5, casas =8,9 opportunity = 6,7 , aras_a = 7,8
+for args.K_shift in range(8,9):
+    
+    final_auroc = []
+    final_aupr  = []
+    final_fpr   = []
+    final_de    = []  
     
     # for visualization
     y_onehot_test=[]
     y_score = []
-
+    validation = []
 
 #for num_lam_a in range(1, 10):
     #args.lam_a = round(num_lam_a * 0.1, 1)
@@ -312,8 +310,8 @@ for args.K_shift in range(0,1):
                     fpr_a.append(one_class_fpr)
                     de_a.append(one_class_de)
 
-                    testy_rs.append(labels.tolist())
-                    scores_rs.append(scores.tolist())
+                    testy_rs = testy_rs + labels
+                    scores_rs = scores_rs + scores
                     
 
                     mean_dict = dict()
@@ -342,19 +340,8 @@ for args.K_shift in range(0,1):
                     print('\t'.join(bests))
                     print("novel_class:", novel_class)
 
-            # # mean
-            # print(f'{np.mean(auroc_a):.3f}')
-            # print(f'{np.mean(aupr_a):.3f}')
-            # print(f'{np.mean(fpr_a):.3f}')
-            # print(f'{np.mean(de_a):.3f}')
-            # # Standard deviation of list
-            # print(f'{np.std(auroc_a):.3f}')
-            # print(f'{np.std(aupr_a):.3f}')
-            # print(f'{np.std(fpr_a):.3f}')
-            # print(f'{np.std(de_a):.3f}')
-
             
-            testy_rs, scores_rs = np.concatenate(testy_rs), np.concatenate(scores_rs)
+            #testy_rs, scores_rs = np.concatenate(testy_rs), np.concatenate(scores_rs)
             final_auroc.append([np.mean(auroc_a), np.std(auroc_a)])
             final_aupr.append([np.mean(aupr_a), np.std(aupr_a)])
             final_fpr.append([np.mean(fpr_a), np.std(fpr_a)])
@@ -368,112 +355,21 @@ for args.K_shift in range(0,1):
             y_onehot_test.append(onehot_encoded)
             y_score.append(scores_rs)
 
+            auroc_rs, _,_,_ = calculate_acc(testy_rs, scores_rs)
+            validation.append([auroc_rs,0])
 
-            final_rs =[]
-            for i in final_auroc:
-                final_rs.append(i)
-            for i in final_aupr:
-                final_rs.append(i)                
-            for i in final_fpr:
-                final_rs.append(i)
-            for i in final_de:
-                final_rs.append(i)
+    print_rs(final_auroc, final_aupr, final_fpr, final_de, validation, store_path)
 
-            df = pd.DataFrame(final_rs, columns=['mean', 'std'])
-            df.to_excel(store_path, sheet_name='the results')
-
-
+    if visualization:
+    # visualization        
+        visualization_roc(class_num, y_onehot_test, y_score, vis_title, vis_path)
             
-            # if not visualization:
-            #     df = pd.DataFrame(final_auroc, columns=['mean', 'std'])                     
-            #     file_exists = os.path.exists(store_path)
-
-            #     if file_exists == True:
-            #         with pd.ExcelWriter(store_path, mode="a", engine="openpyxl", if_sheet_exists="replace") as writer:
-            #             df.to_excel(writer, sheet_name="the results")  
-            #     else:
-            #         with pd.ExcelWriter(store_path, engine="openpyxl") as writer:
-            #             df.to_excel(writer, sheet_name="the results")  
-
-
-    # overall
-    # print(f'{auroc_a}')
-    # print(f'{aupr_a}')
-    # print(f'{fpr_a}')
-    # print(f'{de_a}')
-
-    # print(f'{final_auroc}')
-    # print(f'{final_aupr}')
-    # print(f'{final_fpr}')
-    # print(f'{final_de}')
-
-    # for extrating results to an excel file
-# if visualization:
-#     final_rs =[]
-#     for i in final_auroc:
-#         final_rs.append(i)
-#     for i in final_aupr:
-#         final_rs.append(i)
-#     for i in final_fpr:
-#         final_rs.append(i)
-#     for i in final_de:
-#         final_rs.append(i)
-
-#     df = pd.DataFrame(final_rs, columns=['mean', 'std'])
-#     df.to_excel(store_path, sheet_name='the results')
-
 print("Finished")
-
-# df = pd.DataFrame(final_rs, columns=['mean', 'std'])
-# df.save('result_files/final_result_dataAug_' + str(args.ood_score[0])+'_'+
-#                 data_type+'_ST'+(str(args.K_shift-1))+'.xlsx', sheet_name='the results')
 
 logger.debug(f"Training time is : {datetime.now()-start_time}")
 
 # alert to slack
-send_slack_message(payload, webhook)
-
-
-if visualization:
-# visualization        
-    fig, ax = plt.subplots(figsize=(6, 6))
-    if(len(class_num)<=5):
-        colors = cycle(["tomato", "darkorange", "gold", "darkseagreen","dodgerblue"])
-    else:
-        colors = cycle(["firebrick", "tomato", "sandybrown", "darkorange", "olive", "gold", 
-                            "darkseagreen", "darkgreen", "dodgerblue", "royalblue","slategrey",
-                            "slateblue", "mediumpurple","indigo", "orchid", "hotpink"])
-    for class_id, color in zip(range(len(class_num)), colors):
-
-        if class_num[class_id] != -1:
-            RocCurveDisplay.from_predictions(
-                y_onehot_test[class_id],
-                y_score[class_id],
-                name=f"ROC curve for {(class_num[class_id]+1)}",
-                color=color,
-                ax=ax, 
-            )
-        else:
-            RocCurveDisplay.from_predictions(
-                y_onehot_test[class_id],
-                y_score[class_id],
-                name=f"ROC curve for Multi",
-                color="black",
-                ax=ax, 
-            )
-
-                
-    plt.axis("square")
-    ax.plot([0, 1], [0, 1], color='gray', linestyle='--', label='Chance Level (0.5)')
-    plt.xlabel("False Positive Rate")
-    plt.ylabel("True Positive Rate")
-    plt.title(vis_title)
-    plt.legend()
-    plt.show()
-    plt.savefig(vis_path)
-
-    print("Finished")
-
+send_slack_message(payload, webhook)     
 
 torch.cuda.empty_cache()
 

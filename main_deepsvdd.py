@@ -7,6 +7,7 @@ import argparse
 import math
 import os
 
+
 from deepSVDD import DeepSVDD
 from data_preprocessing.dataloader import loading_data
 from sklearn.model_selection import train_test_split
@@ -15,7 +16,7 @@ from torch.utils.data import DataLoader, Dataset
 import pandas as pd
 import requests
 import json
-from ood_metrics import auroc, aupr, fpr_at_95_tpr, detection_error
+from ood_metrics import auroc, fpr_at_95_tpr
 from sklearn.metrics import precision_recall_curve, auc, roc_auc_score,roc_curve
 
 
@@ -25,6 +26,10 @@ from itertools import cycle
 from sklearn.metrics import RocCurveDisplay
 from sklearn import preprocessing
 from sklearn.preprocessing import LabelBinarizer
+
+
+from util import calculate_acc, visualization_roc, print_rs
+
 
 ################################################################################
 # Settings
@@ -284,6 +289,7 @@ final_de    = []
 
 y_onehot_test=[]
 y_score = []
+validation = []
 
 # Default device to 'cpu' if cuda is not available
 if not torch.cuda.is_available(): device = 'cpu'
@@ -315,16 +321,21 @@ for args.one_class_idx in class_num:
         torch.backends.cudnn.benchmark = False
         np.random.seed(SEED)            
         #####################################################
-        print("Dataset:", data_type)
-        print("Seed:", SEED)
+        
 
-        # initalized
-        seed_testy, seed_scores =[],[]
+        best_nu_rs = 0 
+        train_loader, test_loader, novel_class_idx = data_generator(args, configs, num_classes, datalist, labellist)
+        scores_nu = []   
+        labels_nu = []
 
-        for nu in nus:         
+        for nu in nus:       
+            print('='*45)
             print("True Class:", args.one_class_idx)            
+            print("Dataset:", data_type)
+            print("Seed:", SEED)
+            print('nu',nu )
+            print('='*45)
             
-            train_loader, test_loader, novel_class_idx = data_generator(args, configs, num_classes, datalist, labellist)
 
         # Initialize DeepSVDD model and set neural network
             deep_SVDD = DeepSVDD(args.objective, nu, seq_length, channel)
@@ -351,101 +362,67 @@ for args.one_class_idx in class_num:
                                 weight_decay=args.weight_decay,
                                 device=device)
         
-            _, _, _, _, scores, labels = deep_SVDD.test(test_loader, device=device)
-            
-            testy_rs.append(labels.tolist())
-            scores_rs.append(scores.tolist())
+            s, l = deep_SVDD.test(test_loader, device=device)
+            scores_nu = scores_nu + s
+            labels_nu = labels_nu + l            
+                       
+        # for each seed        
+        auroc_rs, fpr, f1, acc = calculate_acc(labels_nu, scores_nu)   
 
-            seed_testy.append(labels.tolist())
-            seed_scores.append(scores.tolist())
-
-        seed_testy, seed_scores = list(itertools.chain.from_iterable(seed_testy)), list(itertools.chain.from_iterable(seed_scores))
-        auroc_rs, aupr_rs, fpr_at_95_tpr_rs, detection_error_rs = calc_metrics(seed_testy, seed_scores)
+            #find best nu for each seed
+            #if auroc_rs_nu > best_nu_rs:  
+            #    best_nu_rs = auroc_rs_nu
+            #    best_nu = nu
         
-        auroc_a.append(auroc_rs)     
-        aupr_a.append(aupr_rs)   
-        fpr_a.append(fpr_at_95_tpr_rs)
-        de_a.append(detection_error_rs)
+        scores, labels = scores_nu, labels_nu
 
-    testy_rs, scores_rs = list(itertools.chain.from_iterable(testy_rs)), list(itertools.chain.from_iterable(scores_rs))
+        print('Best nu,{} AUROC: {:.3f}'.format(nu, best_nu_rs))
+
+        #auroc_rs, fpr, f1, acc = calculate_acc(seed_testy, seed_scores)
+
+        # append each seed num's rs
+        auroc_a.append(auroc_rs)     
+        aupr_a.append(fpr)   
+        fpr_a.append(f1)
+        de_a.append(acc)
+
+        testy_rs = testy_rs + labels
+        scores_rs = scores_rs + scores
+    
+    print(len(auroc_a))
+    # append each class's mean and std
     final_auroc.append([np.mean(auroc_a), np.std(auroc_a)])
     final_aupr.append([np.mean(aupr_a), np.std(aupr_a)])
     final_fpr.append([np.mean(fpr_a), np.std(fpr_a)])
     final_de.append([np.mean(de_a), np.std(de_a)])
-
+    
     # for visualization
     onehot_encoded = list()        
     label_binarizer = LabelBinarizer().fit(testy_rs)
     onehot_encoded = label_binarizer.transform(testy_rs)
-    print(onehot_encoded.shape)
-    print(label_binarizer.transform([1]))
+    #print(onehot_encoded.shape)
+    #print(label_binarizer.transform([1]))
     y_onehot_test.append(onehot_encoded)
     y_score.append(scores_rs)
 
-# for extrating results to an excel file    
-final_rs =[]
-for i in final_auroc:
-    final_rs.append(i)
-    print(i)
-for i in final_aupr:
-    final_rs.append(i)
-for i in final_fpr:
-    final_rs.append(i)
-for i in final_de:
-    final_rs.append(i)
+    auroc_rs, aupr_rs, fpr_at_95_tpr_rs, detection_error_rs = calculate_acc(testy_rs, scores_rs)
+    validation.append([auroc_rs,0])
 
-print("Finished")
 
-df = pd.DataFrame(final_rs, columns=['mean', 'std'])
-df.to_excel('result_files/DeepSVDD_'+data_type+'.xlsx', sheet_name='the results')
+
+save_path = 'result_files/DeepSVDD_'+data_type+'.xlsx'
+print_rs(final_auroc, final_aupr, final_fpr, final_de, validation, save_path)
+
 
 webhook = "https://hooks.slack.com/services/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"
 payload = {"text": "Experiment_"+data_type+" Finished!"}
 send_slack_message(payload, webhook)
 
 # visualization 
-    
-fig, ax = plt.subplots(figsize=(6, 6))
-if(len(class_num)<=5):
-    colors = cycle(["tomato", "darkorange", "gold", "darkseagreen","dodgerblue"])
-else:
-    colors = cycle(["firebrick", "tomato", "sandybrown", "darkorange", "olive", "gold", 
-                        "darkseagreen", "darkgreen", "dodgerblue", "royalblue","slategrey",
-                        "slateblue", "mediumpurple","indigo", "orchid", "hotpink"])
-for class_id, color in zip(range(len(class_num)), colors):
-
-    if class_num[class_id] != -1:
-        RocCurveDisplay.from_predictions(
-                y_onehot_test[class_id],
-                y_score[class_id],
-                name=f"ROC curve for {(class_num[class_id]+1)}",
-                color=color,
-                ax=ax, 
-            )
-    else:
-        RocCurveDisplay.from_predictions(
-            y_onehot_test[class_id],
-            y_score[class_id],
-            name=f"ROC curve for Multi",
-            color="black",
-            ax=ax, 
-        )
+vis_title = 'ROC curves of DeepSVDD'
+vis_path  = 'figure/DeepSVDD_ROC_'+args.selected_dataset+'.png'
+visualization_roc(class_num, y_onehot_test, y_score, vis_title, vis_path)
 
 
-            
-plt.axis("square")
-ax.plot([0, 1], [0, 1], color='gray', linestyle='--', label='Chance Level (0.5)')
-plt.xlabel("False Positive Rate")
-plt.ylabel("True Positive Rate")
-plt.title("ROC curves of DeepSVDD")
-plt.legend()
-plt.show()
-plt.savefig('figure/DeepSVDD_ROC_'+args.selected_dataset+'.png') 
-
-#If specified, load Deep SVDD model (radius R, center c, network weights, and possibly autoencoder weights)
-#if load_model:
-#   deep_SVDD.load_model(model_path=load_model, load_ae=True)
-
-
-
+print("Finished")
 

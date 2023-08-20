@@ -19,13 +19,14 @@ import logging
 from OCGAN.models import set_network
 
 from utils import Logger, AverageMeter
+from util import calculate_acc_rv
 
 # for modifying
 from torch.utils.data import DataLoader, Dataset
 from data_preprocessing.dataloader import loading_data, count_label_labellist
 from sklearn.model_selection import train_test_split
-from ood_metrics import auroc, aupr, fpr_at_95_tpr, detection_error
-from sklearn.metrics import roc_auc_score, roc_curve, auc
+from ood_metrics import auroc, fpr_at_95_tpr
+from sklearn.metrics import roc_auc_score, roc_curve, auc,  f1_score
 import pandas as pd
 import numpy as np
 import torch.optim as optim
@@ -38,7 +39,7 @@ from sklearn import preprocessing
 from sklearn.preprocessing import LabelBinarizer
 
 import torch.autograd
-
+from util import visualization_roc, print_rs
 
 import argparse
 
@@ -169,7 +170,7 @@ def data_generator(args, datalist, labellist):
     print(f"Validation Data: {len(valid_list)} --------------")    
     count_label_labellist(valid_label_list)
 
-    print(f"Test Data: {len(test_list)} --------------")
+    #print(f"Test Data: {len(test_list)} --------------")
     count_label_labellist(test_label_list) 
     
     train_list = torch.tensor(train_list).cuda().cpu()
@@ -178,7 +179,7 @@ def data_generator(args, datalist, labellist):
     test_list = torch.tensor(test_list).cuda().cpu()
     test_label_list = torch.tensor(test_label_list).cuda().cpu()
 
-    print("test label", test_label_list, len(test_label_list))
+    #print("test label", test_label_list, len(test_label_list))
  
     if(args.one_class_idx != -1): # one-class
         sup_class_idx = [x for x in exist_labels]
@@ -232,7 +233,7 @@ def data_generator(args, datalist, labellist):
     replace_list = np.concatenate((valid_list, test_list),axis=0)
     replace_label_list = np.concatenate((valid_label_list, test_label_list),axis=0)
 
-    print("test label_Modified", replace_label_list, len(replace_label_list))
+    #print("test label_Modified", replace_label_list, len(replace_label_list))
     print("novel_class:", novel_class_idx)
     
     dataset = Load_Dataset(replace_list , replace_label_list)
@@ -388,14 +389,17 @@ def trainAE(opt, trainloader, testloader, device,  networks):
     fpr, tpr, _ = roc_curve(lbllist, scorelist, pos_label=1)
     roc_auc1 = auc(fpr, tpr)    
 
-    print(roc_auc1)
-    
+    print(roc_auc1)    
     print(max([roc_auc1]))
 
     scores = scorelist
     labels = lbllist
 
-    return auroc(scores, labels), aupr(scores, labels), fpr_at_95_tpr(scores, labels), detection_error(scores, labels), scores, labels
+    auroc, fpr, f1, acc = calculate_acc_rv(labels, scores)
+
+    return auroc, fpr, f1, acc, scores, labels
+
+
 
 
 
@@ -633,7 +637,9 @@ def trainadnov(opt, trainloader, testloader, device, networks):
     scores = scorelist
     labels = lbllist
 
-    return auroc(scores, labels), aupr(scores, labels), fpr_at_95_tpr(scores, labels), detection_error(scores, labels), scores, labels
+    auroc, fpr, f1, acc = calculate_acc_rv(labels, scores)
+
+    return auroc, fpr, f1, acc, scores, labels
 
 
 
@@ -922,6 +928,8 @@ if __name__ == "__main__":
     y_onehot_test=[]
     y_score = []
 
+    validation =[]
+
     device = torch.device(args.device)
     num_classes, datalist, labellist = loading_data(data_type, args)
 
@@ -987,7 +995,7 @@ if __name__ == "__main__":
         final_fpr.append([np.mean(fpr_a), np.std(fpr_a)])
         final_de.append([np.mean(de_a), np.std(de_a)])
 
-        print(testy_rs)  
+        #print(testy_rs)  
         #print(scores_rs)
         # for visualization
         onehot_encoded = list()        
@@ -995,62 +1003,16 @@ if __name__ == "__main__":
         onehot_encoded = label_binarizer.transform(testy_rs)
         y_onehot_test.append(onehot_encoded)
         y_score.append(scores_rs)
+        auroc_rs, _,_,_ = calculate_acc_rv(testy_rs, scores_rs)
+        validation.append([auroc_rs,0])
 
 
-    final_rs =[]
-    for i in final_auroc:
-        final_rs.append(i)
-    for i in final_aupr:
-        final_rs.append(i)                
-    for i in final_fpr:
-        final_rs.append(i)
-    for i in final_de:
-        final_rs.append(i)
-
-    df = pd.DataFrame(final_rs, columns=['mean', 'std'])
-    df.to_excel(store_path, sheet_name='the results')
-
+    print_rs(final_auroc, final_aupr, final_fpr, final_de, validation, store_path)
     
-    # visualization    
-    fig, ax = plt.subplots(figsize=(6, 6))
-    if(len(class_num)<=5):
-        colors = cycle(["tomato", "darkorange", "gold", "darkseagreen","dodgerblue"])
-    else:
-        colors = cycle(["firebrick", "tomato", "sandybrown", "darkorange", "olive", "gold", 
-                            "darkseagreen", "darkgreen", "dodgerblue", "royalblue","slategrey",
-                            "slateblue", "mediumpurple","indigo", "orchid", "hotpink"])
-        
-    for class_id, color in zip(range(len(class_num)), colors):
 
-        if class_num[class_id] != -1:
-            RocCurveDisplay.from_predictions(
-                y_onehot_test[class_id],
-                y_score[class_id],
-                pos_label=1,
-                name=f"ROC curve for {(class_num[class_id]+1)}",
-                color=color,
-                ax=ax, 
-            )
-        else:
-            RocCurveDisplay.from_predictions(
-                y_onehot_test[class_id],
-                y_score[class_id],
-                pos_label=1,
-                name=f"ROC curve for Multi",
-                color="black",
-                ax=ax, 
 
-            )
-
-                
-    plt.axis("square")
-    ax.plot([0, 1], [0, 1], color='gray', linestyle='--', label='Chance Level (0.5)')
-    plt.xlabel("False Positive Rate")
-    plt.ylabel("True Positive Rate")
-    plt.title(vis_title)
-    plt.legend()
-    plt.show()
-    plt.savefig(vis_path)
+    # visualization        
+    visualization_roc(class_num, y_onehot_test, y_score, vis_title, vis_path)
 
     print("Finished")
                     
