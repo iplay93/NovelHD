@@ -33,7 +33,7 @@ class Load_Dataset(Dataset):
             self.y_data = y_train
 
         # (N, C, T)
-        self.x_data_f = fft.fft(self.x_data).abs() #/(window_length) # rfft for real value inputs.
+        self.x_data_f = fft.fftn(self.x_data).abs() #/(window_length) # rfft for real value inputs.
         self.len = X_train.shape[0]
     
         # select positive transformation method        
@@ -41,7 +41,7 @@ class Load_Dataset(Dataset):
         # (N, C, T) -> (N, T, C)-> (N, C, T)
         self.aug1 = torch.from_numpy(np.array(pos_aug.augment(self.x_data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
         # (N, C, T)
-        self.aug1_f = fft.fft(self.aug1).abs()
+        self.aug1_f = fft.fftn(self.aug1).abs()
 
     def __getitem__(self, index):
         return self.x_data[index], self.y_data[index], self.aug1[index], self.x_data_f[index], self.aug1_f[index]
@@ -51,13 +51,21 @@ class Load_Dataset(Dataset):
 
 def data_generator_nd(args, configs, training_mode, positive_list, 
                                             num_classes, datalist, labellist):
-    test_ratio = args.test_ratio
+    test_ratio = args.test_ratio 
     valid_ratio = args.valid_ratio
     seed =  args.seed 
 
     # Split train and valid dataset
     train_list, test_list, train_label_list, test_label_list = train_test_split(datalist, 
                                                                                 labellist, test_size=test_ratio, stratify= labellist, random_state=seed) 
+    print("Before len:", len(train_list))
+    if args.train_num_ratio !=1 :
+        train_list, _, train_label_list, _ = train_test_split(train_list,
+                                                       train_label_list, test_size=(1-args.train_num_ratio), stratify= train_label_list, random_state=seed) 
+    print("After len:", len(train_list))
+    if len(train_list)< 1:
+           raise ValueError("The training num is less than 1")
+
     if valid_ratio!=0:
         train_list, valid_list, train_label_list, valid_label_list = train_test_split(train_list, 
                                                                                       train_label_list, test_size=valid_ratio, stratify=train_label_list, random_state=seed)
@@ -193,7 +201,7 @@ def generate_freq(dataset, config):
     """Transfer x_data to Frequency Domain. If use fft.fft, the output has the same shape; if use fft.rfft, 
     the output shape is half of the time window."""
 
-    x_data_f = fft.fft(x_data).abs() #/(window_length) # rfft for real value inputs.
+    x_data_f = fft.fftn(x_data).abs() #/(window_length) # rfft for real value inputs.
     return (X_train, y_train, x_data_f)
 
 

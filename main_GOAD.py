@@ -96,11 +96,9 @@ def train_anomaly_detector(args, config, datalist, labellist):
     
     # train 은 하나의 idx를 기반으로 하기 때문에 test의 크기가 더 클 수 있음
     tc_obj = tc.TransClassifier(transformer.n_transforms, args, configs)
-    scores, labels = tc_obj.fit_trans_classifier(x_train, x_test, y_test)
-
-    auroc, fpr, f1, acc = calculate_acc_rv(labels, scores)
+    scores, labels = tc_obj.fit_trans_classifier(x_train, x_test, y_test)    
     
-    return auroc, fpr, f1, acc, scores, labels
+    return scores, labels
 
 
 if __name__ == '__main__':
@@ -200,17 +198,19 @@ if __name__ == '__main__':
             print("True Class:", args.one_class_idx)
             print(f'Seed:    {SEED}')
             print("=" * 45)
-            one_class_total, one_class_aupr, one_class_fpr, one_class_de, scores, labels = train_anomaly_detector(args, configs, datalist, labellist)
             
+            scores, labels = train_anomaly_detector(args, configs, datalist, labellist)
             
-            auroc_a.append(one_class_total)     
-            aupr_a.append(one_class_aupr)   
-            fpr_a.append(one_class_fpr)
-            de_a.append(one_class_de)
+            auroc, fpr, f1, acc = calculate_acc_rv(labels, scores)
+
+            auroc_a.append(auroc)     
+            aupr_a.append(fpr)   
+            fpr_a.append(f1)
+            de_a.append(acc)
             testy_rs= testy_rs + labels
             scores_rs= scores_rs + scores
 
-            print("Length!!!!!!!!!!!!!!!!!", len(testy_rs), len(scores_rs))
+        print("Length!!!!!!!!!!!!!!!!!", len(scores_rs), len(scores))
         
         #testy_rs, scores_rs = list(itertools.chain.from_iterable(testy_rs)), list(itertools.chain.from_iterable(scores_rs))
         final_auroc.append([np.mean(auroc_a), np.std(auroc_a)])

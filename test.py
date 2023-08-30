@@ -73,3 +73,5 @@ factorization(63)
 
 # Expected output
 # (tensor(0.1667), tensor(0.9364))
+l = np.array([1,2,3,4,5])*2
+print(l.tolist())

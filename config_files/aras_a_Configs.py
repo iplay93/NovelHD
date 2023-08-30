@@ -59,6 +59,7 @@ class Config(object):
         #self.TSlength_aligned = 22
         #self.TSlength_aligned = 23 #(before augmentation)
         self.TSlength_aligned = 63#24 #(after augmentation)
+        self.TSlength_aligned_2 = 63 
         self.lr_f = self.lr
         self.target_batch_size = 64#  84
         self.increased_dim = 1

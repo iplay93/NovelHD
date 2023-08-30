@@ -750,7 +750,6 @@ if __name__ == '__main__':
             # split train / test => Train only 0 and Test  both 0 and 1
             train_list, train_label_list, test_list, test_label_list, novel_class_idx  \
                 = data_generator(args, datalist, labellist)
-
             
             indexes = random.sample(range(0, len(train_list)), N) #randomly sample N normal data points
             

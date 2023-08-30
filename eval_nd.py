@@ -23,7 +23,12 @@ def set_random_seed(seed):
 def normalize(x, dim=1, eps=1e-8):
     return x / (x.norm(dim=dim, keepdim=True) + eps)
 
-def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, train_loader, negative_list):
+def softmax(x):
+    x = np.asarray(x)
+    e_x = np.exp(x - np.max(x))
+    return (e_x / e_x.sum()).tolist()
+
+def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, train_loader, negative_list, negative_list_f):
 
     auroc_dict  = dict()
     aupr_dict   = dict()
@@ -104,8 +109,8 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
         args.weight_shi_f = [0] * args.K_shift
     elif ood_score == 'FCON':
         args.weight_sim_t = weight_sim_t # weight_sim_t or [0,0]
-        args.weight_shi_t = weight_shi_t # weight_shi_t or [0,0]
-        args.weight_sim_f = weight_sim_f   # weight_sim_f or [0,0] 
+        args.weight_shi_t = weight_shi_t# weight_shi_t or [0,0]
+        args.weight_sim_f = weight_sim_f  # weight_sim_f or [0,0] 
         args.weight_shi_f = [0] * args.K_shift # weight_shi_f or [0,0]  
     elif ood_score == 'FCLS':
         args.weight_sim_t = weight_sim_t # weight_sim_t or [0,0]
@@ -113,10 +118,12 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
         args.weight_sim_f = [0] * args.K_shift   # weight_sim_f or [0,0] 
         args.weight_shi_f = weight_shi_f # weight_shi_f or [0,0]       
     elif ood_score == 'NovelHD' or ood_score == 'NovelHD_TF' :
-        args.weight_sim_t = weight_sim_t # weight_sim_t or [0,0]
-        args.weight_shi_t = weight_shi_t # weight_shi_t or [0,0]
-        args.weight_sim_f = weight_sim_f # weight_sim_f or [0,0] 
-        args.weight_shi_f = weight_shi_f # weight_shi_f or [0,0]
+        args.weight_sim_t = softmax(weight_sim_t) # weight_sim_t or [0,0]
+        args.weight_shi_t = softmax(weight_shi_t) # weight_shi_t or [0,0]
+        args.weight_sim_f = softmax(weight_sim_f)
+        args.weight_shi_f = softmax( weight_shi_f)
+        #args.weight_sim_f = np.array(weight_sim_f)*args.lam_score).tolist() # weight_sim_f or [0,0] 
+        #args.weight_shi_f = (np.array(weight_shi_f)*args.lam_score).tolist() # weight_shi_f or [0,0]
     elif ood_score == 'CON':
         args.weight_sim_t = weight_sim_t # weight_sim_t or [0,0]
         args.weight_shi_t = [0] * args.K_shift # weight_shi_t or [0,0]
@@ -181,7 +188,6 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
     scores = np.concatenate([scores_id, one_class_score]).tolist()
     labels = np.concatenate([np.ones_like(scores_id, dtype=int), np.zeros_like(one_class_score, dtype=int)]).tolist()
     auroc, fpr, f1, acc = calculate_acc_rv(labels, scores)
-
 
 
     return auroc_dict, aupr_dict, fpr_dict, de_dict, auroc, fpr, f1, acc, scores, labels
@@ -268,7 +274,7 @@ def _get_features(args, negative_list, model, loader, sample_num=10, layers=('si
                 temp_data = torch.from_numpy(np.array(shifted_aug.augment(original_data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
                 x = torch.cat((x, temp_data.to(device)), 0)
 
-            x_f      = fft.fft(x).abs()                   
+            x_f      = fft.fftn(x).abs()                   
 
             # compute augmented features
             with torch.no_grad():

@@ -29,6 +29,7 @@ class Config(object):
         
         """New hyperparameters"""
         self.TSlength_aligned = 46 #45(BA) #46
+        self.TSlength_aligned_2 = 46
         self.lr_f = self.lr
         self.target_batch_size = 64#  84
         self.increased_dim = 1
@@ -36,7 +37,23 @@ class Config(object):
         self.num_classes_target = 15
         self.features_len_f = self.features_len
         self.CNNoutput_channel = 28#  104
-
+        
+        self.ST = [
+            ['Convolve', 'Crop','Drift','Pool','Quantize','Resize','Reverse'],
+            [ 'Crop',  'Dropout', 'Pool', 'Quantize', 'Reverse'],
+            [ 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp'],
+            ['Convolve', 'Crop', 'Drift','Pool', 'Quantize', 'Reverse'],
+            ['Convolve', 'Crop', 'Drift','Pool', 'Quantize', 'Reverse', 'TimeWarp'],
+            ['Convolve', 'Crop', 'Drift','Pool', 'Quantize', 'Reverse']
+        ]
+        self.ST_f  = [
+            ['Crop', 'Drift','Pool','Quantize', 'Reverse'],
+            ['Convolve', 'Crop', 'Drift','Pool', 'Quantize', 'Reverse'],
+            ['Convolve', 'Crop', 'Drift','Pool', 'Quantize', 'Reverse'],
+            ['Convolve', 'Crop', 'Drift','Pool', 'Quantize', 'Reverse'],
+            ['Convolve', 'Crop', 'Drift','Pool', 'Quantize', 'Reverse', 'TimeWarp'],
+            ['Convolve', 'Crop', 'Drift','Pool', 'Quantize', 'Reverse']
+        ]
 
 class augmentations(object):
     def __init__(self):

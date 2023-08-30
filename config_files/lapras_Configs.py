@@ -58,6 +58,7 @@ class Config(object):
         """New hyperparameters"""
         #self.TSlength_aligned = 527#598(after DA) #527(before DA)
         self.TSlength_aligned = 598#598(after DA
+        self.TSlength_aligned_2 = 598
         self.lr_f = self.lr
         self.target_batch_size = 64#  84
         self.increased_dim = 1
@@ -67,6 +68,21 @@ class Config(object):
         self.CNNoutput_channel = 28#  104
 
 
+        self.class_num =  [0, 1, 2, 3, -1] 
+        self.ST = [
+            ['Crop', 'Drift','Quantize','Resize', 'Reverse'],
+            ['Crop', 'Drift','Dropout','Quantize', 'Reverse'],
+            ['Crop', 'Drift','Dropout', 'Quantize', 'Reverse'],
+            ['Crop', 'Quantize','Reverse'],
+            ['Crop', 'Drift','Dropout', 'Quantize', 'Reverse']
+        ]
+        self.ST_f = [
+            ['Convolve','Crop', 'Drift','Quantize','Dropout','Resize'],
+            ['Convolve','Crop', 'Drift','Pool','Quantize', 'Resize', 'TimeWarp'],
+            ['Convolve','Crop', 'Drift','Pool','Quantize', 'Resize', 'TimeWarp'],
+            ['Crop', 'Drift', 'Dropout', 'Pool','Quantize', 'Resize'],
+            ['Convolve','Crop', 'Drift','Dropout', 'Quantize', 'Resize', 'TimeWarp']
+            ]
 
 class augmentations(object):
     def __init__(self):

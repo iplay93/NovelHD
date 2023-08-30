@@ -20,8 +20,9 @@ import os.path
 
 import requests
 import json
+import pickle
 
-from util import calculate_acc, visualization_roc, print_rs
+from util import calculate_acc_rv, visualization_roc, print_rs
 
 def send_slack_message(payload, webhook):
     return requests.post(webhook, json.dumps(payload))
@@ -86,7 +87,9 @@ parser.add_argument('--test_ratio', type=float, default=0.2, help='choose the nu
 parser.add_argument('--valid_ratio', type=float, default=0, help='choose the number of vlaidation ratio')
 parser.add_argument('--overlapped_ratio', type=int, default= 50, help='choose the number of windows''overlapped ratio')
 parser.add_argument('--lam_a', type=float, default= 0.5, help='choose lam_a ratio')
-
+parser.add_argument('--train_num_ratio', type=float, default = 1, help='choose the number of test ratio')
+parser.add_argument('--lam_score', type=float, default = 1, help='choose the number of test ratio')
+parser.add_argument('--training_ver', type = str, default = 'Diverse', help='choose one of them: One, Diverse, Random')
 
 # for training   
 parser.add_argument('--loss', type=str, default='SupCon', help='choose one of them: crossentropy loss, contrastive loss')
@@ -114,23 +117,34 @@ positive_aug = 'AddNoise'
 logs_save_dir = args.logs_save_dir
 os.makedirs(logs_save_dir, exist_ok=True)
 
+
+with open('./data/'+data_type+'.data', 'rb') as f:
+    strong_set = pickle.load(f)
+
+with open('./data/'+data_type+'_f.data', 'rb') as f:
+    strong_set_f = pickle.load(f)
+
 exec(f'from config_files.{data_type}_Configs import Config as Configs')
 configs = Configs()
 
 if data_type == 'lapras': 
     args.timespan = 10000
-    class_num = [0, 1, 2, 3, -1]
-    strong_transformation = ['Dropout', 'Drift', 'Crop', 'Pool', 'Quantize']
+    class_num = configs.class_num
     weak_transformation = ['AddNoise']
 elif data_type == 'casas':         
     class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, -1]
     args.aug_wise = 'Temporal2'
-    strong_transformation = ['Convolve', 'Dropout', 'Drift', 'Crop', 'Pool', 'Quantize', 'Resize'] 
+    #strong_transformation = ['Convolve', 'Dropout', 'Drift', 'Crop', 'Pool', 'Quantize', 'Resize'] 
+    strong_set = configs.ST
+    strong_set_f = configs.ST_f
     weak_transformation = ['AddNoise']
 elif data_type == 'opportunity': 
     args.timespan = 1000
     class_num = [0, 1, 2, 3, 4, -1]
-    strong_transformation = ['Convolve', 'Drift', 'Quantize', 'Pool', 'Crop'] 
+    #strong_transformation = ['Convolve', 'Drift', 'Quantize', 'Pool', 'Crop'] 
+    strong_set = configs.ST
+    strong_set_f = configs.ST_f
+  
     weak_transformation = ['AddNoise']
 elif data_type == 'aras_a': 
     args.timespan = 1000
@@ -146,11 +160,22 @@ num_classes, datalist, labellist = loading_data(data_type, args)
 #for args.ood_score in [['T']]:  
 # 
 
+if args.training_ver == "Random":
+    store_path = 'result_files/' + str(args.ood_score[0])+'_'+ \
+                    data_type+'_random.xlsx'
+    vis_path = 'figure/'+str(args.ood_score[0])+'_ROC_'+data_type+'_'+'_random.png'
+    vis_title ="ROC curves of "+str(args.ood_score[0])+" - random ST"
+elif args.training_ver == "One":
+    store_path = 'result_files/' + str(args.ood_score[0])+'_'+ \
+                    data_type+'_one.xlsx'
+    vis_path = 'figure/'+str(args.ood_score[0])+'_ROC_'+data_type+'_'+'_one.png'
+    vis_title ="ROC curves of "+str(args.ood_score[0])+" - one ST"
 
-store_path = 'result_files/' + str(args.ood_score[0])+'_'+ \
-                 data_type+'_multipleST.xlsx'
-vis_path = 'figure/'+str(args.ood_score[0])+'_ROC_'+data_type+'_multipleST.png'
-vis_title ="ROC curves of "+str(args.ood_score[0])+"-multiple ST"
+elif args.training_ver == "Diverse":
+    store_path = 'result_files/' + str(args.ood_score[0])+'_'+ \
+                    data_type+'_diverse.xlsx'
+    vis_path = 'figure/'+str(args.ood_score[0])+'_ROC_'+data_type+'_'+'_diverse.png'
+    vis_title ="ROC curves of "+str(args.ood_score[0])+" - diverse ST"
 
 # slack
 webhook = "https://hooks.slack.com/services/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"
@@ -160,16 +185,13 @@ payload = {"text": "Experiment "+store_path+" Finished!"}
 visualization = True
 args.binary = True
 
-# random test 
-randomness = False
-
 
 # if simclr(0,1)
 #for args.K_shift in range(0,1):
 # for one-T
 #for args.K_shift in range(1,2):
 # for multiple- T, lapras = 4,5, casas =8,9 opportunity = 6,7 , aras_a = 7,8
-for args.K_shift in range(8,9):
+for args.K_shift in range(4,5):
     
     final_auroc = []
     final_aupr  = []
@@ -185,20 +207,23 @@ for args.K_shift in range(8,9):
     #args.lam_a = round(num_lam_a * 0.1, 1)
     args.lam_a = 1
     #weak_num = args.K_pos = 10 - args.K_shift
-    weak_num = args.K_pos = 1
-    strong_num = args.K_shift
-    args.K_shift = args.K_shift + 1
+   # weak_num = args.K_pos = 1
+   # strong_num = args.K_shift
+   # args.K_shift = args.K_shift + 1
 
-    if randomness:
-        strong_transformation = ['AddNoise''Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']
+    #if randomness:
+    #    strong_transformation = ['AddNoise', 'AddNoise2','AddNoise3','AddNoise4', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']
     if str(args.ood_score[0]) == "simclr":
-        weak_transformation= ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']
+        weak_transformation= [ 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']
     
 
-    for args.one_class_idx in class_num:
+    for num, args.one_class_idx in enumerate(class_num):
+
+        
     # give weakly shifted transformation methods ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']
         for positive_aug in ['AddNoise']: #, 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
         #for shifted_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
+                           
             # overall performance
             auroc_a = []
             aupr_a  = []
@@ -207,15 +232,10 @@ for args.K_shift in range(8,9):
 
             testy_rs = []
             scores_rs = []
-            # give strongly shifted transformation
-            #shifted_aug = 'Drift'
-            
-            # if args.one_class_idx != -1:
-            #     seed_num = [20, 40, 60, 80, 100]
-            # else:
-            seed_num = [20, 40, 60, 80, 100, 120, 140, 160, 180, 200]
+
+
             # Training for five seed #
-            for test_num in seed_num :
+            for test_num in [20, 40, 60, 80, 100, 120, 140, 160, 180, 200] :
                 # ##### fix random seeds for reproducibility ########
                 SEED = args.seed = test_num
                 torch.manual_seed(SEED)
@@ -224,26 +244,42 @@ for args.K_shift in range(8,9):
                 np.random.seed(SEED)
                 random.seed(SEED)
                 #####################################################
-                
-                negative_list = []
-                positive_list  =[]
+                positive_list  =['AddNoise']
 
-                if strong_num > len(strong_transformation) :
-                    negative_list = [random.choice(strong_transformation) for i in range(strong_num - len(strong_transformation))]
-                    strong_num = len(strong_transformation)
+                # for one ST
+                if args.training_ver == "One":
+                    negative_list = random.sample(strong_set[num], 1)
+                    negative_list_f = random.sample(strong_set_f[num], 1)
+                elif args.training_ver == "Random":
+                    all_list = ['AddNoise','Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']
+                    negative_list = random.sample(all_list, len(strong_set[num]))
+                    negative_list_f = random.sample(all_list, len(strong_set_f[num]))
+                else:
+                    negative_list = strong_set[num]                
+                    negative_list_f = strong_set_f[num]
+            
+                    
 
-                negative_list += random.sample(strong_transformation, strong_num) #,'Dropout', 'Dropout', 'Dropout','Dropout']
+                # if strong_num > len(strong_transformation) :
+                #     negative_list = [random.choice(strong_transformation) for i in range(strong_num - len(strong_transformation))]
+                #     strong_num = len(strong_transformation)
+
+                # negative_list += random.sample(strong_transformation, strong_num) #,'Dropout', 'Dropout', 'Dropout','Dropout']
                 
-                if weak_num > len(weak_transformation):
-                    positive_list = [random.choice(weak_transformation) for i in range(weak_num- len(weak_transformation))]
-                    weak_num = len(weak_transformation)
-                positive_list += random.sample(weak_transformation, weak_num) #'AddNoise2'
+                # if weak_num > len(weak_transformation):
+                #     positive_list = [random.choice(weak_transformation) for i in range(weak_num- len(weak_transformation))]
+                #     weak_num = len(weak_transformation)
+                # positive_list += random.sample(weak_transformation, weak_num) #'AddNoise2'
                
                 
                 # Reset
-                strong_num = len(negative_list)
-                weak_num = len(positive_list) 
+                #strong_num = len (negative_list)
+                #weak_num = len (positive_list) 
 
+
+                args.K_shift = len(negative_list) + 1
+                args.K_shift_f = len(negative_list_f) + 1
+                args.K_pos = len (positive_list) 
 
                 experiment_log_dir = os.path.join(logs_save_dir, experiment_description, run_description, training_mode + f"_seed_{SEED}")
                 os.makedirs(experiment_log_dir, exist_ok=True)
@@ -289,7 +325,7 @@ for args.K_shift in range(8,9):
 
                 # Trainer
                 model = Trainer(model, model_optimizer, classifier, classifier_optimizer, 
-                                train_dl, device, logger, configs, experiment_log_dir, args, negative_list, positive_list)
+                                train_dl, device, logger, configs, experiment_log_dir, args, negative_list, negative_list_f, positive_list)
 
                 
                 # load saved model of this experiment
@@ -303,7 +339,7 @@ for args.K_shift in range(8,9):
                 with torch.no_grad():
                     auroc_dict, aupr_dict, fpr_dict, de_dict, one_class_total, one_class_aupr, one_class_fpr, one_class_de, scores, labels\
                         = eval_ood_detection(args, path, model, valid_dl, 
-                                             ood_test_loader, args.ood_score, train_dl, negative_list)
+                                             ood_test_loader, args.ood_score, train_dl, negative_list, negative_list_f)
 
                     auroc_a.append(one_class_total)     
                     aupr_a.append(one_class_aupr)   
@@ -314,31 +350,31 @@ for args.K_shift in range(8,9):
                     scores_rs = scores_rs + scores
                     
 
-                    mean_dict = dict()
-                    for ood_score in args.ood_score:
-                        mean = 0
-                        for ood in auroc_dict.keys():
-                            mean += auroc_dict[ood][ood_score]
-                        mean_dict[ood_score] = mean / len(auroc_dict.keys())
-                    auroc_dict['one_class_mean'] = mean_dict
+                    # mean_dict = dict()
+                    # for ood_score in args.ood_score:
+                    #     mean = 0
+                    #     for ood in auroc_dict.keys():
+                    #         mean += auroc_dict[ood][ood_score]
+                    #     mean_dict[ood_score] = mean / len(auroc_dict.keys())
+                    # auroc_dict['one_class_mean'] = mean_dict
 
-                    bests = []
-                    for ood in auroc_dict.keys():
-                        print(ood)
-                        message = ''
-                        best_auroc = 0
-                        for ood_score, auroc in auroc_dict[ood].items():
-                            message += '[%s %s %.4f] ' % (ood, ood_score, auroc)
-                            if auroc > best_auroc:
-                                best_auroc = auroc
-                        message += '[%s %s %.4f] ' % (ood, 'best', best_auroc)
-                        if args.print_score:
-                            print(message)
-                        bests.append(best_auroc)
+                    # bests = []
+                    # for ood in auroc_dict.keys():
+                    #     print(ood)
+                    #     message = ''
+                    #     best_auroc = 0
+                    #     for ood_score, auroc in auroc_dict[ood].items():
+                    #         message += '[%s %s %.4f] ' % (ood, ood_score, auroc)
+                    #         if auroc > best_auroc:
+                    #             best_auroc = auroc
+                    #     message += '[%s %s %.4f] ' % (ood, 'best', best_auroc)
+                    #     if args.print_score:
+                    #         print(message)
+                    #     bests.append(best_auroc)
 
-                    bests = map('{:.4f}'.format, bests)
-                    print('\t'.join(bests))
-                    print("novel_class:", novel_class)
+                    # bests = map('{:.4f}'.format, bests)
+                    # print('\t'.join(bests))
+                    # print("novel_class:", novel_class)
 
             
             #testy_rs, scores_rs = np.concatenate(testy_rs), np.concatenate(scores_rs)
@@ -355,7 +391,7 @@ for args.K_shift in range(8,9):
             y_onehot_test.append(onehot_encoded)
             y_score.append(scores_rs)
 
-            auroc_rs, _,_,_ = calculate_acc(testy_rs, scores_rs)
+            auroc_rs, _,_,_ = calculate_acc_rv(testy_rs, scores_rs)
             validation.append([auroc_rs,0])
 
     print_rs(final_auroc, final_aupr, final_fpr, final_de, validation, store_path)
