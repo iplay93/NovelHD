@@ -1,6 +1,37 @@
 from torch import nn
 import torch
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
+import torch.nn.functional as F
+import math
+# class TransformerEncoder(nn.Module):
+#     def __init__(self, d_model, num_heads, num_layers):
+#         super(TransformerEncoder, self).__init__()
+#         self.encoder_layers = nn.ModuleList([
+#             nn.TransformerEncoderLayer(d_model, num_heads) for _ in range(num_layers)
+#         ])
+    
+#     def forward(self, x):
+#         for encoder_layer in self.encoder_layers:
+#             x = encoder_layer(x)
+#         return x
+    
+#     class TransformerEncoderLayer(nn.Module):
+#         def __init__(self, d_model, num_heads):
+#             super(TransformerEncoderLayer, self).__init__()
+#             self.self_attention = nn.MultiheadAttention(d_model, num_heads)
+#             self.norm1 = nn.LayerNorm(d_model)
+#             self.norm2 = nn.LayerNorm(d_model)
+#             self.dropout = nn.Dropout(0.1)
+
+#         def forward(self, x, src_mask, src_key_padding_mask, need_weights=False):
+#             x = self.self_attention(x, x, x, attn_mask=src_mask, key_padding_mask=src_key_padding_mask, need_weights=need_weights)
+#             x = self.norm1(x)
+#             x = F.relu(x)
+#             x = self.dropout(x)
+#             x = self.norm2(x)
+#             return x, x.attn if need_weights else None
+    
+
 
 """Two contrastive encoders"""
 class TFC(nn.Module):
@@ -27,14 +58,89 @@ class TFC(nn.Module):
             nn.ReLU(),
             nn.Linear(256, 128)
         )                   
-        self.shift_cls_layer_f = nn.Linear(configs.TSlength_aligned_2 * configs.input_channels_2, args.K_shift)
+        self.shift_cls_layer_f = nn.Linear(configs.TSlength_aligned_2 * configs.input_channels_2, args.K_shift_f)
 
         self.linear = nn.Linear(configs.TSlength_aligned * configs.input_channels, configs.num_classes)    
         # Positional Encoding
-        self.positional_encoding = self.generate_positional_encoding(configs.TSlength_aligned, configs.input_channels)
+        self.positional_encoding_t = self.generate_positional_encoding(
+            configs.TSlength_aligned, configs.input_channels
+        )
+        
+        self.positional_encoding_f = self.generate_positional_encoding(
+            configs.TSlength_aligned, configs.input_channels
+        )
 
+    def generate_positional_encoding(self, seq_len, d_model):
+        
+        position = torch.arange(0, seq_len, dtype=torch.float32).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2, dtype=torch.float32) * -(math.log(10000.0) / d_model))
+
+        pe = torch.sin(position * div_term[0])
+        
+        for i in range(1, d_model):
+
+            if i % 2 == 0:
+                pe = torch.cat([pe, torch.sin(position * div_term[(int)(i % 2)])], dim = 1)
+            else:
+                pe = torch.cat([pe, torch.cos(position * div_term[(int)(i % 2)])], dim = 1)
+        
+        #print("PE", pe.shape)
+        return pe.permute(1,0)
 
     def forward(self, x_in_t, x_in_f):
+        #x_in_t = x_in_t + self.positional_encoding.T.cuda()
+        #x_in_f = x_in_f + self.positional_encoding.T.cuda()
+        
+        #print( x_in_t.shape, self.positional_encoding_t.shape)        
+        
+        x_in_t = x_in_t + self.positional_encoding_t.unsqueeze(0).expand(x_in_t.shape[0], -1, -1).cuda()
+        """Use Transformer"""
+        x = self.transformer_encoder_t(x_in_t.float())
+        h_time = x.reshape(x.shape[0], -1)
+
+        """Cross-space projector"""
+        z_time = self.projector_t(h_time)
+
+        """Shifted transformation classifier"""
+        s_time = self.shift_cls_layer_t(h_time)
+
+        x_in_f = x_in_f + self.positional_encoding_f.unsqueeze(0).expand(x_in_f.shape[0], -1, -1).cuda()
+        """Frequency-based contrastive encoder"""
+        f = self.transformer_encoder_f(x_in_f.float())
+        h_freq = f.reshape(f.shape[0], -1)
+
+        """Cross-space projector"""
+        z_freq = self.projector_f(h_freq)
+
+        """Shifted transformation classifier"""
+        s_freq = self.shift_cls_layer_f(h_freq)
+
+        return h_time, z_time, s_time, h_freq, z_freq, s_freq
+
+
+
+
+"""Two contrastive encoders"""
+class TFC_one(nn.Module):
+    def __init__(self, configs, args):
+        super(TFC_one, self).__init__()
+
+        encoder_layers_t = TransformerEncoderLayer(configs.TSlength_aligned, dim_feedforward=2*configs.TSlength_aligned, nhead=1, )
+        self.transformer_encoder_t = TransformerEncoder(encoder_layers_t, 2)
+
+        self.projector_t = nn.Sequential(
+            nn.Linear(configs.TSlength_aligned * configs.input_channels, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Linear(256, 128)
+        )
+        self.shift_cls_layer_t = nn.Linear(configs.TSlength_aligned * configs.input_channels, args.K_shift)
+
+        self.linear = nn.Linear(configs.TSlength_aligned * configs.input_channels, configs.num_classes)    
+
+
+
+    def forward(self, x_in_t):
         #x_in_t = x_in_t + self.positional_encoding.T.cuda()
         #x_in_f = x_in_f + self.positional_encoding.T.cuda()
 
@@ -48,26 +154,7 @@ class TFC(nn.Module):
         """Shifted transformation classifier"""
         s_time = self.shift_cls_layer_t(h_time)
 
-        """Frequency-based contrastive encoder"""
-        f = self.transformer_encoder_f(x_in_f.float())
-        h_freq = f.reshape(f.shape[0], -1)
-
-        """Cross-space projector"""
-        z_freq = self.projector_f(h_freq)
-
-        """Shifted transformation classifier"""
-        s_freq = self.shift_cls_layer_f(h_freq)
-
-        return h_time, z_time, s_time, h_freq, z_freq, s_freq
-
-    def generate_positional_encoding(self, seq_length, input_channels):
-        positional_encoding = torch.zeros(seq_length, input_channels)
-        positions = torch.arange(0, seq_length, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, input_channels, 2).float() * (-torch.log(torch.tensor(10000.0)) / input_channels))
-        positional_encoding[:, :input_channels:2] = torch.sin(positions * div_term)
-        positional_encoding[:, 1:input_channels:2] = torch.cos(positions[:, :input_channels//2] * div_term[:input_channels//2])
-        return positional_encoding
-
+        return h_time, z_time, s_time
 
 
 

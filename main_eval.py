@@ -118,11 +118,25 @@ logs_save_dir = args.logs_save_dir
 os.makedirs(logs_save_dir, exist_ok=True)
 
 
-with open('./data/'+data_type+'.data', 'rb') as f:
+with open('./data/'+data_type+'_s.data', 'rb') as f:
     strong_set = pickle.load(f)
 
-with open('./data/'+data_type+'_f.data', 'rb') as f:
+with open('./data/'+data_type+'_fs.data', 'rb') as f:
     strong_set_f = pickle.load(f)
+
+
+with open('./data/'+data_type+'_w.data', 'rb') as f:
+    weak_set = pickle.load(f)
+    
+with open('./data/'+data_type+'_fw.data', 'rb') as f:
+    weak_set_f = pickle.load(f)
+
+# with open('./data/'+data_type+'_multi.data', 'rb') as f:
+#     multiST = pickle.load(f)
+
+# with open('./data/'+data_type+'_multi_f.data', 'rb') as f:
+#     multiST_f = pickle.load(f)
+
 
 exec(f'from config_files.{data_type}_Configs import Config as Configs')
 configs = Configs()
@@ -135,23 +149,18 @@ elif data_type == 'casas':
     class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, -1]
     args.aug_wise = 'Temporal2'
     #strong_transformation = ['Convolve', 'Dropout', 'Drift', 'Crop', 'Pool', 'Quantize', 'Resize'] 
-    strong_set = configs.ST
-    strong_set_f = configs.ST_f
     weak_transformation = ['AddNoise']
 elif data_type == 'opportunity': 
     args.timespan = 1000
     class_num = [0, 1, 2, 3, 4, -1]
     #strong_transformation = ['Convolve', 'Drift', 'Quantize', 'Pool', 'Crop'] 
-    strong_set = configs.ST
-    strong_set_f = configs.ST_f
-  
     weak_transformation = ['AddNoise']
 elif data_type == 'aras_a': 
     args.timespan = 1000
     #args.aug_wise = 'Temporal2'
-    class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
-    strong_transformation = ['Convolve', 'Drift', 'Crop', 'Dropout', 'Pool', 'Quantize', 'Resize', 'TimeWarp'] 
     weak_transformation = ['AddNoise']
+    class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
+
 
 num_classes, datalist, labellist = loading_data(data_type, args)
 
@@ -221,6 +230,7 @@ for args.K_shift in range(4,5):
 
         
     # give weakly shifted transformation methods ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']
+        #for S_tr in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
         for positive_aug in ['AddNoise']: #, 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
         #for shifted_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']:
                            
@@ -235,7 +245,7 @@ for args.K_shift in range(4,5):
 
 
             # Training for five seed #
-            for test_num in [20, 40, 60, 80, 100, 120, 140, 160, 180, 200] :
+            for seed_n, test_num in enumerate([20, 40, 60, 80, 100, 120, 140, 160, 180, 200]) :
                 # ##### fix random seeds for reproducibility ########
                 SEED = args.seed = test_num
                 torch.manual_seed(SEED)
@@ -244,20 +254,29 @@ for args.K_shift in range(4,5):
                 np.random.seed(SEED)
                 random.seed(SEED)
                 #####################################################
-                positive_list  =['AddNoise']
+                positive_list  = ['AddNoise']
 
                 # for one ST
                 if args.training_ver == "One":
                     negative_list = random.sample(strong_set[num], 1)
-                    negative_list_f = random.sample(strong_set_f[num], 1)
+                    negative_list_f  = random.sample(strong_set_f[num], 1) #= [S_tr]
                 elif args.training_ver == "Random":
                     all_list = ['AddNoise','Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']
                     negative_list = random.sample(all_list, len(strong_set[num]))
                     negative_list_f = random.sample(all_list, len(strong_set_f[num]))
                 else:
-                    negative_list = strong_set[num]                
+                    common_elements = []    
+                    for element in strong_set[num]:
+                        if element in strong_set_f[num]:
+                            common_elements.append(element)
+
+                    negative_list = strong_set[num]
                     negative_list_f = strong_set_f[num]
-            
+
+                    positive_list = ['AddNoise'] #weak_set [num]
+                    positive_list_f = ['AddNoise'] #weak_set_f[num]
+                    
+
                     
 
                 # if strong_num > len(strong_transformation) :
@@ -280,6 +299,7 @@ for args.K_shift in range(4,5):
                 args.K_shift = len(negative_list) + 1
                 args.K_shift_f = len(negative_list_f) + 1
                 args.K_pos = len (positive_list) 
+                args.K_pos_f = len (positive_list_f) 
 
                 experiment_log_dir = os.path.join(logs_save_dir, experiment_description, run_description, training_mode + f"_seed_{SEED}")
                 os.makedirs(experiment_log_dir, exist_ok=True)
@@ -297,6 +317,8 @@ for args.K_shift in range(4,5):
                 logger.debug(f'Mode:    {training_mode}')
                 logger.debug(f'Positive Augmentation:    {positive_list}')
                 logger.debug(f'Negative Augmentation:    {negative_list}')
+                logger.debug(f'Positive_F Augmentation:    {positive_list_f}')
+                logger.debug(f'Negative_F Augmentation:    {negative_list_f}')
                 logger.debug(f'Seed:    {SEED}')
                 logger.debug(f'Version:    {args.ood_score}')
                 logger.debug(f'One_class_idx:    {args.one_class_idx}')
@@ -325,8 +347,7 @@ for args.K_shift in range(4,5):
 
                 # Trainer
                 model = Trainer(model, model_optimizer, classifier, classifier_optimizer, 
-                                train_dl, device, logger, configs, experiment_log_dir, args, negative_list, negative_list_f, positive_list)
-
+                                train_dl, device, logger, configs, experiment_log_dir, args, negative_list, negative_list_f, positive_list, positive_list_f)
                 
                 # load saved model of this experiment
                 path = os.path.join(os.path.join(logs_save_dir, experiment_description, 
@@ -377,11 +398,11 @@ for args.K_shift in range(4,5):
                     # print("novel_class:", novel_class)
 
             
-            #testy_rs, scores_rs = np.concatenate(testy_rs), np.concatenate(scores_rs)
-            final_auroc.append([np.mean(auroc_a), np.std(auroc_a)])
-            final_aupr.append([np.mean(aupr_a), np.std(aupr_a)])
-            final_fpr.append([np.mean(fpr_a), np.std(fpr_a)])
-            final_de.append([np.mean(de_a), np.std(de_a)])
+                #testy_rs, scores_rs = np.concatenate(testy_rs), np.concatenate(scores_rs)
+                final_auroc.append([np.mean(auroc_a), np.std(auroc_a)])
+                final_aupr.append([np.mean(aupr_a), np.std(aupr_a)])
+                final_fpr.append([np.mean(fpr_a), np.std(fpr_a)])
+                final_de.append([np.mean(de_a), np.std(de_a)])
             
 
             # for visualization

@@ -243,7 +243,7 @@ def data_augmentation(dataset_list, aug_method, aug_wise):
                 # print(copy_count_label[types_label_list.index(dataset_list[i].label)],"and",sub_count_label[types_label_list.index(dataset_list[i].label)])          
                     #print("Aug", dataset_list[i].data.shape)
                     # select data transformation
-                    trans = select_transformation('AddNoise')
+                    trans = select_transformation('AddNoise', target_data.shape[0])
                     #trans = PERMUTE(min_segments=1, max_segments=5, seg_mode="random")
                     aug = trans.augment(np.reshape(target_data,(1, target_data.shape[0], -1)))
                     #print("Aug_after", aug.shape, aug[0].shape)  
@@ -254,7 +254,7 @@ def data_augmentation(dataset_list, aug_method, aug_wise):
         if aug_wise == 'Temporal2' :
             for i in range(len(dataset_list)): 
                 target_data  = dataset_list[i].data
-                trans = select_transformation('AddNoise')
+                trans = select_transformation('AddNoise', target_data.shape[0])
                 #trans = PERMUTE(min_segments=1, max_segments=3, seg_mode="random")
                 aug = trans.augment(np.reshape(target_data,(1, target_data.shape[0], -1))) 
                 ts_ds = TSDataSet(aug[0], dataset_list[i].label, len(aug[0]))

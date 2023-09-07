@@ -3,24 +3,25 @@ import torch
 from tsaug import *
 import random
 
-def select_transformation(aug_method):
+def select_transformation(aug_method, seq_len):
+    trans_num = (int)(seq_len/20)
     if(aug_method == 'AddNoise'):
         my_aug = (AddNoise(scale=0.01))
     elif(aug_method == 'Convolve'):
-        my_aug = Convolve(window="flattop", size=11)
+        my_aug = Convolve(window="flattop", size=trans_num)
     elif(aug_method == 'Crop'):
-        my_aug = PERMUTE(min_segments=10, max_segments=15, seg_mode="random")
+        my_aug = PERMUTE(min_segments=(int)(trans_num/4), max_segments=(int)(trans_num/2), seg_mode="random")
     #     my_aug = (Crop(size = target_len))
     elif(aug_method == 'Drift'):
-        my_aug = (Drift(max_drift=0.8, n_drift_points=10))
+        my_aug = (Drift(max_drift=0.8, n_drift_points = trans_num))
     elif(aug_method == 'Dropout'):
-        my_aug = (Dropout(p=0.1,fill=0))        
+        my_aug = (Dropout(p=0.3,fill=0))        
     elif(aug_method == 'Pool'):
         #my_aug = (Pool(size=2))
-        my_aug = (Pool(size=10))
+        my_aug = (Pool(size=trans_num))
     elif(aug_method == 'Quantize'):
         #my_aug = (Quantize(n_levels=20))
-        my_aug = (Quantize(n_levels=3))
+        my_aug = (Quantize(n_levels=20))
     elif(aug_method == 'Resize'):
         #my_aug = SCALE(sigma=1.1, loc = 1.3)
         my_aug = SCALE(sigma=0.8, loc = 1.5)
@@ -28,7 +29,7 @@ def select_transformation(aug_method):
     elif(aug_method == 'Reverse'):
         my_aug = (Reverse())
     elif(aug_method == 'TimeWarp'):
-        my_aug = (TimeWarp(n_speed_change=5, max_speed_ratio=3))
+        my_aug = (TimeWarp(n_speed_change=trans_num, max_speed_ratio=5))
     elif(aug_method == 'AddNoise2'):
         my_aug = (AddNoise(scale=0.05))
     elif(aug_method == 'AddNoise3'):

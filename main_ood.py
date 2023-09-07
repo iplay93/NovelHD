@@ -48,23 +48,23 @@ class Load_Dataset(Dataset):
 
         self.len = X_train.shape[0]
         
-        pos_aug = select_transformation(aug_method)
+        pos_aug = select_transformation(aug_method, config.TSlength_aligned)
         # (N, C, T) -> (N, T, C)-> (N, C, T)
         self.aug1 = torch.from_numpy(np.array(pos_aug.augment(
             self.x_data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
 
         # (N, C, T)
-        self.aug1_f = fft.fftn(self.aug1).abs()     
+        #self.aug1_f = fft.fftn(self.aug1).abs()     
         
         # normal_aug = select_transformation('Drift')
         # self.x_data = torch.from_numpy(np.array(normal_aug.augment(
         #     self.x_data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
 
         # (N, C, T)
-        self.x_data_f = fft.fftn(self.x_data).abs() #/(window_length) # rfft for real value inputs.
+        #self.x_data_f = fft.fftn(self.x_data).abs() #/(window_length) # rfft for real value inputs.
 
     def __getitem__(self, index):
-        return self.x_data[index], self.y_data[index], self.aug1[index], self.x_data_f[index], self.aug1_f[index]
+        return self.x_data[index], self.y_data[index], self.aug1[index] #, self.x_data_f[index], self.aug1_f[index]
 
     def __len__(self):
         return self.len
@@ -179,7 +179,7 @@ configs = Configs()
 
 if data_type == 'lapras': 
     args.timespan = 10000
-    class_num = [ 0, 1, 2, 3,-1]
+    class_num = [0, 1, 2, 3,-1]
 
 elif data_type == 'casas':         
     class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, -1]
@@ -201,24 +201,30 @@ final_auroc = []
 
 num_classes, datalist, labellist = loading_data(data_type, args)
 
-args.K_shift = 2
+args.K_shift_f = args.K_shift = 2
 pos_ths = 0.6
 neg_ths  = 0.9
 
 clssfication_arr = []
 strong_set = []
+weak_set = []
+multi_ST = [ [0]*11 for i in range(10)]
+
+print(multi_ST)
 # Training for each class
 for args.one_class_idx in class_num:
 
     temp_strong_set = []
-    for positive_aug in ['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 
-                        'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp', 'AddNoise2']:
+    temp_weak_set = []
+
+    for pos_num, positive_aug in enumerate(['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 
+                        'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp', 'AddNoise2']):
         acc_rs = []
         f1_rs  = []
         auroc_rs = []
 
         # Training for five seed
-        for test_num in [20, 40, 60, 80, 100, 120, 140, 160, 180, 200]:
+        for seed_n, test_num in enumerate([20, 40, 60, 80, 100, 120, 140, 160, 180, 200]):
             # ##### fix random seeds for reproducibility ########
             SEED = args.seed = test_num
             torch.manual_seed(SEED)
@@ -341,6 +347,13 @@ for args.one_class_idx in class_num:
             acc_rs.append(total_acc.item())
             f1_rs.append(total_f1.item())
             auroc_rs.append(auroc.item())
+
+            if args.one_class_idx == -1: 
+                if auroc.item() > neg_ths:
+                    multi_ST[seed_n][pos_num] = 1
+                print(multi_ST)
+
+
     
         
         print("Average of the Accuracy list =", round(sum(acc_rs)/len(acc_rs), 3))
@@ -353,11 +366,24 @@ for args.one_class_idx in class_num:
         if np.mean(auroc_rs) > neg_ths: # for ST
             clssfication_arr.append([args.one_class_idx, str(positive_aug), 'N'])
             temp_strong_set.append(positive_aug)
-        if np.mean(auroc_rs) < pos_ths: 
+        if np.max(auroc_rs) < pos_ths: 
             clssfication_arr.append([args.one_class_idx, str(positive_aug), 'P'])
+            temp_weak_set.append(positive_aug)
         print("Class_RS", clssfication_arr)
     
     strong_set.append(temp_strong_set)
+    weak_set.append(temp_weak_set)
+
+final_multiST =[]
+for i in range(len(multi_ST)):
+    temp_multi = []
+    for pos_num, positive_aug in enumerate(['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 
+                        'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp', 'AddNoise2']):        
+        if multi_ST[i][pos_num] == 1:
+            temp_multi.append(positive_aug)
+    
+    final_multiST.append(temp_multi)
+
 
 # for extrating results to an excel file
 final_rs =[]
@@ -380,13 +406,29 @@ df2 = pd.DataFrame(clssfication_arr, columns=['Class_num', 'Augmentation', 'Pos/
 df2.to_excel(store_path_2, sheet_name='the results')
 
 
+print(final_multiST)
+
 if training_mode == 'T':
-    with open('./data/'+data_type+'.data', 'wb') as f:
-        pickle.dump(strong_set, f)
-elif training_mode == 'F':
-    with open('./data/'+data_type+'_f.data', 'wb') as f:
+    with open('./data/'+data_type+'_s.data', 'wb') as f:
         pickle.dump(strong_set, f)
 
+    with open('./data/'+data_type+'_w.data', 'wb') as f:
+        pickle.dump(weak_set, f)
+
+    with open('./data/'+data_type+'_multi.data', 'wb') as f:
+        pickle.dump(final_multiST, f)
+
+elif training_mode == 'F':
+    with open('./data/'+data_type+'_fs.data', 'wb') as f:
+        pickle.dump(strong_set, f)
+    
+    with open('./data/'+data_type+'_fw.data', 'wb') as f:
+        pickle.dump(weak_set, f)
+
+    with open('./data/'+data_type+'_multi_f.data', 'wb') as f:
+        pickle.dump(final_multiST, f)
+
 print(strong_set)
+print(weak_set)
 
 torch.cuda.empty_cache()

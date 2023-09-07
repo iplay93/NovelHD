@@ -13,6 +13,7 @@ from models.loss import NTXentLoss, SupConLoss, get_similarity_matrix, NT_xent
 from sklearn.metrics import f1_score, roc_auc_score
 from tsaug import *
 
+from util import calculate_acc_rv
 
 def Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode):
     # Start training
@@ -49,21 +50,32 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
     model.train()
     classifier.train()
     
-    for batch_idx, (data, labels, aug1, data_f, aug1_f) in enumerate(train_loader):
+    for batch_idx, (data, labels, aug1) in enumerate(train_loader):
 
         batch_size = data.shape[0]
         # send to device
         data, labels = data.float().to(device), labels.long().to(device) # data: [128, 1, 178], labels: [128]
         aug1 = aug1.float().to(device)  # aug1 = aug2 : [128, 1, 178]
-        data_f, aug1_f = data_f.float().to(device), aug1_f.float().to(device)  # aug1 = aug2 : [128, 1, 178]
+        #data_f, aug1_f = data_f.float().to(device), aug1_f.float().to(device)  # aug1 = aug2 : [128, 1, 178]
  
         # optimizer
         model_optimizer.zero_grad()
         classifier_optimizer.zero_grad()
 
         # do model
-        sensor_pair = torch.cat([data, aug1], dim=0)             
-        sensor_pair_f = torch.cat([data_f, aug1_f], dim=0)   
+        sensor_pair = torch.cat([data, aug1], dim=0) 
+        normal_fft = torch.fft.fft(data[0], norm="backward").abs().reshape(1, data[0].shape[0], data[0].shape[1])
+        aug_fft = torch.fft.fft(aug1[0], norm="backward").abs().reshape(1, aug1[0].shape[0], aug1[0].shape[1])
+        for i in range(1, len(data)):
+            normal_fft = torch.cat([normal_fft, torch.fft.fft(data[i], norm="backward").abs().reshape(1, data[0].shape[0], data[0].shape[1])], 0)
+        
+        #print(normal_fft.shape)
+        for i in range(1, len(aug1)):
+            aug_fft = torch.cat([aug_fft, torch.fft.fft(aug1[i], norm="backward").abs().reshape(1, aug1[0].shape[0], aug1[0].shape[1])], 0)
+        
+        #print(aug_fft.shape)
+        sensor_pair_f = torch.cat([normal_fft, aug_fft], dim=0)   
+        #print(sensor_pair_f.shape)
         # original data and augmented data 
         h_t, z_t, s_t, h_f, z_f, s_f  = model(sensor_pair, sensor_pair_f)            
         shift_labels = torch.cat([torch.ones_like(labels) * k for k in range(2)], 0)   
@@ -112,14 +124,24 @@ def model_evaluate(model, classifier, test_dl, device, training_mode):
     trgs = np.array([])
 
     with torch.no_grad():
-        for (data, labels, aug1, data_f, aug1_f) in test_dl:
+        for (data, labels, aug1 ) in test_dl:
         # send to device
             data, labels = data.float().to(device), labels.long().to(device) # data: [128, 1, 178], labels: [128]
             aug1 = aug1.float().to(device)  # aug1 = aug2 : [128, 1, 178]
-            data_f, aug1_f = data_f.float().to(device), aug1_f.float().to(device)  # aug1 = aug2 : [128, 1, 178]
+            #data_f, aug1_f = data_f.float().to(device), aug1_f.float().to(device)  # aug1 = aug2 : [128, 1, 178]
 
-            sensor_pair = torch.cat([data, aug1], dim=0)             
-            sensor_pair_f = torch.cat([data_f, aug1_f], dim=0)   
+            sensor_pair = torch.cat([data, aug1], dim=0)  
+
+            normal_fft = torch.fft.fft(data[0], norm="backward").abs().reshape(1, data[0].shape[0], data[0].shape[1])
+            aug_fft = torch.fft.fft(aug1[0], norm="backward").abs().reshape(1, aug1[0].shape[0], aug1[0].shape[1])
+            for i in range(1, len(data)):
+                normal_fft = torch.cat([normal_fft, torch.fft.fft(data[i], norm="backward").abs().reshape(1, data[0].shape[0], data[0].shape[1])], 0)            
+            #print(normal_fft.shape)
+            for i in range(1, len(aug1)):
+                aug_fft = torch.cat([aug_fft, torch.fft.fft(aug1[i], norm="backward").abs().reshape(1, aug1[0].shape[0], aug1[0].shape[1])], 0)            
+            #print(aug_fft.shape)
+            sensor_pair_f = torch.cat([normal_fft, aug_fft], dim=0)   
+
             # original data and augmented data 
             h_t, z_t, s_t, h_f, z_f, s_f  = model(sensor_pair, sensor_pair_f)            
             shift_labels = torch.cat([torch.ones_like(labels) * k for k in range(2)], 0)    
@@ -157,6 +179,13 @@ def model_evaluate(model, classifier, test_dl, device, training_mode):
             pred = s_t.max(1, keepdim=True)[1]  # get the index of the max log-probability
             outs = np.append(outs, pred.cpu().numpy())
             trgs = np.append(trgs, shift_labels.data.cpu().numpy())
+            #auroc, fpr, f1, acc = calculate_acc_rv(shift_labels.cpu().numpy().tolist(), pred.cpu().numpy().tolist())
+            
+            #total_acc.append(acc)
+            #total_auroc.append(auroc)
+            #total_f1.append(f1)
+
+
 
 
 

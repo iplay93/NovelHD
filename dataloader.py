@@ -37,7 +37,7 @@ class Load_Dataset(Dataset):
         self.len = X_train.shape[0]
     
         # select positive transformation method        
-        pos_aug = select_transformation(positive_list[0])
+        pos_aug = select_transformation(positive_list[0],  X_train.shape[2])
         # (N, C, T) -> (N, T, C)-> (N, C, T)
         self.aug1 = torch.from_numpy(np.array(pos_aug.augment(self.x_data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
         # (N, C, T)

@@ -4,6 +4,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 
+import math
+
 class TimeSeriesNet(nn.Module):
     def __init__(self, seq_length=100, input_channels = 1):
         super(TimeSeriesNet, self).__init__()
@@ -19,9 +21,30 @@ class TimeSeriesNet(nn.Module):
             nn.Linear(256, self.rep_dim)
         )
 
+        self.positional_encoding = self.generate_positional_encoding(
+            seq_length, input_channels
+        )
+
+    def generate_positional_encoding(self, seq_len, d_model):
+        
+        position = torch.arange(0, seq_len, dtype=torch.float32).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2, dtype=torch.float32) * -(math.log(10000.0) / d_model))
+
+        pe = torch.sin(position * div_term[0])
+        
+        for i in range(1, d_model):
+
+            if i % 2 == 0:
+                pe = torch.cat([pe, torch.sin(position * div_term[(int)(i % 2)])], dim = 1)
+            else:
+                pe = torch.cat([pe, torch.cos(position * div_term[(int)(i % 2)])], dim = 1)
+        
+        #print("PE", pe.shape)
+        return pe.permute(1,0)
 
     def forward(self, x_in):
 
+        x_in = x_in + self.positional_encoding.unsqueeze(0).expand(x_in.shape[0], -1, -1).cuda()
         """Use Transformer"""
         x = self.transformer_encoder(x_in.float())
         h = x.reshape(x.shape[0], -1)
