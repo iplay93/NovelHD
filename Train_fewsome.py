@@ -297,7 +297,7 @@ def evaluate(anchor, seed, base_ind, ref_dataset, val_dataset, model, dataset_na
 
 
     #calculate metrics
-    fpr, tpr, thresholds = roc_curve(np.array(df['label']),np.array(df['minimum_dists']))
+    fpr, tpr, thresholds = roc_curve(np.array(df['label']), np.array(df['minimum_dists']))
     
     scores = np.array(df['minimum_dists']).tolist()
     labels = np.array(df['label']).tolist()

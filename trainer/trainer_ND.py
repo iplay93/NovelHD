@@ -92,7 +92,7 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
     model.train()
     classifier.train()
     
-    for batch_idx, (data, labels, aug1, data_f, aug1_f) in enumerate(train_loader):
+    for batch_idx, (data, labels, aug1, _, _) in enumerate(train_loader):
 
         batch_size = data.shape[0]
         # send to device
@@ -105,26 +105,26 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
         model_optimizer.zero_grad()
         classifier_optimizer.zero_grad()
         
-        if configs.batch_size == batch_size:
-            original_data = data
+        #if configs.batch_size == batch_size
+        original_data = data
 
 
-            data, shift_labels = generate_augmentation(args, positive_list, original_data,  labels, device, negative_list, args.K_pos)
-            data_f, shift_labels_f = generate_augmentation(args, positive_list_f, original_data,  labels, device, negative_list_f, args.K_pos_f)
+        data, shift_labels = generate_augmentation(args, positive_list, original_data,  labels, device, negative_list, args.K_pos)
+        data_f, shift_labels_f = generate_augmentation(args, positive_list_f, original_data,  labels, device, negative_list_f, args.K_pos_f)
             
-            data_fft = torch.fft.fft(data_f[0], norm="backward").abs().reshape(1, data_f[0].shape[0], data_f[0].shape[1])
+        data_fft = torch.fft.fftn(data_f[0], norm="forward").abs().reshape(1, data_f[0].shape[0], data_f[0].shape[1])
 
-            for i in range(1, len(data_f)):
-                data_fft = torch.cat([data_fft, torch.fft.fft(data_f[i], norm="backward").abs().reshape(1, data_f[0].shape[0], data_f[0].shape[1])], 0)            
+        for i in range(1, len(data_f)):
+            data_fft = torch.cat([data_fft, torch.fft.fftn(data_f[i], norm="forward").abs().reshape(1, data_f[0].shape[0], data_f[0].shape[1])], 0)            
 
             #sensor_pair_f = torch.cat([normal_fft, aug_fft], dim=0)   
             
             #data_f = fft.fftn(data_f, norm="backward").abs().to(device)
 
-            data_f = data_fft
+        data_f = data_fft
 
-            assert data.size(0) == shift_labels.size(0)
-            assert data_f.size(0) == shift_labels_f.size(0)
+        assert data.size(0) == shift_labels.size(0)
+        assert data_f.size(0) == shift_labels_f.size(0)
 
 
                     #print(aug_list[positive_num].shape)
@@ -159,39 +159,30 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
             #print(sensor_pair.shape , shift_labels)
   
             # original data and augmented data 
-            h_t, z_t, s_t, h_f, z_f, s_f  = model(data, data_f)
+        h_t, z_t, s_t, h_f, z_f, s_f  = model(data, data_f)
             
-            
+            #Initialize loss
+        loss_sim, loss_shift, loss_t = torch.tensor(0), torch.tensor(0), torch.tensor(0)
+        loss_sim_f, loss_shift_f, loss_f = torch.tensor(0), torch.tensor(0), torch.tensor(0)
+        l_TF = torch.tensor(0)
+
             # for constructing loss functions
-            # For temporal contrastive
-            sim_lambda = 0.1          
+            # For temporal contrastive          
 
-            simclr = normalize(z_t)  # normalize
-            sim_matrix = get_similarity_matrix(simclr)            
-            loss_sim = NT_xent(sim_matrix, temperature=0.5, chunk = args.K_pos+1) #* sim_lambda
+        simclr = normalize(z_t)  # normalize
+        sim_matrix = get_similarity_matrix(simclr)            
+        loss_sim = NT_xent(sim_matrix, temperature=0.5, chunk = args.K_pos+1) #* sim_lambda
             
-            loss_shift = criterion(s_t, shift_labels)
-            #print(data.shape, z_t.shape, simclr.shape)
-            loss_t = loss_sim + loss_shift
+        loss_shift = criterion(s_t, shift_labels)
+        #print(data.shape, z_t.shape, simclr.shape)
+        loss_t = loss_sim + loss_shift
 
-            # For frequency contrastive
-            sim_lambda_f = 0.1
-            simclr_f = normalize(z_f)  # normalize
-            sim_matrix_f = get_similarity_matrix(simclr_f)            
-            loss_sim_f = NT_xent(sim_matrix_f, temperature=0.5, chunk = args.K_pos_f+1) #* sim_lambda_f 
-            
-            loss_shift_f = criterion(s_f, shift_labels_f)
-            
-            loss_f = loss_sim_f + loss_shift_f
-            
-            # combined two latent space
-            #sim_two_matrix = get_similarity_two_matrix(simclr, simclr_f)
-            nt_xent_criterion = NTXentLoss(device, batch_size, 0.5, True)
+           
+        sim_lambda_f = 0.1
 
-            B = simclr.size(0) // (args.K_pos+1)
-            l_TF = nt_xent_criterion(z_t[:batch_size], z_f[:batch_size])
-            loss_t_TF = nt_xent_criterion(h_t[:batch_size], h_t[B:B+batch_size])
-            loss_f_TF = nt_xent_criterion(h_f[:batch_size], h_f[B:B+batch_size])
+            
+        # combined two latent space
+        #sim_two_matrix = get_similarity_two_matrix(simclr, simclr_f)
 
             # B = simclr.size(0) // (args.K_pos+1)
             # B_f = simclr_f.size(0) // (args.K_pos_f+1)
@@ -199,61 +190,85 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
             #     l_TF = l_TF + nt_xent_criterion(simclr[mul*B:(mul)*B+batch_size], simclr_f[mul* B_f:(mul)* B_f+batch_size])
             #l_TF = NT_xent_TF(sim_two_matrix, temperature=0.5)
 
-            if epoch % 20 == 0 : 
-                logger.debug(f'Temporal: {loss_sim.item():.4f}, {loss_shift.item():.4f}, {loss_t.item():.4f}')
-                logger.debug(f'Frequency: {loss_sim_f.item():.4f},{loss_shift_f.item():.4f}, {loss_f.item():.4f}')
-                logger.debug(f'TF: {l_TF.item():.4f}')
 
             # Select loss according to ood_score
             #loss
+            
+        B_t = simclr.size(0) // (args.K_pos+1)
+        B_f = s_f.size(0) // (args.K_pos_f+1)
 
+             # For frequency contrastive
+            
+        if ood_score in ['F', 'FCON' ,'FCLS' ,'CON' ,'CLS' ,'NovelHD_TF', 'NovelHD']:
 
-            if ood_score == 'T':
-                loss = loss_t   
-            elif ood_score == 'F':
-                loss = loss_f
+            simclr_f = normalize(z_f)  # normalize
+            sim_matrix_f = get_similarity_matrix(simclr_f)            
+            loss_sim_f = NT_xent(sim_matrix_f, temperature=0.5, chunk = args.K_pos_f+1) #* sim_lambda_f 
                 
-            elif ood_score == 'TCON' or ood_score == 'simclr' :
-                loss = loss_sim
-            elif ood_score == 'TCLS':
-                loss = loss_shift
-            elif ood_score == 'FCON':
-                loss =  loss_sim_f
-            elif ood_score == 'FCLS':
-                loss = loss_shift_f
-            elif ood_score == 'NovelHD':
-                loss = loss_t +  loss_f 
-                #loss = loss_t + loss_f
-            elif ood_score == 'CON':
-                loss = loss_sim + loss_sim_f
-            elif ood_score == 'CLS':
-                loss = loss_shift + loss_shift_f
-            elif ood_score == 'NovelHD_TF':
-                loss = (loss_t + loss_f) + l_TF
-            elif ood_score == 'CLAN':
-                loss = loss_t + loss_sim_f # + l_TF
-            else:
-                raise ValueError() 
+            loss_shift_f = criterion(s_f, shift_labels_f)
+                
+            loss_f = loss_sim_f + loss_shift_f
             
 
-            total_loss.append(loss.item())
-            loss.backward()
-            model_optimizer.step()
+        if ood_score == 'T':
+            loss = loss_t   
+        elif ood_score == 'F':
+            loss = loss_f                
+        elif ood_score == 'TCON' or ood_score == 'simclr' :
+            loss = loss_sim
+        elif ood_score == 'TCLS':
+            loss = loss_shift
+        elif ood_score == 'FCON':
+            loss =  loss_sim_f
+        elif ood_score == 'FCLS':
+            loss = loss_shift_f
+        elif ood_score == 'NovelHD':
+            loss = loss_t +  loss_f 
+                #loss = loss_t + loss_f
+        elif ood_score == 'CON':
+            loss = loss_sim + loss_sim_f
+        elif ood_score == 'CLS':
+            loss = loss_shift + loss_shift_f
+        elif ood_score == 'NovelHD_TF':
+            nt_xent_criterion = NTXentLoss_poly(device, batch_size, 0.5, True)  
 
-
-            if ood_score != 'simclr' :
-                """Post-processing stuffs"""
-                penul_1 = h_t[:batch_size]
-                penul_2 = h_t[2*batch_size:3*batch_size]
-                outputs_penul = torch.cat([penul_1, penul_2]) 
-
-                ### Linear evaluation ###
-                outputs_linear_eval = model.linear(outputs_penul.detach())
-                loss_linear = criterion(outputs_linear_eval, labels.repeat(2)) 
+            l_TF = nt_xent_criterion(simclr[:batch_size], simclr_f[:batch_size])
+            l_TF_2 = nt_xent_criterion(simclr[B_t:B_t+batch_size], simclr_f[B_f:B_f+batch_size])
                 
-                classifier_optimizer.zero_grad()
-                loss_linear.backward()
-                classifier_optimizer.step()
+            loss_t_TF = nt_xent_criterion(h_t[:batch_size], h_t[B_t:B_t+batch_size])
+                
+            loss_f_TF = nt_xent_criterion(h_f[:batch_size], h_f[B_f:B_f+batch_size])
+
+            loss = loss_t + loss_f + l_TF +l_TF_2 #+ 0.2 *(loss_t_TF + loss_f_TF) 
+        elif ood_score == 'CLAN':
+            loss = loss_t + loss_sim_f # + l_TF
+        else:
+            raise ValueError() 
+            
+        if epoch % 20 == 0 : 
+            logger.debug(f'Temporal: {loss_sim.item():.4f}, {loss_shift.item():.4f}, {loss_t.item():.4f}')
+            logger.debug(f'Frequency: {loss_sim_f.item():.4f},{loss_shift_f.item():.4f}, {loss_f.item():.4f}')
+            logger.debug(f'TF: {l_TF.item():.4f}')
+
+
+        total_loss.append(loss.item())
+        loss.backward()
+        model_optimizer.step()
+
+
+        # if ood_score != 'simclr' :
+        #     """Post-processing stuffs"""
+        #         penul_1 = h_t[:batch_size]
+        #         penul_2 = h_t[2*batch_size:3*batch_size]
+        #         outputs_penul = torch.cat([penul_1, penul_2]) 
+
+        #         ### Linear evaluation ###
+        #         outputs_linear_eval = model.linear(outputs_penul.detach())
+        #         loss_linear = criterion(outputs_linear_eval, labels.repeat(2)) 
+                
+        #         classifier_optimizer.zero_grad()
+        #         loss_linear.backward()
+        #         classifier_optimizer.step()
 
     total_loss = torch.tensor(total_loss).mean()
 

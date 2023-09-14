@@ -6,16 +6,15 @@ import numpy as np
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-
-from models.loss import NTXentLoss, SupConLoss, get_similarity_matrix, NT_xent
 from sklearn.metrics import f1_score, roc_auc_score
 from tsaug import *
+from data_preprocessing.augmentations import select_transformation
 
 from util import calculate_acc_rv
 
-def Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode):
+def Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, valid_dl, 
+            test_dl, device, logger, configs, experiment_log_dir, training_mode, positive_aug):
     # Start training
     logger.debug("Training started ....")
 
@@ -25,9 +24,9 @@ def Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, 
     for epoch in range(1, configs.num_epoch + 1):
         # Train and validate
         train_loss, train_acc = model_train(model, model_optimizer, classifier, 
-                    classifier_optimizer, criterion, train_dl, configs, device, training_mode)
+                    classifier_optimizer, criterion, train_dl, configs, device, training_mode, positive_aug)
         valid_loss, valid_acc, valid_f1, _, _, _ = model_evaluate(model, classifier, 
-                                                    valid_dl, device, training_mode)
+                                                    valid_dl, device, training_mode, positive_aug)
         scheduler.step(valid_loss)
       #  logger.debug(f'\nEpoch : {epoch}\n'
       #               f'Train Loss     : {train_loss:.4f}\t | \tTrain Accuracy     : {train_acc:2.4f}\n'
@@ -44,7 +43,8 @@ def normalize(x, dim=1, eps=1e-8):
     return x / (x.norm(dim=dim, keepdim=True) + eps)
 
 
-def model_train(model, model_optimizer, classifier, classifier_optimizer, criterion, train_loader, configs, device, training_mode):
+def model_train(model, model_optimizer, classifier, classifier_optimizer, criterion, 
+                train_loader, configs, device, training_mode, positive_aug):
     total_loss = []
     total_acc = []
     model.train()
@@ -57,30 +57,42 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
         data, labels = data.float().to(device), labels.long().to(device) # data: [128, 1, 178], labels: [128]
         aug1 = aug1.float().to(device)  # aug1 = aug2 : [128, 1, 178]
         #data_f, aug1_f = data_f.float().to(device), aug1_f.float().to(device)  # aug1 = aug2 : [128, 1, 178]
- 
+
+
         # optimizer
         model_optimizer.zero_grad()
         classifier_optimizer.zero_grad()
 
+        if training_mode == 'T':
+            
+            sensor_pair = torch.cat([data, aug1], dim=0) 
+            _, _, s_t = model(sensor_pair) 
+
+        elif training_mode == 'F':
+
+            normal_fft = torch.fft.fftn(data[0], norm="forward").abs().reshape(1, data[0].shape[0], data[0].shape[1])
+            aug_fft = torch.fft.fftn(aug1[0], norm="forward").abs().reshape(1, aug1[0].shape[0], aug1[0].shape[1])
+            for i in range(1, len(data)):
+                normal_fft = torch.cat([normal_fft, torch.fft.fftn(data[i], norm="forward").abs().reshape(1, data[0].shape[0], data[0].shape[1])], 0)
+            
+            #print(normal_fft.shape)
+            for i in range(1, len(aug1)):
+                aug_fft = torch.cat([aug_fft, torch.fft.fftn(aug1[i], norm="forward").abs().reshape(1, aug1[0].shape[0], aug1[0].shape[1])], 0)
+            
+            #print(aug_fft.shape)
+            sensor_pair_f = torch.cat([normal_fft, aug_fft], dim=0) 
+            _, _, s_t = model(sensor_pair_f) 
+        else:
+            return ValueError
+
         # do model
-        sensor_pair = torch.cat([data, aug1], dim=0) 
-        normal_fft = torch.fft.fft(data[0], norm="backward").abs().reshape(1, data[0].shape[0], data[0].shape[1])
-        aug_fft = torch.fft.fft(aug1[0], norm="backward").abs().reshape(1, aug1[0].shape[0], aug1[0].shape[1])
-        for i in range(1, len(data)):
-            normal_fft = torch.cat([normal_fft, torch.fft.fft(data[i], norm="backward").abs().reshape(1, data[0].shape[0], data[0].shape[1])], 0)
         
-        #print(normal_fft.shape)
-        for i in range(1, len(aug1)):
-            aug_fft = torch.cat([aug_fft, torch.fft.fft(aug1[i], norm="backward").abs().reshape(1, aug1[0].shape[0], aug1[0].shape[1])], 0)
-        
-        #print(aug_fft.shape)
-        sensor_pair_f = torch.cat([normal_fft, aug_fft], dim=0)   
+          
         #print(sensor_pair_f.shape)
         # original data and augmented data 
-        h_t, z_t, s_t, h_f, z_f, s_f  = model(sensor_pair, sensor_pair_f)            
+                   
         shift_labels = torch.cat([torch.ones_like(labels) * k for k in range(2)], 0)   
-        if training_mode == 'F':
-            s_t = s_f
+        
         # else:
         #     h_t, z_t, s_t, h_f, z_f, s_f  = model(data, data_f)
         #     h_t_aug, z_t_aug, s_t_aug, h_f_aug, z_f_aug, s_f_aug = model(aug1, aug1_f)
@@ -110,7 +122,7 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
 
     return total_loss, total_acc
 
-def model_evaluate(model, classifier, test_dl, device, training_mode):
+def model_evaluate(model, classifier, test_dl, device, training_mode, positive_aug):
     model.eval()
     classifier.eval()
 
@@ -124,29 +136,35 @@ def model_evaluate(model, classifier, test_dl, device, training_mode):
     trgs = np.array([])
 
     with torch.no_grad():
-        for (data, labels, aug1 ) in test_dl:
+        for (data, labels, aug1) in test_dl:
         # send to device
             data, labels = data.float().to(device), labels.long().to(device) # data: [128, 1, 178], labels: [128]
             aug1 = aug1.float().to(device)  # aug1 = aug2 : [128, 1, 178]
             #data_f, aug1_f = data_f.float().to(device), aug1_f.float().to(device)  # aug1 = aug2 : [128, 1, 178]
+            if training_mode == 'T':
+                
+                sensor_pair = torch.cat([data, aug1], dim=0) 
+                _,_, s_t = model(sensor_pair) 
 
-            sensor_pair = torch.cat([data, aug1], dim=0)  
+            elif training_mode == 'F':
 
-            normal_fft = torch.fft.fft(data[0], norm="backward").abs().reshape(1, data[0].shape[0], data[0].shape[1])
-            aug_fft = torch.fft.fft(aug1[0], norm="backward").abs().reshape(1, aug1[0].shape[0], aug1[0].shape[1])
-            for i in range(1, len(data)):
-                normal_fft = torch.cat([normal_fft, torch.fft.fft(data[i], norm="backward").abs().reshape(1, data[0].shape[0], data[0].shape[1])], 0)            
-            #print(normal_fft.shape)
-            for i in range(1, len(aug1)):
-                aug_fft = torch.cat([aug_fft, torch.fft.fft(aug1[i], norm="backward").abs().reshape(1, aug1[0].shape[0], aug1[0].shape[1])], 0)            
-            #print(aug_fft.shape)
-            sensor_pair_f = torch.cat([normal_fft, aug_fft], dim=0)   
-
-            # original data and augmented data 
-            h_t, z_t, s_t, h_f, z_f, s_f  = model(sensor_pair, sensor_pair_f)            
+                normal_fft = torch.fft.fftn(data[0], norm="forward").abs().reshape(1, data[0].shape[0], data[0].shape[1])
+                aug_fft = torch.fft.fftn(aug1[0], norm="forward").abs().reshape(1, aug1[0].shape[0], aug1[0].shape[1])
+                for i in range(1, len(data)):
+                    normal_fft = torch.cat([normal_fft, torch.fft.fftn(data[i], norm="forward").abs().reshape(1, data[0].shape[0], data[0].shape[1])], 0)
+                
+                #print(normal_fft.shape)
+                for i in range(1, len(aug1)):
+                    aug_fft = torch.cat([aug_fft, torch.fft.fftn(aug1[i], norm="forward").abs().reshape(1, aug1[0].shape[0], aug1[0].shape[1])], 0)
+                
+                #print(aug_fft.shape)
+                sensor_pair_f = torch.cat([normal_fft, aug_fft], dim=0) 
+                _, _, s_t = model(sensor_pair_f) 
+            else:
+                return ValueError
+       
             shift_labels = torch.cat([torch.ones_like(labels) * k for k in range(2)], 0)    
-            if training_mode == 'F':
-                s_t = s_f
+
             # else:
             #     h_t, z_t, h_f, z_f = model(data, data_f)
             #     fea_concat = torch.cat((z_t, z_f), dim=1)                

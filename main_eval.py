@@ -10,7 +10,7 @@ from trainer.trainer_ND import Trainer
 from utils import _calc_metrics, copy_Files
 from models.TFC import TFC, target_classifier
 from dataloader import data_generator_nd
-from eval_nd import eval_ood_detection
+from eval_nd_combine import eval_ood_detection
 import pandas as pd
 import openpyxl
 from data_preprocessing.augmentations import select_transformation
@@ -131,11 +131,11 @@ with open('./data/'+data_type+'_w.data', 'rb') as f:
 with open('./data/'+data_type+'_fw.data', 'rb') as f:
     weak_set_f = pickle.load(f)
 
-# with open('./data/'+data_type+'_multi.data', 'rb') as f:
-#     multiST = pickle.load(f)
+with open('./data/'+data_type+'_multi.data', 'rb') as f:
+    multiST = pickle.load(f)
 
-# with open('./data/'+data_type+'_multi_f.data', 'rb') as f:
-#     multiST_f = pickle.load(f)
+with open('./data/'+data_type+'_multi_f.data', 'rb') as f:
+    multiST_f = pickle.load(f)
 
 
 exec(f'from config_files.{data_type}_Configs import Config as Configs')
@@ -270,12 +270,16 @@ for args.K_shift in range(4,5):
                         if element in strong_set_f[num]:
                             common_elements.append(element)
 
-                    negative_list = strong_set[num]
-                    negative_list_f = strong_set_f[num]
+                    negative_list = random.sample(strong_set[num], min(len(strong_set_f[num]),len(strong_set[num])))
+                    negative_list_f = random.sample(strong_set_f[num], min(len(strong_set_f[num]),len(strong_set[num])))
 
-                    positive_list = ['AddNoise'] #weak_set [num]
-                    positive_list_f = ['AddNoise'] #weak_set_f[num]
-                    
+                positive_list = ['AddNoise'] #weak_set [num]
+                positive_list_f = ['AddNoise'] #weak_set_f[num]
+                
+                
+                if args.one_class_idx == -1:
+                    negative_list = random.sample(multiST[seed_n], min(len(multiST[seed_n]),len(multiST_f[seed_n])))
+                    negative_list_f = random.sample(multiST_f[seed_n], min(len(multiST[seed_n]),len(multiST_f[seed_n])))
 
                     
 

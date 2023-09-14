@@ -72,17 +72,14 @@ class TFC(nn.Module):
 
     def generate_positional_encoding(self, seq_len, d_model):
         
-        position = torch.arange(0, seq_len, dtype=torch.float32).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2, dtype=torch.float32) * -(math.log(10000.0) / d_model))
-
-        pe = torch.sin(position * div_term[0])
-        
-        for i in range(1, d_model):
-
-            if i % 2 == 0:
-                pe = torch.cat([pe, torch.sin(position * div_term[(int)(i % 2)])], dim = 1)
-            else:
-                pe = torch.cat([pe, torch.cos(position * div_term[(int)(i % 2)])], dim = 1)
+        pe = torch.zeros(seq_len, d_model)
+        position = torch.arange(0, seq_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        if d_model%2 != 0:
+            pe[:, 1::2] = torch.cos(position * div_term)[:,0:-1]
+        else:
+            pe[:, 1::2] = torch.cos(position * div_term)
         
         #print("PE", pe.shape)
         return pe.permute(1,0)
@@ -104,7 +101,7 @@ class TFC(nn.Module):
         """Shifted transformation classifier"""
         s_time = self.shift_cls_layer_t(h_time)
 
-        x_in_f = x_in_f + self.positional_encoding_f.unsqueeze(0).expand(x_in_f.shape[0], -1, -1).cuda()
+        #x_in_f = x_in_f + self.positional_encoding_f.unsqueeze(0).expand(x_in_f.shape[0], -1, -1).cuda()
         """Frequency-based contrastive encoder"""
         f = self.transformer_encoder_f(x_in_f.float())
         h_freq = f.reshape(f.shape[0], -1)
@@ -124,6 +121,7 @@ class TFC(nn.Module):
 class TFC_one(nn.Module):
     def __init__(self, configs, args):
         super(TFC_one, self).__init__()
+        self.training_mode = args.training_mode
 
         encoder_layers_t = TransformerEncoderLayer(configs.TSlength_aligned, dim_feedforward=2*configs.TSlength_aligned, nhead=1, )
         self.transformer_encoder_t = TransformerEncoder(encoder_layers_t, 2)
@@ -136,14 +134,35 @@ class TFC_one(nn.Module):
         )
         self.shift_cls_layer_t = nn.Linear(configs.TSlength_aligned * configs.input_channels, args.K_shift)
 
-        self.linear = nn.Linear(configs.TSlength_aligned * configs.input_channels, configs.num_classes)    
-
-
+        self.linear = nn.Linear(configs.TSlength_aligned * configs.input_channels, configs.num_classes)     
+        # Positional Encoding
+        self.positional_encoding_t = self.generate_positional_encoding(
+            configs.TSlength_aligned, configs.input_channels
+        )
+        
+    def generate_positional_encoding(self, seq_len, d_model):
+        
+        pe = torch.zeros(seq_len, d_model)
+        position = torch.arange(0, seq_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        if d_model%2 != 0:
+            pe[:, 1::2] = torch.cos(position * div_term)[:,0:-1]
+        else:
+            pe[:, 1::2] = torch.cos(position * div_term)
+        
+        #print("PE", pe.shape)
+        return pe.permute(1,0)
 
     def forward(self, x_in_t):
         #x_in_t = x_in_t + self.positional_encoding.T.cuda()
         #x_in_f = x_in_f + self.positional_encoding.T.cuda()
-
+        
+        #print( x_in_t.shape, self.positional_encoding_t.shape)        
+        
+        if self.training_mode == "T":
+            x_in_t = x_in_t + self.positional_encoding_t.unsqueeze(0).expand(x_in_t.shape[0], -1, -1).cuda()
+    
         """Use Transformer"""
         x = self.transformer_encoder_t(x_in_t.float())
         h_time = x.reshape(x.shape[0], -1)
@@ -153,6 +172,7 @@ class TFC_one(nn.Module):
 
         """Shifted transformation classifier"""
         s_time = self.shift_cls_layer_t(h_time)
+
 
         return h_time, z_time, s_time
 

@@ -7,13 +7,13 @@ from utils import _logger
 from trainer.trainer_OODness import Trainer, model_evaluate
 from models.TC import TC
 from utils import _calc_metrics
-from models.TFC import TFC, target_classifier
-from data_preprocessing.dataloader import count_label_labellist, select_transformation
+from models.TFC import TFC_one, target_classifier
+from data_preprocessing.dataloader import count_label_labellist
 
 import random, math
 import torch
 from torch.utils.data import DataLoader, Dataset
-import torch.fft as fft
+
 
 from data_preprocessing.dataloader import loading_data
 from tsaug import *
@@ -323,7 +323,7 @@ for args.one_class_idx in class_num:
             logger.debug("Data loaded ...")
 
             # Load Model
-            model = TFC(configs, args).to(device)
+            model = TFC_one(configs, args).to(device)
             classifier = target_classifier(configs).to(device)
 
             model_optimizer = torch.optim.Adam(model.parameters(), lr=configs.lr, 
@@ -333,11 +333,11 @@ for args.one_class_idx in class_num:
 
             # Trainer
             model = Trainer(model, model_optimizer, classifier, classifier_optimizer, 
-                            train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode)
+                            train_dl, valid_dl, test_dl, device, logger, configs, experiment_log_dir, training_mode, positive_aug)
 
             # evaluate on the test set
             logger.debug('\nEvaluate on the Test set:')
-            outs = model_evaluate(model, classifier, test_dl, device, training_mode)
+            outs = model_evaluate(model, classifier, test_dl, device, training_mode, positive_aug)
             total_loss, total_acc, total_f1, auroc, pred_labels, true_labels = outs
             logger.debug(f'Test Loss : {total_loss:.4f}\t | \tTest Accuracy : {total_acc:2.4f}\n'
                         f'Test F1 : {total_f1:.4f}\t | \tTest AUROC : {auroc:2.4f}')
@@ -408,25 +408,25 @@ df2.to_excel(store_path_2, sheet_name='the results')
 
 print(final_multiST)
 
-if training_mode == 'T':
-    with open('./data/'+data_type+'_s.data', 'wb') as f:
-        pickle.dump(strong_set, f)
+# if training_mode == 'T':
+    # with open('./data/'+data_type+'_s.data', 'wb') as f:
+    #     pickle.dump(strong_set, f)
 
-    with open('./data/'+data_type+'_w.data', 'wb') as f:
-        pickle.dump(weak_set, f)
+    # with open('./data/'+data_type+'_w.data', 'wb') as f:
+    #     pickle.dump(weak_set, f)
 
-    with open('./data/'+data_type+'_multi.data', 'wb') as f:
-        pickle.dump(final_multiST, f)
+    # with open('./data/'+data_type+'_multi.data', 'wb') as f:
+    #     pickle.dump(final_multiST, f)
 
-elif training_mode == 'F':
-    with open('./data/'+data_type+'_fs.data', 'wb') as f:
-        pickle.dump(strong_set, f)
+# elif training_mode == 'F':
+#     with open('./data/'+data_type+'_fs.data', 'wb') as f:
+#         pickle.dump(strong_set, f)
     
-    with open('./data/'+data_type+'_fw.data', 'wb') as f:
-        pickle.dump(weak_set, f)
+#     with open('./data/'+data_type+'_fw.data', 'wb') as f:
+#         pickle.dump(weak_set, f)
 
-    with open('./data/'+data_type+'_multi_f.data', 'wb') as f:
-        pickle.dump(final_multiST, f)
+#     with open('./data/'+data_type+'_multi_f.data', 'wb') as f:
+#         pickle.dump(final_multiST, f)
 
 print(strong_set)
 print(weak_set)

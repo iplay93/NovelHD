@@ -52,7 +52,7 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
 
     kwargs = {
         'sample_num': args.ood_samples,
-        'layers': ['simclr_t', 'shift_t','simclr_f', 'shift_f'],
+        'layers': ['simclr', 'shift'],
     }
 
     print('Pre-compute global statistics...')
@@ -60,102 +60,38 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
                                model, train_loader, prefix=prefix, **kwargs)  # (M, T, d)
 
     args.axis = []
-    args.axis_f = []
-    for f in feats_train['simclr_t'].chunk(args.K_shift, dim=1):
+    
+    for f in feats_train['simclr'].chunk((args.K_shift+args.K_shift_f), dim=1):
         axis = f.mean(dim=1)  # (M, d)
         args.axis.append(normalize(axis, dim=1).to(device))
     print('axis size: ' + ' '.join(map(lambda x: str(len(x)), args.axis)))
 
-    for f in feats_train['simclr_f'].chunk(args.K_shift_f, dim=1):
-        axis_f = f.mean(dim=1)  # (M, d)
-        args.axis_f.append(normalize(axis_f, dim=1).to(device))
-    print('axis_f size: ' + ' '.join(map(lambda x: str(len(x)), args.axis_f)))
 
 
-    f_sim_t = [f.mean(dim=1) for f in feats_train['simclr_t'].chunk(args.K_shift, dim=1)]  # list of (M, d)
-    f_shi_t = [f.mean(dim=1) for f in feats_train['shift_t'].chunk(args.K_shift, dim=1)]  # list of (M, 4)
-    f_sim_f = [f.mean(dim=1) for f in feats_train['simclr_f'].chunk(args.K_shift_f, dim=1)]  # list of (M, d)
-    f_shi_f = [f.mean(dim=1) for f in feats_train['shift_f'].chunk(args.K_shift_f, dim=1)]  # list of (M, 4)
+    f_sim = [f.mean(dim=1) for f in feats_train['simclr'].chunk((args.K_shift+args.K_shift_f), dim=1)]  # list of (M, d)
+    f_shi = [f.mean(dim=1) for f in feats_train['shift'].chunk((args.K_shift+args.K_shift_f), dim=1)]  # list of (M, 4)
+
 
 
     # weight
-    weight_sim_t = []
-    weight_shi_t = []
-    weight_sim_f = []
-    weight_shi_f = []
-    
-    for shi in range(args.K_shift):
-        sim_norm_t = f_sim_t[shi].norm(dim=1)  # (M)
-        shi_mean_t = f_shi_t[shi][:, shi]  # (M)
-        weight_sim_t.append(1 / sim_norm_t.mean().item())
-        weight_shi_t.append(1 / shi_mean_t.mean().item())
-    
-    for shi in range(args.K_shift_f):
-        sim_norm_f = f_sim_f[shi].norm(dim=1)  # (M)
-        shi_mean_f = f_shi_f[shi][:, shi]  # (M)
-        weight_sim_f.append(1 / sim_norm_f.mean().item())
-        weight_shi_f.append(1 / shi_mean_f.mean().item())
+    weight_sim = []
+    weight_shi = []
 
-  
-    if ood_score == 'T':
-        args.weight_sim_t = weight_sim_t # weight_sim_t or [0,0]
-        args.weight_shi_t = weight_shi_t # weight_shi_t or [0,0]
-        args.weight_sim_f = [0] * args.K_shift_f  # weight_sim_f or [0,0] 
-        args.weight_shi_f = [0] * args.K_shift_f# weight_shi_f or [0,0]
-    elif ood_score == 'F':
-        args.weight_sim_t = [0] * args.K_shift # weight_sim_t or [0,0]
-        args.weight_shi_t = [0] * args.K_shift  # weight_shi_t or [0,0]
-        args.weight_sim_f = [1] * args.K_shift_f   # weight_sim_f or [0,0] 
-        args.weight_shi_f = [1] * args.K_shift_f # weight_shi_f or [0,0]
-    elif ood_score == 'simclr':
-        args.weight_sim_t = [1] * args.K_shift
-        args.weight_shi_t = [0] * args.K_shift
-        args.weight_sim_f = [0] * args.K_shift_f
-        args.weight_shi_f = [0] * args.K_shift_f         
-    elif ood_score == 'TCON':
-        args.weight_sim_t = weight_sim_t 
-        args.weight_shi_t = [0] * args.K_shift
-        args.weight_sim_f = [0] * args.K_shift_f
-        args.weight_shi_f = [0] * args.K_shift_f
-    elif ood_score == 'TCLS':
-        args.weight_sim_t = [0] * args.K_shift
-        args.weight_shi_t = weight_shi_t
-        args.weight_sim_f = [0] * args.K_shift_f
-        args.weight_shi_f = [0] * args.K_shift_f
-    elif ood_score == 'FCON':
-        args.weight_sim_t = [0] * args.K_shift # weight_sim_t or [0,0]
-        args.weight_shi_t = [0] * args.K_shift# weight_shi_t or [0,0]
-        args.weight_sim_f = weight_sim_f  # weight_sim_f or [0,0] 
-        args.weight_shi_f = [0] * args.K_shift_f # weight_shi_f or [0,0]  
-    elif ood_score == 'FCLS':
-        args.weight_sim_t = [0] * args.K_shift # weight_sim_t or [0,0]
-        args.weight_shi_t = [0] * args.K_shift # weight_shi_t or [0,0]
-        args.weight_sim_f = [0] * args.K_shift_f   # weight_sim_f or [0,0] 
-        args.weight_shi_f = weight_shi_f # weight_shi_f or [0,0]       
-    elif ood_score == 'NovelHD' or ood_score == 'NovelHD_TF' :
-        args.weight_sim_t = weight_sim_t # weight_sim_t or [0,0]
-        args.weight_shi_t = weight_shi_t # weight_shi_t or [0,0]
-        args.weight_sim_f = weight_sim_f 
-        args.weight_shi_f = weight_shi_f
-        #args.weight_sim_f = np.array(weight_sim_f)*args.lam_score).tolist() # weight_sim_f or [0,0] 
-        #args.weight_shi_f = (np.array(weight_shi_f)*args.lam_score).tolist() # weight_shi_f or [0,0]
-    elif ood_score == 'CON':
-        args.weight_sim_t = weight_sim_t # weight_sim_t or [0,0]
-        args.weight_shi_t = [0] * args.K_shift # weight_shi_t or [0,0]
-        args.weight_sim_f = weight_sim_f   # weight_sim_f or [0,0] 
-        args.weight_shi_f = [0] * args.K_shift_f # weight_shi_f or [0,0] 
-    elif ood_score == 'CLS':
-        args.weight_sim_t = [0] * args.K_shift # weight_sim_t or [0,0]
-        args.weight_shi_t = weight_shi_t # weight_shi_t or [0,0]
-        args.weight_sim_f = [0] * args.K_shift_f   # weight_sim_f or [0,0] 
-        args.weight_shi_f = weight_shi_f # weight_shi_f or [0,0] 
-    else:
-        raise ValueError()
+    print(len(f_sim),len(f_shi),len(f_shi[0]))
+    for shi in range((args.K_shift)):
+        sim_norm_t = f_sim[shi].norm(dim=1)  # (M)
+        shi_mean_t = f_shi[shi][:, shi]  # (M)
+        weight_sim.append(1 / sim_norm_t.mean().item())
+        weight_shi.append(1 / shi_mean_t.mean().item())
+    
 
-    print(f'weight_sim_t:\t' + '\t'.join(map('{:.4f}'.format, args.weight_sim_t)))
-    print(f'weight_shi_t:\t' + '\t'.join(map('{:.4f}'.format, args.weight_shi_t)))
-    print(f'weight_sim_f:\t' + '\t'.join(map('{:.4f}'.format, args.weight_sim_f)))
-    print(f'weight_shi_f:\t' + '\t'.join(map('{:.4f}'.format, args.weight_shi_f)))
+    args.weight_sim = weight_sim # weight_sim_t or [0,0]
+    args.weight_shi = weight_shi # weight_shi_t or [0,0]
+
+
+    print(f'weight_sim_t:\t' + '\t'.join(map('{:.4f}'.format, args.weight_sim)))
+    print(f'weight_shi_t:\t' + '\t'.join(map('{:.4f}'.format, args.weight_shi)))
+
 
     print('Compute known class features...')
     feats_id = get_features(args, negative_list, negative_list_f, args.selected_dataset, 
@@ -164,12 +100,13 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
     for ood, ood_loader in ood_loaders.items():
         feats_ood[ood] = get_features(args, negative_list, negative_list_f, ood, model, ood_loader, prefix=prefix, **kwargs)
 
-    print(f'Compute OOD scores... (score: {ood_score})')
+
     scores_id = get_scores(args, feats_id).numpy()
     scores_ood = dict()
     #if args.one_class_idx != -1:
     one_class_score = []
 
+    print(f'Compute OOD scores... (score: {ood_score})')
     for ood, feats in feats_ood.items():
         scores_ood[ood]             = get_scores(args, feats).numpy()
         auroc_dict[ood][ood_score]  = get_auroc(scores_id, scores_ood[ood])
@@ -210,55 +147,28 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
 
 def get_scores(args, feats_dict):
     # convert to gpu tensor
-    feats_sim_t = feats_dict['simclr_t'].to(device)
-    feats_shi_t = feats_dict['shift_t'].to(device)
-    feats_sim_f = feats_dict['simclr_f'].to(device)
-    feats_shi_f = feats_dict['shift_f'].to(device)
-    N = feats_sim_t.size(0)
+    feats_sim = feats_dict['simclr'].to(device)
+    feats_shi = feats_dict['shift'].to(device)
+
+    N = feats_sim.size(0)
 
     # compute scores
     scores = []
+   
 
-    #for test
+    for f_sim_t, f_shi_t  in zip(feats_sim, feats_shi):
+        f_sim_t = [f.mean(dim=0, keepdim=True) for f in f_sim_t.chunk((args.K_shift+args.K_shift_f))]  # list of (1, d)
+        f_shi_t = [f.mean(dim=0, keepdim=True) for f in f_shi_t.chunk((args.K_shift+args.K_shift_f))]  # list of (1, 4)
 
-    print(feats_shi_t.shape)
-    labels = torch.Tensor([[0]]*feats_sim_t.shape[0])
-    shift_labels= torch.cat([torch.ones_like(labels) * k for k in range(2)], 0) 
-    softmax = nn.Softmax(dim=1)
-
-    s_t = torch.cat([feats_shi_t[:, 0, :], feats_shi_t[:, 1, :]], 0)    
-    s_t_p = softmax(s_t)[:, 1]
-    print("roc_t_v2", roc_auc_score(shift_labels.cpu(), s_t_p.detach().cpu()))
-
-    s_f = torch.cat([feats_shi_f[:, 0, :], feats_shi_f[:, 1, :]], 0) 
-    s_f_p = softmax(s_f)[:, 1]
-    print("roc_f_v2", roc_auc_score(shift_labels.cpu(), s_f_p.detach().cpu()))
-    
-
-    for f_sim_t, f_shi_t, f_sim_f, f_shi_f  in zip(feats_sim_t, feats_shi_t, feats_sim_f, feats_shi_f):
-        f_sim_t = [f.mean(dim=0, keepdim=True) for f in f_sim_t.chunk(args.K_shift)]  # list of (1, d)
-        f_shi_t = [f.mean(dim=0, keepdim=True) for f in f_shi_t.chunk(args.K_shift)]  # list of (1, 4)
-        f_sim_f = [f.mean(dim=0, keepdim=True) for f in f_sim_f.chunk(args.K_shift_f)]  # list of (1, d)
-        f_shi_f = [f.mean(dim=0, keepdim=True) for f in f_shi_f.chunk(args.K_shift_f)]  # list of (1, 4)
 
         score = 0
-        score_t_sim, score_t_shi, score_f_sim, score_f_shi = 0, 0, 0, 0
-        score_t, score_f = 0, 0
-        lam = 1
-        for shi in range(args.K_shift):
-            score_t_sim += (f_sim_t[shi] * args.axis[shi]).sum(dim=1).max().item() * args.weight_sim_t[shi]
-            score_t_shi += f_shi_t[shi][:, shi].item() #* args.weight_shi_t[shi]
-        score_t = score_t_sim + score_t_shi
-        score_t = score_t / args.K_shift
 
-        for shi in range(args.K_shift_f):
-            score_f_sim += (f_sim_f[shi] * args.axis_f[shi]).sum(dim=1).max().item() * args.weight_sim_f[shi] * lam
-            score_f_shi += f_shi_f[shi][:, shi].item() # * args.weight_shi_f[shi] * lam
-        score_f =  score_f_sim + score_f_shi
-        score_f = score_f / args.K_shift_f
-        
-        #print("scores", score_t, score_f,  score_t_sim, score_t_shi, score_f_sim, score_f_shi)
-        score = (score_t_sim/ args.K_shift * score_f_sim/args.K_shift_f) + (score_t_shi/ args.K_shift * score_f_shi/args.K_shift_f)
+
+        for shi in range(args.K_shift):
+            score += (f_sim_t[shi] * args.axis[shi]).sum(dim=1).max().item() * args.weight_sim[shi]
+            score += f_shi_t[shi][:, shi].item() * args.weight_shi[shi]
+        score = score / (args.K_shift+args.K_shift_f)
+
         scores.append(score)
     scores = torch.tensor(scores)
 
@@ -267,7 +177,7 @@ def get_scores(args, feats_dict):
 
 
 def get_features(args, negative_list, negative_list_f, data_name, model, loader, prefix='',
-                sample_num=1, layers=('simclr_t', 'shift_t','simclr_f', 'shift_f')):
+                sample_num=1, layers=('simclr', 'shift')):
 
     if not isinstance(layers, (list, tuple)):
         layers = [layers]
@@ -292,7 +202,7 @@ def get_features(args, negative_list, negative_list_f, data_name, model, loader,
     return feats_dict
 
 
-def _get_features(args, negative_list, negative_list_f, model, loader, sample_num=10, layers=('simclr_t', 'shift_t','simclr_f', 'shift_f')):
+def _get_features(args, negative_list, negative_list_f, model, loader, sample_num=10, layers=('simclr', 'shift')):
     output_aux = dict()
     if not isinstance(layers, (list, tuple)):
         layers = [layers]
@@ -337,28 +247,15 @@ def _get_features(args, negative_list, negative_list_f, model, loader, sample_nu
             with torch.no_grad():
                 kwargs = {layer: True for layer in layers}  # only forward selected layers
                 _, z_t, s_t, _, z_f, s_f  = model(x, x_f)
-                output_aux['simclr_t'] = z_t
-                output_aux['shift_t'] = s_t
-                output_aux['simclr_f'] = z_f
-                output_aux['shift_f'] = s_f                     
-
-
-                #for test
-                shift_labels= torch.cat([torch.ones_like(labels) * k for k in range(2)], 0) 
-                softmax = nn.Softmax(dim=1)
-                s_t_p = softmax(s_t[:(labels.shape[0]*2)])[:, 1]
-                print("roc_t", roc_auc_score(shift_labels.cpu(), s_t_p.detach().cpu()))
-                s_f_p = softmax(s_f[:(labels.shape[0]*2)])[:, 1]
-                print("roc_f", roc_auc_score(shift_labels.cpu(), s_f_p.detach().cpu()))
+                output_aux['simclr'] = torch.cat([z_t, z_f])
+                output_aux['shift'] = torch.cat([s_t, s_f])
+                #output_aux['simclr_f'] = z_f
+                #output_aux['shift_f'] = s_f                     
 
             # add features in one batch
-            for layer in ['simclr_t', 'shift_t']:
+            for layer in ['simclr', 'shift']:
                 feats = output_aux[layer].cpu()
-                feats_batch[layer] += feats.chunk(args.K_shift)
-
-            for layer in ['simclr_f', 'shift_f']:
-                feats = output_aux[layer].cpu()
-                feats_batch[layer] += feats.chunk(args.K_shift_f)
+                feats_batch[layer] += feats.chunk(args.K_shift+args.K_shift_f)
 
         # concatenate features in one batch
         for key, val in feats_batch.items():
@@ -376,14 +273,11 @@ def _get_features(args, negative_list, negative_list_f, model, loader, sample_nu
         # Convert [1,2,3,4, 1,2,3,4] -> [1,1, 2,2, 3,3, 4,4]
     for key, val in feats_all.items():
         N, T, d = val.size()  # T = K * T'
-        if key in  ['simclr_t', 'shift_t']:
-            val = val.view(N, -1, args.K_shift, d)  # (N, T', K, d)
-            val = val.transpose(2, 1)  # (N, 4, T', d)
-            val = val.reshape(N, T, d)  # (N, T, d)
-        elif key in  ['simclr_f', 'shift_f']:
-            val = val.view(N, -1, args.K_shift_f, d)  # (N, T', K, d)
-            val = val.transpose(2, 1)  # (N, 4, T', d)
-            val = val.reshape(N, T, d)  # (N, T, d)
+        
+        val = val.view(N, -1, (args.K_shift+args.K_shift_f), d)  # (N, T', K, d)
+        val = val.transpose(2, 1)  # (N, 4, T', d)
+        val = val.reshape(N, T, d)  # (N, T, d)
+
         feats_all[key] = val
 
     return feats_all
