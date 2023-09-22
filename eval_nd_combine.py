@@ -78,9 +78,10 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
     weight_shi = []
 
     print(len(f_sim),len(f_shi),len(f_shi[0]))
-    for shi in range((args.K_shift)):
+    for shi in range((args.K_shift+args.K_shift_f)):
         sim_norm_t = f_sim[shi].norm(dim=1)  # (M)
-        shi_mean_t = f_shi[shi][:, shi]  # (M)
+        shi_mean_t = f_shi[shi][:, shi]  # (M)  
+        
         weight_sim.append(1 / sim_norm_t.mean().item())
         weight_shi.append(1 / shi_mean_t.mean().item())
     
@@ -164,7 +165,7 @@ def get_scores(args, feats_dict):
         score = 0
 
 
-        for shi in range(args.K_shift):
+        for shi in range(args.K_shift+args.K_shift_f):
             score += (f_sim_t[shi] * args.axis[shi]).sum(dim=1).max().item() * args.weight_sim[shi]
             score += f_shi_t[shi][:, shi].item() * args.weight_shi[shi]
         score = score / (args.K_shift+args.K_shift_f)
@@ -233,29 +234,36 @@ def _get_features(args, negative_list, negative_list_f, model, loader, sample_nu
                 temp_data = torch.from_numpy(np.array(shifted_aug.augment(original_data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
                 x_f = torch.cat([x_f, temp_data.to(device)], 0)
 
-            data_fft = torch.fft.fftn(x_f[0], norm="forward").abs().reshape(1, x_f[0].shape[0], x_f[0].shape[1])
+            data_fft = torch.fft.fftn(x_f[0], norm="forward").reshape(1, x_f[0].shape[0], x_f[0].shape[1])
 
             for i in range(1, len(x_f)):
-                data_fft = torch.cat([data_fft, torch.fft.fftn(x_f[i], norm="forward").abs().reshape(1, x_f[0].shape[0], x_f[0].shape[1])], 0)            
+                data_fft = torch.cat([data_fft, torch.fft.fftn(x_f[i], norm="forward").reshape(1, x_f[0].shape[0], x_f[0].shape[1])], 0)            
 
 
             x_f = data_fft
             
-            #x_f      = fft.fftn(x_f, norm="backward").abs()                   
-
             # compute augmented features
             with torch.no_grad():
                 kwargs = {layer: True for layer in layers}  # only forward selected layers
                 _, z_t, s_t, _, z_f, s_f  = model(x, x_f)
                 output_aux['simclr'] = torch.cat([z_t, z_f])
+                
+                min_num = torch.min(s_t) 
+                s_t = torch.cat([s_t.cpu(), torch.Tensor([min_num]).expand(s_t.shape[0], args.K_shift_f)], dim=1)
+
+                min_num = torch.min(s_f) 
+                s_f = torch.cat([s_f.cpu(), torch.Tensor([min_num]).expand(s_f.shape[0], args.K_shift)], dim=1)
+
                 output_aux['shift'] = torch.cat([s_t, s_f])
+
+
                 #output_aux['simclr_f'] = z_f
                 #output_aux['shift_f'] = s_f                     
 
             # add features in one batch
             for layer in ['simclr', 'shift']:
                 feats = output_aux[layer].cpu()
-                feats_batch[layer] += feats.chunk(args.K_shift+args.K_shift_f)
+                feats_batch[layer] += feats.chunk(args.K_shift + args.K_shift_f)
 
         # concatenate features in one batch
         for key, val in feats_batch.items():

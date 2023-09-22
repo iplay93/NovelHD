@@ -105,8 +105,8 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
     elif ood_score == 'F':
         args.weight_sim_t = [0] * args.K_shift # weight_sim_t or [0,0]
         args.weight_shi_t = [0] * args.K_shift  # weight_shi_t or [0,0]
-        args.weight_sim_f = [1] * args.K_shift_f   # weight_sim_f or [0,0] 
-        args.weight_shi_f = [1] * args.K_shift_f # weight_shi_f or [0,0]
+        args.weight_sim_f = weight_sim_f 
+        args.weight_shi_f = weight_shi_f
     elif ood_score == 'simclr':
         args.weight_sim_t = [1] * args.K_shift
         args.weight_shi_t = [0] * args.K_shift
@@ -123,13 +123,13 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
         args.weight_sim_f = [0] * args.K_shift_f
         args.weight_shi_f = [0] * args.K_shift_f
     elif ood_score == 'FCON':
-        args.weight_sim_t = [0] * args.K_shift # weight_sim_t or [0,0]
-        args.weight_shi_t = [0] * args.K_shift# weight_shi_t or [0,0]
+        args.weight_sim_t = weight_sim_t # weight_sim_t or [0,0]
+        args.weight_shi_t = weight_shi_t # weight_shi_t or [0,0]
         args.weight_sim_f = weight_sim_f  # weight_sim_f or [0,0] 
         args.weight_shi_f = [0] * args.K_shift_f # weight_shi_f or [0,0]  
     elif ood_score == 'FCLS':
-        args.weight_sim_t = [0] * args.K_shift # weight_sim_t or [0,0]
-        args.weight_shi_t = [0] * args.K_shift # weight_shi_t or [0,0]
+        args.weight_sim_t = weight_sim_t # weight_sim_t or [0,0]
+        args.weight_shi_t = weight_shi_t # weight_shi_t or [0,0]
         args.weight_sim_f = [0] * args.K_shift_f   # weight_sim_f or [0,0] 
         args.weight_shi_f = weight_shi_f # weight_shi_f or [0,0]       
     elif ood_score == 'NovelHD' or ood_score == 'NovelHD_TF' :
@@ -137,8 +137,6 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
         args.weight_shi_t = weight_shi_t # weight_shi_t or [0,0]
         args.weight_sim_f = weight_sim_f 
         args.weight_shi_f = weight_shi_f
-        #args.weight_sim_f = np.array(weight_sim_f)*args.lam_score).tolist() # weight_sim_f or [0,0] 
-        #args.weight_shi_f = (np.array(weight_shi_f)*args.lam_score).tolist() # weight_shi_f or [0,0]
     elif ood_score == 'CON':
         args.weight_sim_t = weight_sim_t # weight_sim_t or [0,0]
         args.weight_shi_t = [0] * args.K_shift # weight_shi_t or [0,0]
@@ -161,17 +159,27 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
     feats_id = get_features(args, negative_list, negative_list_f, args.selected_dataset, 
                             model, id_loader, prefix=prefix, **kwargs)  # (N, T, d)
     feats_ood = dict()
+    
+    starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
+
     for ood, ood_loader in ood_loaders.items():
+        starter.record()
         feats_ood[ood] = get_features(args, negative_list, negative_list_f, ood, model, ood_loader, prefix=prefix, **kwargs)
+        ender.record()
+        # WAIT FOR GPU SYNC
+        torch.cuda.synchronize()
+        curr_time = starter.elapsed_time(ender)
+    
+    print("inference time", curr_time)
 
     print(f'Compute OOD scores... (score: {ood_score})')
-    scores_id = get_scores(args, feats_id).numpy()
+    scores_id = get_scores(args, feats_id, 'id').numpy()
     scores_ood = dict()
     #if args.one_class_idx != -1:
     one_class_score = []
 
     for ood, feats in feats_ood.items():
-        scores_ood[ood]             = get_scores(args, feats).numpy()
+        scores_ood[ood]             = get_scores(args, feats,'ood').numpy()
         auroc_dict[ood][ood_score]  = get_auroc(scores_id, scores_ood[ood])
         aupr_dict[ood][ood_score]   = get_aupr(scores_id, scores_ood[ood])
         fpr_dict[ood][ood_score]    = get_fpr(scores_id, scores_ood[ood])
@@ -208,7 +216,7 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
     return auroc_dict, aupr_dict, fpr_dict, de_dict, auroc, fpr, f1, acc, scores, labels
 
 
-def get_scores(args, feats_dict):
+def get_scores(args, feats_dict, ver):
     # convert to gpu tensor
     feats_sim_t = feats_dict['simclr_t'].to(device)
     feats_shi_t = feats_dict['shift_t'].to(device)
@@ -221,20 +229,21 @@ def get_scores(args, feats_dict):
 
     #for test
 
-    print(feats_shi_t.shape)
+    #print(feats_shi_t.shape)
     labels = torch.Tensor([[0]]*feats_sim_t.shape[0])
     shift_labels= torch.cat([torch.ones_like(labels) * k for k in range(2)], 0) 
     softmax = nn.Softmax(dim=1)
 
     s_t = torch.cat([feats_shi_t[:, 0, :], feats_shi_t[:, 1, :]], 0)    
     s_t_p = softmax(s_t)[:, 1]
-    print("roc_t_v2", roc_auc_score(shift_labels.cpu(), s_t_p.detach().cpu()))
+    #print("roc_t_v2", roc_auc_score(shift_labels.cpu(), s_t_p.detach().cpu()))
 
     s_f = torch.cat([feats_shi_f[:, 0, :], feats_shi_f[:, 1, :]], 0) 
     s_f_p = softmax(s_f)[:, 1]
-    print("roc_f_v2", roc_auc_score(shift_labels.cpu(), s_f_p.detach().cpu()))
+    #print("roc_f_v2", roc_auc_score(shift_labels.cpu(), s_f_p.detach().cpu()))
     
-
+    final_rs =[]
+    
     for f_sim_t, f_shi_t, f_sim_f, f_shi_f  in zip(feats_sim_t, feats_shi_t, feats_sim_f, feats_shi_f):
         f_sim_t = [f.mean(dim=0, keepdim=True) for f in f_sim_t.chunk(args.K_shift)]  # list of (1, d)
         f_shi_t = [f.mean(dim=0, keepdim=True) for f in f_shi_t.chunk(args.K_shift)]  # list of (1, 4)
@@ -247,21 +256,29 @@ def get_scores(args, feats_dict):
         lam = 1
         for shi in range(args.K_shift):
             score_t_sim += (f_sim_t[shi] * args.axis[shi]).sum(dim=1).max().item() * args.weight_sim_t[shi]
-            score_t_shi += f_shi_t[shi][:, shi].item() #* args.weight_shi_t[shi]
+            score_t_shi += f_shi_t[shi][:, shi].item() * args.weight_shi_t[shi]
         score_t = score_t_sim + score_t_shi
         score_t = score_t / args.K_shift
 
         for shi in range(args.K_shift_f):
             score_f_sim += (f_sim_f[shi] * args.axis_f[shi]).sum(dim=1).max().item() * args.weight_sim_f[shi] * lam
-            score_f_shi += f_shi_f[shi][:, shi].item() # * args.weight_shi_f[shi] * lam
+            score_f_shi += f_shi_f[shi][:, shi].item() * args.weight_shi_f[shi] * lam
         score_f =  score_f_sim + score_f_shi
         score_f = score_f / args.K_shift_f
         
         #print("scores", score_t, score_f,  score_t_sim, score_t_shi, score_f_sim, score_f_shi)
-        score = (score_t_sim/ args.K_shift * score_f_sim/args.K_shift_f) + (score_t_shi/ args.K_shift * score_f_shi/args.K_shift_f)
+        score =  score_t + score_f
+        
+        final_rs.append([score_t, score_f, score_t_sim, score_t_shi, score_f_sim, score_f_shi])   
+
+
         scores.append(score)
     scores = torch.tensor(scores)
-
+    
+    import pandas as pd
+    df = pd.DataFrame(final_rs, columns=['score_t', 'score_f', 'score_t_sim', 'score_t_shi', 'score_f_sim', 'score_f_shi'])
+    df.to_excel('result_files/scores_'+ver+'.xlsx', sheet_name='the results')
+    
     assert scores.dim() == 1 and scores.size(0) == N  # (N)
     return scores.cpu()
 
@@ -323,15 +340,13 @@ def _get_features(args, negative_list, negative_list_f, model, loader, sample_nu
                 temp_data = torch.from_numpy(np.array(shifted_aug.augment(original_data.permute(0, 2, 1).cpu().numpy()))).permute(0, 2, 1)
                 x_f = torch.cat([x_f, temp_data.to(device)], 0)
 
-            data_fft = torch.fft.fftn(x_f[0], norm="forward").abs().reshape(1, x_f[0].shape[0], x_f[0].shape[1])
+            data_fft = torch.fft.fftn(x_f[0], norm="forward").reshape(1, x_f[0].shape[0], x_f[0].shape[1])
 
             for i in range(1, len(x_f)):
-                data_fft = torch.cat([data_fft, torch.fft.fftn(x_f[i], norm="forward").abs().reshape(1, x_f[0].shape[0], x_f[0].shape[1])], 0)            
+                data_fft = torch.cat([data_fft, torch.fft.fftn(x_f[i], norm="forward").reshape(1, x_f[0].shape[0], x_f[0].shape[1])], 0)            
 
 
-            x_f = data_fft
-            
-            #x_f      = fft.fftn(x_f, norm="backward").abs()                   
+            x_f = data_fft    
 
             # compute augmented features
             with torch.no_grad():
@@ -347,9 +362,9 @@ def _get_features(args, negative_list, negative_list_f, model, loader, sample_nu
                 shift_labels= torch.cat([torch.ones_like(labels) * k for k in range(2)], 0) 
                 softmax = nn.Softmax(dim=1)
                 s_t_p = softmax(s_t[:(labels.shape[0]*2)])[:, 1]
-                print("roc_t", roc_auc_score(shift_labels.cpu(), s_t_p.detach().cpu()))
+                #print("roc_t", roc_auc_score(shift_labels.cpu(), s_t_p.detach().cpu()))
                 s_f_p = softmax(s_f[:(labels.shape[0]*2)])[:, 1]
-                print("roc_f", roc_auc_score(shift_labels.cpu(), s_f_p.detach().cpu()))
+                #print("roc_f", roc_auc_score(shift_labels.cpu(), s_f_p.detach().cpu()))
 
             # add features in one batch
             for layer in ['simclr_t', 'shift_t']:

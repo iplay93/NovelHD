@@ -139,8 +139,6 @@ parser.add_argument('--loss', type=str, default='SupCon', help='choose one of th
 parser.add_argument('--optimizer', type=str, default='', help='choose one of them: adam')
 parser.add_argument('--patience', type=int, default=20, 
                     help='choose the number of patience for early stopping')
-parser.add_argument('--batch_size', type=int, default=128, 
-                    help='choose the number of batch size')
 parser.add_argument('--lr', type=float, default=3e-5, 
                     help='choose the number of learning rate')
 parser.add_argument('--gamma', type=float, default=0.7, 
@@ -149,7 +147,7 @@ parser.add_argument('--temp', type=float, default=0.07,
                     help='temperature for loss function')
 parser.add_argument('--warm', action='store_true',
                     help='warm-up for large batch training')
-
+parser.add_argument('--neg_ths', type=float, default= 0.9, help='choose neg_thrshold ratio')
 args = parser.parse_args()
 
 torch.cuda.empty_cache()
@@ -161,13 +159,16 @@ method = 'Test OOD-ness'
 training_mode = args.training_mode
 run_description = args.run_description
 
+pos_ths = 0.9
+neg_ths  = args.neg_ths
+
 
 if training_mode == 'T':
-    store_path = 'result_files/final_ood_'+ data_type +'_T.xlsx'
-    store_path_2 = 'result_files/Summary_ood_'+ data_type +'_T.xlsx'
+    store_path = 'result_files/final_ood_'+ data_type +'_T_'+str(neg_ths)+'.xlsx'
+    store_path_2 = 'result_files/Summary_ood_'+ data_type +'_T_'+str(neg_ths)+'.xlsx'
 elif training_mode == 'F':
-    store_path = 'result_files/final_ood_'+ data_type +'_F.xlsx'
-    store_path_2 = 'result_files/Summary_ood_'+ data_type +'_F.xlsx'
+    store_path = 'result_files/final_ood_'+ data_type +'_F_'+str(neg_ths)+'.xlsx'
+    store_path_2 = 'result_files/Summary_ood_'+ data_type +'_F_'+str(neg_ths)+'.xlsx'
 else:
     raise ValueError
 
@@ -202,15 +203,14 @@ final_auroc = []
 num_classes, datalist, labellist = loading_data(data_type, args)
 
 args.K_shift_f = args.K_shift = 2
-pos_ths = 0.6
-neg_ths  = 0.9
 
 clssfication_arr = []
 strong_set = []
 weak_set = []
-multi_ST = [ [0]*11 for i in range(10)]
+multi_ST = [ [0]*10 for i in range(10)]
+overall = [[] for i in range(10)]
 
-print(multi_ST)
+
 # Training for each class
 for args.one_class_idx in class_num:
 
@@ -218,7 +218,7 @@ for args.one_class_idx in class_num:
     temp_weak_set = []
 
     for pos_num, positive_aug in enumerate(['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 
-                        'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp', 'AddNoise2']):
+                        'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']):
         acc_rs = []
         f1_rs  = []
         auroc_rs = []
@@ -251,8 +251,9 @@ for args.one_class_idx in class_num:
             logger.debug(f'Seed:    {SEED}')
             logger.debug(f'Positive Augmentation:    {positive_aug}')
             logger.debug(f'one idx:    {args.one_class_idx}')
+            logger.debug(f'ths:    {neg_ths}')
 
-
+ 
             # Load datasets
             data_path = f"./data/{data_type}"            
 
@@ -352,8 +353,8 @@ for args.one_class_idx in class_num:
                 if auroc.item() > neg_ths:
                     multi_ST[seed_n][pos_num] = 1
                 print(multi_ST)
-
-
+            else:
+                overall[pos_num].append(auroc.item())
     
         
         print("Average of the Accuracy list =", round(sum(acc_rs)/len(acc_rs), 3))
@@ -378,12 +379,19 @@ final_multiST =[]
 for i in range(len(multi_ST)):
     temp_multi = []
     for pos_num, positive_aug in enumerate(['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 
-                        'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp', 'AddNoise2']):        
+                        'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']):        
         if multi_ST[i][pos_num] == 1:
             temp_multi.append(positive_aug)
     
     final_multiST.append(temp_multi)
 
+overall_rs =[]
+for pos_num, positive_aug in enumerate(['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 
+                        'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']):  
+    if np.mean(overall[pos_num]) > neg_ths:
+        overall_rs.append(positive_aug)
+
+print('overall', overall_rs)
 
 # for extrating results to an excel file
 final_rs =[]
@@ -408,25 +416,31 @@ df2.to_excel(store_path_2, sheet_name='the results')
 
 print(final_multiST)
 
-# if training_mode == 'T':
-    # with open('./data/'+data_type+'_s.data', 'wb') as f:
-    #     pickle.dump(strong_set, f)
+if training_mode == 'T':
+    with open('./data/'+data_type+'_s_'+str(neg_ths)+'.data', 'wb') as f:
+        pickle.dump(strong_set, f)
 
-    # with open('./data/'+data_type+'_w.data', 'wb') as f:
-    #     pickle.dump(weak_set, f)
+    with open('./data/'+data_type+'_w._'+str(neg_ths)+'data', 'wb') as f:
+        pickle.dump(weak_set, f)
 
-    # with open('./data/'+data_type+'_multi.data', 'wb') as f:
-    #     pickle.dump(final_multiST, f)
-
-# elif training_mode == 'F':
-#     with open('./data/'+data_type+'_fs.data', 'wb') as f:
-#         pickle.dump(strong_set, f)
+    with open('./data/'+data_type+'_multi._'+str(neg_ths)+'data', 'wb') as f:
+        pickle.dump(final_multiST, f)
     
-#     with open('./data/'+data_type+'_fw.data', 'wb') as f:
-#         pickle.dump(weak_set, f)
+    with open('./data/'+data_type+'_overall_'+str(neg_ths)+'.data', 'wb') as f:
+        pickle.dump(overall_rs, f)
 
-#     with open('./data/'+data_type+'_multi_f.data', 'wb') as f:
-#         pickle.dump(final_multiST, f)
+elif training_mode == 'F':
+    with open('./data/'+data_type+'_fs_'+str(neg_ths)+'.data', 'wb') as f:
+        pickle.dump(strong_set, f)
+    
+    with open('./data/'+data_type+'_fw_'+str(neg_ths)+'.data', 'wb') as f:
+        pickle.dump(weak_set, f)
+
+    with open('./data/'+data_type+'_multi_f_'+str(neg_ths)+'.data', 'wb') as f:
+        pickle.dump(final_multiST, f)
+    
+    with open('./data/'+data_type+'_overall_f_'+str(neg_ths)+'.data', 'wb') as f:
+        pickle.dump(overall_rs, f)
 
 print(strong_set)
 print(weak_set)

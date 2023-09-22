@@ -112,10 +112,10 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
         data, shift_labels = generate_augmentation(args, positive_list, original_data,  labels, device, negative_list, args.K_pos)
         data_f, shift_labels_f = generate_augmentation(args, positive_list_f, original_data,  labels, device, negative_list_f, args.K_pos_f)
             
-        data_fft = torch.fft.fftn(data_f[0], norm="forward").abs().reshape(1, data_f[0].shape[0], data_f[0].shape[1])
+        data_fft = torch.fft.fftn(data_f[0], norm="forward").reshape(1, data_f[0].shape[0], data_f[0].shape[1])
 
         for i in range(1, len(data_f)):
-            data_fft = torch.cat([data_fft, torch.fft.fftn(data_f[i], norm="forward").abs().reshape(1, data_f[0].shape[0], data_f[0].shape[1])], 0)            
+            data_fft = torch.cat([data_fft, torch.fft.fftn(data_f[i], norm="forward").reshape(1, data_f[0].shape[0], data_f[0].shape[1])], 0)            
 
             #sensor_pair_f = torch.cat([normal_fft, aug_fft], dim=0)   
             
@@ -127,38 +127,9 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
         assert data_f.size(0) == shift_labels_f.size(0)
 
 
-                    #print(aug_list[positive_num].shape)
-            # # adding shifted transformation
-            # for k in range(data.size(0)):      
-            #     transpose_data = np.transpose(data[k].cpu().numpy())
-            #     transpose_aug = np.transpose(aug1[k].cpu().numpy())
+            
 
-            #     temp_data = torch.from_numpy(shifted_aug.augment(np.reshape(transpose_data,(1, transpose_data.shape[0],-1)))).permute(0, 2, 1)
-            #     temp_aug1 = torch.from_numpy(shifted_aug.augment(np.reshape(transpose_aug ,(1, transpose_aug.shape[0],-1)))).permute(0, 2, 1)
-
-    
-            
-            #data_f = fft.fft(data).to(device)
-            #torch.cat((data_f, fft.rfft(temp_data.permute(0, 2, 1)).abs().permute(0, 2, 1).to(device)), 0)
-            #aug_f = [ ]
-            #for positive_num in range(0, args.K_pos):
-            #    aug_f.append(fft.fftn(aug_list[positive_num]).abs().to(device))
-                #aug_f.append(fft.fft(aug_list[positive_num]).to(device))
-                #print(aug_f[positive_num].shape)
-            #= torch.cat((aug1_f, fft.rfft(temp_aug1.permute(0, 2, 1)).abs().permute(0, 2, 1).to(device)), 0)
-
-                        #print(shift_labels)
-            
-            
-            
- # B -> 4B       
-                #data_f = torch.cat([data_f, aug_f[positive_num]], dim=0) 
-            
-            #data_f = fft.fftn(data).abs().to(device)
-
-            #print(sensor_pair.shape , shift_labels)
-  
-            # original data and augmented data 
+        # original data and augmented data 
         h_t, z_t, s_t, h_f, z_f, s_f  = model(data, data_f)
             
             #Initialize loss
@@ -171,7 +142,7 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
 
         simclr = normalize(z_t)  # normalize
         sim_matrix = get_similarity_matrix(simclr)            
-        loss_sim = NT_xent(sim_matrix, temperature=0.5, chunk = args.K_pos+1) #* sim_lambda
+        loss_sim = NT_xent(sim_matrix, temperature = args.temp, chunk = args.K_pos+1) #* sim_lambda
             
         loss_shift = criterion(s_t, shift_labels)
         #print(data.shape, z_t.shape, simclr.shape)
@@ -203,7 +174,7 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
 
             simclr_f = normalize(z_f)  # normalize
             sim_matrix_f = get_similarity_matrix(simclr_f)            
-            loss_sim_f = NT_xent(sim_matrix_f, temperature=0.5, chunk = args.K_pos_f+1) #* sim_lambda_f 
+            loss_sim_f = NT_xent(sim_matrix_f, temperature = args.temp, chunk = args.K_pos_f+1) #* sim_lambda_f 
                 
             loss_shift_f = criterion(s_f, shift_labels_f)
                 
@@ -219,12 +190,12 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
         elif ood_score == 'TCLS':
             loss = loss_shift
         elif ood_score == 'FCON':
-            loss =  loss_sim_f
+            loss =  loss_sim_f + loss_t
         elif ood_score == 'FCLS':
-            loss = loss_shift_f
+            loss = loss_shift_f + loss_t
         elif ood_score == 'NovelHD':
-            loss = loss_t +  loss_f 
-                #loss = loss_t + loss_f
+            #loss = loss_t +  loss_f 
+            loss = args.lam_a * (loss_shift_f +loss_shift) + (loss_sim_f+loss_sim)
         elif ood_score == 'CON':
             loss = loss_sim + loss_sim_f
         elif ood_score == 'CLS':
@@ -239,7 +210,7 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
                 
             loss_f_TF = nt_xent_criterion(h_f[:batch_size], h_f[B_f:B_f+batch_size])
 
-            loss = loss_t + loss_f + l_TF +l_TF_2 #+ 0.2 *(loss_t_TF + loss_f_TF) 
+            loss = loss_t + loss_f + l_TF  +l_TF_2 #+ 0.2 *(loss_t_TF + loss_f_TF) 
         elif ood_score == 'CLAN':
             loss = loss_t + loss_sim_f # + l_TF
         else:

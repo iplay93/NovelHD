@@ -10,7 +10,7 @@ import torch.nn as nn
 from sklearn.metrics import f1_score, roc_auc_score
 from tsaug import *
 from data_preprocessing.augmentations import select_transformation
-
+import pytorch_wavelets as wavelets
 from util import calculate_acc_rv
 
 def Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, valid_dl, 
@@ -42,6 +42,21 @@ def Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, 
 def normalize(x, dim=1, eps=1e-8):
     return x / (x.norm(dim=dim, keepdim=True) + eps)
 
+import pywt
+
+def wavelet_transform(data):
+    # Initialize an empty tensor to store the wavelet coefficients
+    wavelet_coeffs = torch.empty_like(data)
+
+    # Iterate through each sample in the batch
+    for i in range(data.shape[0]):
+        # Iterate through each channel
+        for j in range(data.shape[1]):
+            # Apply the wavelet transform to the channel data
+            coeffs, _ = pywt.dwt(data[i, j].numpy(), 'haar')  # Change 'haar' to your desired wavelet
+            wavelet_coeffs[i, j] = torch.tensor(coeffs)
+
+    return wavelet_coeffs
 
 def model_train(model, model_optimizer, classifier, classifier_optimizer, criterion, 
                 train_loader, configs, device, training_mode, positive_aug):
@@ -70,14 +85,14 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
 
         elif training_mode == 'F':
 
-            normal_fft = torch.fft.fftn(data[0], norm="forward").abs().reshape(1, data[0].shape[0], data[0].shape[1])
-            aug_fft = torch.fft.fftn(aug1[0], norm="forward").abs().reshape(1, aug1[0].shape[0], aug1[0].shape[1])
+            normal_fft = torch.fft.fftn(data[0], norm="forward").reshape(1, data[0].shape[0], data[0].shape[1])
+            aug_fft = torch.fft.fftn(aug1[0], norm="forward").reshape(1, aug1[0].shape[0], aug1[0].shape[1])
             for i in range(1, len(data)):
-                normal_fft = torch.cat([normal_fft, torch.fft.fftn(data[i], norm="forward").abs().reshape(1, data[0].shape[0], data[0].shape[1])], 0)
+                normal_fft = torch.cat([normal_fft, torch.fft.fftn(data[i], norm="forward").reshape(1, data[0].shape[0], data[0].shape[1])], 0)
             
             #print(normal_fft.shape)
             for i in range(1, len(aug1)):
-                aug_fft = torch.cat([aug_fft, torch.fft.fftn(aug1[i], norm="forward").abs().reshape(1, aug1[0].shape[0], aug1[0].shape[1])], 0)
+                aug_fft = torch.cat([aug_fft, torch.fft.fftn(aug1[i], norm="forward").reshape(1, aug1[0].shape[0], aug1[0].shape[1])], 0)
             
             #print(aug_fft.shape)
             sensor_pair_f = torch.cat([normal_fft, aug_fft], dim=0) 
@@ -148,14 +163,14 @@ def model_evaluate(model, classifier, test_dl, device, training_mode, positive_a
 
             elif training_mode == 'F':
 
-                normal_fft = torch.fft.fftn(data[0], norm="forward").abs().reshape(1, data[0].shape[0], data[0].shape[1])
-                aug_fft = torch.fft.fftn(aug1[0], norm="forward").abs().reshape(1, aug1[0].shape[0], aug1[0].shape[1])
+                normal_fft = torch.fft.fftn(data[0], norm="forward").reshape(1, data[0].shape[0], data[0].shape[1])
+                aug_fft = torch.fft.fftn(aug1[0], norm="forward").reshape(1, aug1[0].shape[0], aug1[0].shape[1])
                 for i in range(1, len(data)):
-                    normal_fft = torch.cat([normal_fft, torch.fft.fftn(data[i], norm="forward").abs().reshape(1, data[0].shape[0], data[0].shape[1])], 0)
+                    normal_fft = torch.cat([normal_fft, torch.fft.fftn(data[i], norm="forward").reshape(1, data[0].shape[0], data[0].shape[1])], 0)
                 
                 #print(normal_fft.shape)
                 for i in range(1, len(aug1)):
-                    aug_fft = torch.cat([aug_fft, torch.fft.fftn(aug1[i], norm="forward").abs().reshape(1, aug1[0].shape[0], aug1[0].shape[1])], 0)
+                    aug_fft = torch.cat([aug_fft, torch.fft.fftn(aug1[i], norm="forward").reshape(1, aug1[0].shape[0], aug1[0].shape[1])], 0)
                 
                 #print(aug_fft.shape)
                 sensor_pair_f = torch.cat([normal_fft, aug_fft], dim=0) 

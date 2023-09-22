@@ -371,9 +371,6 @@ def loading_data(dataset, args):
     elif dataset == 'aras_a':
         dataset_list = arasLoader('data/Aras/HouseA/*.txt', timespan, min_seq)
         #visualization_data(dataset_list, 'KDD2022/data/Aras/HouseA/', 27*100 + 27)
-    elif dataset == 'aras_b':
-        dataset_list = arasLoader('data/Aras/HouseB/*.txt', timespan, min_seq)
-        #visualization_data(dataset_list, 'KDD2022/data/Aras/HouseB/', 27*100 + 27)
     elif dataset == 'opportunity':
         dataset_list = opportunityLoader('data/Opportunity/*.dat', timespan, min_seq)
         #visualization_data(dataset_list, 'KDD2022/data/Opportunity/', 5)

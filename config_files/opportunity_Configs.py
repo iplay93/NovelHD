@@ -21,7 +21,7 @@ class Config(object):
 
         # data parameters
         self.drop_last = True
-        self.batch_size = 32
+        self.batch_size = 64
 
         self.Context_Cont = Context_Cont_configs()
         self.TC = TC()
@@ -32,7 +32,7 @@ class Config(object):
         #self.TSlength_aligned = 147 # before augmentation
         self.TSlength_aligned_2 = 169 
         self.lr_f = self.lr
-        self.target_batch_size = 32#  84
+        self.target_batch_size = 64#  84
         self.increased_dim = 1
         self.final_out_channels = 128
         self.num_classes_target = 5
