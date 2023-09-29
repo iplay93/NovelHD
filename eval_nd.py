@@ -123,13 +123,13 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
         args.weight_sim_f = [0] * args.K_shift_f
         args.weight_shi_f = [0] * args.K_shift_f
     elif ood_score == 'FCON':
-        args.weight_sim_t = weight_sim_t # weight_sim_t or [0,0]
-        args.weight_shi_t = weight_shi_t # weight_shi_t or [0,0]
+        args.weight_sim_t = [0] * args.K_shift # weight_sim_t or [0,0]
+        args.weight_shi_t = [0] * args.K_shift # weight_shi_t or [0,0]
         args.weight_sim_f = weight_sim_f  # weight_sim_f or [0,0] 
         args.weight_shi_f = [0] * args.K_shift_f # weight_shi_f or [0,0]  
     elif ood_score == 'FCLS':
-        args.weight_sim_t = weight_sim_t # weight_sim_t or [0,0]
-        args.weight_shi_t = weight_shi_t # weight_shi_t or [0,0]
+        args.weight_sim_t = [0] * args.K_shift # weight_sim_t or [0,0]
+        args.weight_shi_t = [0] * args.K_shift # weight_shi_t or [0,0]
         args.weight_sim_f = [0] * args.K_shift_f   # weight_sim_f or [0,0] 
         args.weight_shi_f = weight_shi_f # weight_shi_f or [0,0]       
     elif ood_score == 'NovelHD' or ood_score == 'NovelHD_TF' :
@@ -255,14 +255,14 @@ def get_scores(args, feats_dict, ver):
         score_t, score_f = 0, 0
         lam = 1
         for shi in range(args.K_shift):
-            score_t_sim += (f_sim_t[shi] * args.axis[shi]).sum(dim=1).max().item() * args.weight_sim_t[shi]
-            score_t_shi += f_shi_t[shi][:, shi].item() * args.weight_shi_t[shi]
+            score_t_sim += (f_sim_t[shi] * args.axis[shi]).sum(dim=1).max().item() #* args.weight_sim_t[shi]
+            score_t_shi += f_shi_t[shi][:, shi].item() #* args.weight_shi_t[shi]
         score_t = score_t_sim + score_t_shi
         score_t = score_t / args.K_shift
 
         for shi in range(args.K_shift_f):
-            score_f_sim += (f_sim_f[shi] * args.axis_f[shi]).sum(dim=1).max().item() * args.weight_sim_f[shi] * lam
-            score_f_shi += f_shi_f[shi][:, shi].item() * args.weight_shi_f[shi] * lam
+            score_f_sim += (f_sim_f[shi] * args.axis_f[shi]).sum(dim=1).max().item() #* args.weight_sim_f[shi] * lam
+            score_f_shi += f_shi_f[shi][:, shi].item() #* args.weight_shi_f[shi] * lam
         score_f =  score_f_sim + score_f_shi
         score_f = score_f / args.K_shift_f
         

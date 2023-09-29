@@ -105,10 +105,10 @@ class TFC_one(nn.Module):
             nn.ReLU(),
             nn.Linear(256, 128)
         )
-        self.shift_cls_layer_t = nn.Linear(configs.TSlength_aligned * configs.input_channels, args.K_shift)
+        self.shift_cls_layer_t = nn.Linear(configs.TSlength_aligned * configs.input_channels, 1)
 
         self.linear = nn.Linear(configs.TSlength_aligned * configs.input_channels, configs.num_classes)     
-        
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x_in_t):
 
@@ -120,10 +120,30 @@ class TFC_one(nn.Module):
         z_time = self.projector_t(h_time)
 
         """Shifted transformation classifier"""
-        s_time = self.shift_cls_layer_t(h_time)
+        s_time = self.sigmoid(self.shift_cls_layer_t(h_time))
 
 
         return h_time, z_time, s_time
+
+class TFC_class(nn.Module):
+    def __init__(self, configs, args, class_len):
+        super(TFC_class, self).__init__()
+        encoder_layers_t = TransformerEncoderLayer(configs.TSlength_aligned, dim_feedforward=2*configs.TSlength_aligned, nhead=1, )
+        self.transformer_encoder_t = TransformerEncoder(encoder_layers_t, 2)
+
+        self.linear = nn.Linear(configs.TSlength_aligned * configs.input_channels, class_len)     
+
+
+    def forward(self, x_in_t):
+
+        """Use Transformer"""
+        x = self.transformer_encoder_t(x_in_t.float())
+        h_time = x.reshape(x.shape[0], -1)
+
+        """Shifted transformation classifier"""
+        s_time = self.linear(h_time)
+
+        return h_time, s_time
 
 
 

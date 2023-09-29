@@ -190,12 +190,11 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
         elif ood_score == 'TCLS':
             loss = loss_shift
         elif ood_score == 'FCON':
-            loss =  loss_sim_f + loss_t
+            loss =  loss_sim_f 
         elif ood_score == 'FCLS':
-            loss = loss_shift_f + loss_t
+            loss = loss_shift_f
         elif ood_score == 'NovelHD':
-            #loss = loss_t +  loss_f 
-            loss = args.lam_a * (loss_shift_f +loss_shift) + (loss_sim_f+loss_sim)
+            loss = args.lam_a * (loss_t) +  (1 - args.lam_a) * loss_f 
         elif ood_score == 'CON':
             loss = loss_sim + loss_sim_f
         elif ood_score == 'CLS':

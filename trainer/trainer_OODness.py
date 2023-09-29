@@ -7,7 +7,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from sklearn.metrics import f1_score, roc_auc_score
+from sklearn.metrics import f1_score, roc_auc_score, accuracy_score
 from tsaug import *
 from data_preprocessing.augmentations import select_transformation
 import pytorch_wavelets as wavelets
@@ -18,7 +18,7 @@ def Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, 
     # Start training
     logger.debug("Training started ....")
 
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.BCELoss()
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(model_optimizer, 'min')
 
     for epoch in range(1, configs.num_epoch + 1):
@@ -42,21 +42,7 @@ def Trainer(model, model_optimizer, classifier, classifier_optimizer, train_dl, 
 def normalize(x, dim=1, eps=1e-8):
     return x / (x.norm(dim=dim, keepdim=True) + eps)
 
-import pywt
 
-def wavelet_transform(data):
-    # Initialize an empty tensor to store the wavelet coefficients
-    wavelet_coeffs = torch.empty_like(data)
-
-    # Iterate through each sample in the batch
-    for i in range(data.shape[0]):
-        # Iterate through each channel
-        for j in range(data.shape[1]):
-            # Apply the wavelet transform to the channel data
-            coeffs, _ = pywt.dwt(data[i, j].numpy(), 'haar')  # Change 'haar' to your desired wavelet
-            wavelet_coeffs[i, j] = torch.tensor(coeffs)
-
-    return wavelet_coeffs
 
 def model_train(model, model_optimizer, classifier, classifier_optimizer, criterion, 
                 train_loader, configs, device, training_mode, positive_aug):
@@ -115,9 +101,9 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
         #     predictions = classifier(fea_concat)
 
         # compute loss
-
-        loss = criterion(s_t, shift_labels)
-        total_acc.append(shift_labels.eq(s_t.detach().argmax(dim=1)).float().mean())
+        #print(s_t.shape, shift_labels.shape)
+        loss = criterion(s_t.float(), shift_labels.view(-1, 1).float())
+        #total_acc.append(shift_labels.eq(s_t.detach().argmax(dim=1)).float().mean())
 
         total_loss.append(loss.item())
         loss.backward()
@@ -133,7 +119,7 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
         #     classifier_optimizer.step()
 
     total_loss = torch.tensor(total_loss).mean()
-    total_acc = torch.tensor(total_acc).mean()
+    #total_acc = torch.tensor(total_acc).mean()
 
     return total_loss, total_acc
 
@@ -146,7 +132,7 @@ def model_evaluate(model, classifier, test_dl, device, training_mode, positive_a
     total_f1 = []
     total_auroc = []
 
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.BCELoss()
     outs = np.array([])
     trgs = np.array([])
 
@@ -196,20 +182,20 @@ def model_evaluate(model, classifier, test_dl, device, training_mode, positive_a
                 # outs = np.append(outs, pred.cpu().numpy())
                 # trgs = np.append(trgs, labels.data.cpu().numpy())
 
-            loss = criterion(s_t , shift_labels)
+            loss = criterion(s_t.float(), shift_labels.view(-1, 1).float())
             total_loss.append(loss.item())
-            softmax = nn.Softmax(dim=1)
-            s_t = softmax(s_t)
-
-            total_acc.append(shift_labels.eq(s_t.detach().argmax(dim=1)).float().mean())
-            total_f1.append(f1_score(shift_labels.cpu(), s_t.detach().argmax(dim=1).cpu(), average='macro'))
-            s_t_p= s_t[:, 1]
-
-            total_auroc.append(roc_auc_score(shift_labels.cpu(), s_t_p.detach().cpu()))
+            #softmax = nn.Softmax(dim=1)
+            #s_t = softmax(s_t)
+            pred = (s_t >= 0.5).float().view(-1)
+            total_acc.append(accuracy_score(shift_labels.cpu(), pred.cpu().numpy()))
+            total_f1.append(f1_score(shift_labels.cpu(), pred.cpu().numpy(), average='macro'))
+            #s_t_p= s_t[:, 1]
+            
+            total_auroc.append(roc_auc_score(shift_labels.cpu(), s_t.detach().cpu()))
             #print(labels, predictions.detach().argmax(dim=1))
             
 
-            pred = s_t.max(1, keepdim=True)[1]  # get the index of the max log-probability
+             #s_t.max(1, keepdim=True)[1]  # get the index of the max log-probability
             outs = np.append(outs, pred.cpu().numpy())
             trgs = np.append(trgs, shift_labels.data.cpu().numpy())
             #auroc, fpr, f1, acc = calculate_acc_rv(shift_labels.cpu().numpy().tolist(), pred.cpu().numpy().tolist())

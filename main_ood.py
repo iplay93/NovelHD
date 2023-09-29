@@ -297,7 +297,7 @@ for args.one_class_idx in class_num:
             valid_list = valid_list[np.isin(valid_label_list, known_class_idx)]
             valid_label_list =valid_label_list[np.isin(valid_label_list, known_class_idx)]
 
-                # only use for testing novelty
+            # only use for testing novelty
             test_list = test_list[np.isin(test_label_list,  known_class_idx)]
             test_label_list = test_label_list[np.isin(test_label_list,  known_class_idx)]    
 

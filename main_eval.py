@@ -188,9 +188,9 @@ num_classes, datalist, labellist = loading_data(data_type, args)
 # ['T'],['NovelHD'], ['NovelHD_TF']
 #for args.ood_score in [['T']]:  
 
-aug_num = 4
+aug_num = 9
 write_temp = False
-write_lam = True
+write_lam = False
 
 if args.training_ver == "Random":
     store_path = 'result_files/' + str(args.ood_score[0])+'_'+ \
@@ -209,7 +209,7 @@ elif args.training_ver == "Diverse":
                         data_type+'_'+str(neg_ths)+'_'+str(args.temp)+'_diverse.xlsx'
         vis_path = 'figure/'+str(args.ood_score[0])+'_ROC_'+data_type+'_'+str(neg_ths)+'_'+str(args.temp)+'_diverse.png'
         vis_title ="ROC curves of "+str(args.ood_score[0])+" - diverse ST"
-    if write_lam:
+    elif write_lam:
         store_path = 'result_files/' + str(args.ood_score[0])+'_'+ \
                         data_type+'_lam_'+str(args.lam_a)+'_diverse.xlsx'
         vis_path = 'figure/'+str(args.ood_score[0])+'_ROC_'+data_type+'_lam_'+str(args.lam_a)+'_diverse.png'
@@ -269,7 +269,7 @@ for args.K_shift in range(4,5):
 
 #for num_lam_a in range(1, 10):
     #args.lam_a = round(num_lam_a * 0.1, 1)
-    args.lam_a = 1
+    #args.lam_a = 1
     #weak_num = args.K_pos = 10 - args.K_shift
    # weak_num = args.K_pos = 1
    # strong_num = args.K_shift
@@ -303,8 +303,8 @@ for args.K_shift in range(4,5):
         if args.one_class_idx != -1:
             if len(strong_set[num]) < 2:            
                 with open('./data/'+data_type+'_s_'+str(neg_ths-0.1)+'.data', 'rb') as f:
-                    tmep_strong_set = pickle.load(f)
-                    strong_set[num] = tmep_strong_set[num]
+                    temp_strong_set = pickle.load(f)
+                    strong_set[num] = temp_strong_set[num]
             if len(strong_set_90[num]) < 2:
                 with open('./data/'+data_type+'_s_'+str(0.8)+'.data', 'rb') as f:  
                     temp_strong_set_90 = pickle.load(f)
@@ -503,7 +503,7 @@ for args.K_shift in range(4,5):
             logger.debug(f'Seed:    {SEED}')
             logger.debug(f'Version:    {args.ood_score}')
             logger.debug(f'One_class_idx:    {args.one_class_idx}')
-            logger.debug(f'Lambda A:    {neg_ths}')
+            logger.debug(f'Neg ths:    {neg_ths}')
             logger.debug(f'Temperature:    {args.temp}')
             logger.debug("=" * 45)
 
@@ -551,17 +551,17 @@ for args.K_shift in range(4,5):
             testy_rs = testy_rs + labels
             scores_rs = scores_rs + scores
                     
-            final_auroc.append([one_class_total,0])
-            final_aupr.append([one_class_aupr,0])
-            final_fpr.append([one_class_fpr,0])
-            final_de.append([one_class_de,0])
+            # final_auroc.append([one_class_total,0])
+            # final_aupr.append([one_class_aupr,0])
+            # final_fpr.append([one_class_fpr,0])
+            # final_de.append([one_class_de,0])
 
             
                 #testy_rs, scores_rs = np.concatenate(testy_rs), np.concatenate(scores_rs)
-        final_auroc.append([np.mean(auroc_a),1])
-        final_aupr.append([np.mean(aupr_a),1])
-        final_fpr.append([np.mean(fpr_a),1])
-        final_de.append([np.mean(de_a),1])
+        final_auroc.append([np.mean(auroc_a),np.std(auroc_a)])
+        final_aupr.append([np.mean(aupr_a),np.std(aupr_a)])
+        final_fpr.append([np.mean(fpr_a),np.std(fpr_a)])
+        final_de.append([np.mean(de_a),np.std(de_a)])
 
             
 

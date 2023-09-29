@@ -322,3 +322,27 @@ if __name__ == '__main__':
     x_label = x_str.split()
     y_label = ['grain', 'wheat', 'EOS']
     plot_attention(d, x_label, y_label)
+
+
+
+from sklearn.datasets import load_digits
+from sklearn.manifold import TSNE
+import seaborn as sns
+from matplotlib import pyplot as plt
+
+def plot_tsne(data, X_label=None, Y_label=None):
+    # 축소한 차원의 수를 정합니다.
+    n_components = 2
+    # TSNE 모델의 인스턴스를 만듭니다.
+    model = TSNE(n_components=n_components)
+    # data를 가지고 TSNE 모델을 훈련(적용) 합니다.
+    X_embedded = model.fit_transform(data.data)
+    # 훈련된(차원 축소된) 데이터의 첫번째 값을 출력해 봅니다.
+    print(X_embedded[0])
+    # [65.49378 -7.3817754]
+
+    # 차원 축소된 데이터를 그래프로 만들어서 화면에 출력해 봅니다.
+    palette = sns.color_palette("bright", 10)
+    sns.scatterplot(X_embedded[:,0], X_embedded[:,1], hue = data.target, legend='full', palette=palette)
+    plt.show()
+
