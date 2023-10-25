@@ -3,36 +3,6 @@ import torch
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 import torch.nn.functional as F
 import math
-# class TransformerEncoder(nn.Module):
-#     def __init__(self, d_model, num_heads, num_layers):
-#         super(TransformerEncoder, self).__init__()
-#         self.encoder_layers = nn.ModuleList([
-#             nn.TransformerEncoderLayer(d_model, num_heads) for _ in range(num_layers)
-#         ])
-    
-#     def forward(self, x):
-#         for encoder_layer in self.encoder_layers:
-#             x = encoder_layer(x)
-#         return x
-    
-#     class TransformerEncoderLayer(nn.Module):
-#         def __init__(self, d_model, num_heads):
-#             super(TransformerEncoderLayer, self).__init__()
-#             self.self_attention = nn.MultiheadAttention(d_model, num_heads)
-#             self.norm1 = nn.LayerNorm(d_model)
-#             self.norm2 = nn.LayerNorm(d_model)
-#             self.dropout = nn.Dropout(0.1)
-
-#         def forward(self, x, src_mask, src_key_padding_mask, need_weights=False):
-#             x = self.self_attention(x, x, x, attn_mask=src_mask, key_padding_mask=src_key_padding_mask, need_weights=need_weights)
-#             x = self.norm1(x)
-#             x = F.relu(x)
-#             x = self.dropout(x)
-#             x = self.norm2(x)
-#             return x, x.attn if need_weights else None
-    
-
-
 """Two contrastive encoders"""
 class TFC(nn.Module):
     def __init__(self, configs, args):

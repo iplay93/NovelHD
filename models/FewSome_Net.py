@@ -13,41 +13,19 @@ class TimeSeriesNet(nn.Module):
 
         self.projector = nn.Sequential(
              nn.Linear(seq_length*input_channels, 256),
-             #nn.BatchNorm1d(256),
+             nn.LayerNorm(256),
              nn.ReLU(),
              nn.Linear(256, 128)
         )
 
         self.classifier = nn.Linear(128, vector_size, bias=False)
 
-        self.positional_encoding = self.generate_positional_encoding(
-            seq_length, input_channels
-        )
         #self.classifier = nn.Linear(configs.TSlength_aligned * configs.input_channels, vector_size)    
 
-    def generate_positional_encoding(self, seq_len, d_model):
-        
-        position = torch.arange(0, seq_len, dtype=torch.float32).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2, dtype=torch.float32) * -(math.log(10000.0) / d_model))
-
-        pe = torch.sin(position * div_term[0])
-        
-        for i in range(1, d_model):
-
-            if i % 2 == 0:
-                pe = torch.cat([pe, torch.sin(position * div_term[(int)(i % 2)])], dim = 1)
-            else:
-                pe = torch.cat([pe, torch.cos(position * div_term[(int)(i % 2)])], dim = 1)
-        
-        #print("PE", pe.shape)
-        return pe.permute(1,0)
     
     def forward(self, x):
-        #x_in_t = x_in_t + self.positional_encoding.T.cuda()
-        #x_in_f = x_in_f + self.positional_encoding.T.cuda()
         #x = torch.unsqueeze(x, dim =0)
         x = torch.unsqueeze(x, dim =0)
-        x = x + self.positional_encoding.unsqueeze(0).expand(x.shape[0], -1, -1).cuda()
         #print(x.shape)
         """Use Transformer"""
         x = self.transformer_encoder(x.float())

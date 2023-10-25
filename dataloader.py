@@ -313,3 +313,107 @@ def data_generator_2(args, configs, training_mode):
 
 
 
+
+
+def data_generator_fold(args, configs, training_mode, positive_list, 
+                                            num_classes, train_list, test_list, train_label_list, test_label_list ):
+
+    print(f"Train Data: {len(train_list)} --------------")
+    exist_labels, _ = count_label_labellist(train_label_list)
+    
+    # print(f"Validation Data: {len(valid_list)} --------------")    
+    # count_label_labellist(valid_label_list)
+
+    print(f"Test Data: {len(test_list)} --------------")
+    count_label_labellist(test_label_list) 
+    
+    train_list = torch.tensor(train_list).cuda().cpu()
+    train_label_list = torch.tensor(train_label_list).cuda().cpu()
+
+    test_list = torch.tensor(test_list).cuda().cpu()
+    test_label_list = torch.tensor(test_label_list).cuda().cpu()
+
+    # entire_list = entire_list.cpu()
+    # entire_label_list = torch.tensor(entire_label_list).cuda().cpu()
+ 
+    if(args.one_class_idx != -1): # one-class
+        sup_class_idx = [x - 1 for x in num_classes]
+        known_class_idx = [args.one_class_idx]
+        novel_class_idx = [item for item in sup_class_idx if item not in set(known_class_idx)]
+        
+        train_list = train_list[np.where(train_label_list == args.one_class_idx)]
+        train_label_list = train_label_list[np.where(train_label_list == args.one_class_idx)]
+
+        valid_list = test_list[np.where(test_label_list == args.one_class_idx)]
+        valid_label_list = test_label_list[np.where(test_label_list == args.one_class_idx)]
+
+        # only use for testing novelty
+        test_list = test_list[np.where(test_label_list != args.one_class_idx)]
+        test_label_list = test_label_list[np.where(test_label_list != args.one_class_idx)]
+
+    else: # multi-class
+        sup_class_idx = [x for x in exist_labels]
+        random.seed(args.seed)
+        known_class_idx = random.sample(sup_class_idx, math.ceil(len(sup_class_idx)/2))
+        #known_class_idx = [x for x in range(0, (int)(len(sup_class_idx)/2))]
+        #known_class_idx = [0, 1]
+        novel_class_idx = [item for item in sup_class_idx if item not in set(known_class_idx)]
+        
+        train_list = train_list[np.isin(train_label_list, known_class_idx)]
+        train_label_list = train_label_list[np.isin(train_label_list, known_class_idx)]
+        valid_list = test_list[np.isin(test_label_list, known_class_idx)]
+        valid_label_list =test_label_list[np.isin(test_label_list, known_class_idx)]
+
+        # only use for testing novelty
+        test_list = test_list[np.isin(test_label_list, novel_class_idx)]
+        test_label_list = test_label_list[np.isin(test_label_list, novel_class_idx)]    
+
+
+        # print(train_label_list)
+        # print(valid_label_list)
+        # print(test_label_list)
+    
+    
+    if args.binary:
+        # for binary classification
+        train_label_list[:] = 0
+        valid_label_list[:] = 0
+        test_label_list[:] = 1
+        
+    ood_test_loader = dict()
+
+    if args.binary:
+        for ood in [1]:
+            # one class idx exit
+            ood_test_set = Load_Dataset(test_list[np.where(test_label_list == ood)],
+                                            test_label_list[np.where(test_label_list == ood)], 
+                                            args, training_mode, positive_list)
+            ood = f'one_class_{ood}'  # change save name
+
+            ood_test_loader[ood] = DataLoader(ood_test_set, batch_size=configs.batch_size, shuffle=True)      
+
+    if args.binary is not True:
+        for ood in novel_class_idx:
+            # one class idx exit
+            ood_test_set = Load_Dataset(test_list[np.where(test_label_list == ood)],
+                                        test_label_list[np.where(test_label_list == ood)], 
+                                        args, training_mode, positive_list)
+            ood = f'one_class_{ood}'  # change save name
+
+            ood_test_loader[ood] = DataLoader(ood_test_set, batch_size=configs.batch_size, shuffle=True)          
+        
+   
+    print("Length of OOD test loader", len(ood_test_loader))
+   
+    # build data loader (N, T, C) -> (N, C, T)
+    dataset = Load_Dataset(train_list, train_label_list, args, training_mode, positive_list)    
+    train_loader = DataLoader(dataset, batch_size = configs.batch_size, shuffle=True)
+
+    dataset = Load_Dataset(valid_list,valid_label_list, args, training_mode, positive_list)
+    finetune_loader = DataLoader(dataset, batch_size = configs.batch_size, shuffle=True)
+
+    dataset = Load_Dataset(test_list, test_label_list, args, training_mode, positive_list)
+    test_loader = DataLoader(dataset, batch_size=configs.batch_size, shuffle=True)
+
+
+    return train_loader, finetune_loader, test_loader, ood_test_loader, novel_class_idx  

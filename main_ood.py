@@ -159,7 +159,7 @@ method = 'Test OOD-ness'
 training_mode = args.training_mode
 run_description = args.run_description
 
-pos_ths = 0.9
+pos_ths = 0.6
 neg_ths  = args.neg_ths
 
 
@@ -217,8 +217,7 @@ for args.one_class_idx in class_num:
     temp_strong_set = []
     temp_weak_set = []
 
-    for pos_num, positive_aug in enumerate(['AddNoise', 'Convolve', 'Crop', 'Drift', 'Dropout', 
-                        'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']):
+    for pos_num, positive_aug in enumerate([ 'Reverse']):
         acc_rs = []
         f1_rs  = []
         auroc_rs = []
@@ -401,7 +400,6 @@ for i in final_acc:
     final_rs.append(i)
 for i in final_f1:
     final_rs.append(i)
-
 
 
 logger.debug(f"Training time is : {datetime.now()-start_time}")

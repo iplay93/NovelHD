@@ -142,8 +142,8 @@ def calculate_acc(labels, scores):
     spec    = tn / (fp + tn)
     recall  = tp / (tp + fn)
     acc = (recall + spec) / 2
-    precision = tp / (tp + fp)
-    F1_rs =  2 * (precision * recall) / (precision + recall) #f1_score과 같음을 확인함
+    # precision = tp / (tp + fp)
+    #F1_rs =  2 * (precision * recall) / (precision + recall) #f1_score과 같음을 확인함
 
     fpr, tpr, thresholds = roc_curve(labels, scores, pos_label=0)
     auc_min = auc(fpr, tpr)
@@ -162,7 +162,7 @@ def calculate_acc(labels, scores):
 def calculate_acc_rv(labels, scores):
 
     # Input: Lists
-    
+    # 0 for new class and 1 for knwon class
     perc_ths = (100*labels.count(0)/(labels.count(1)+labels.count(0))) 
     outputs = np.array(scores)
     #print(outputs)
@@ -183,8 +183,8 @@ def calculate_acc_rv(labels, scores):
     spec    = tn / (fp + tn)
     recall  = tp / (tp + fn)
     acc = (recall + spec) / 2
-    precision = tp / (tp + fp)
-    F1_rs =  2 * (precision * recall) / (precision + recall) #f1_score과 같음을 확인함
+    #precision = tp / (tp + fp)
+    #F1_rs =  2 * (precision * recall) / (precision + recall) #f1_score과 같음을 확인함
 
     
     fpr, tpr, thresholds = roc_curve(labels, scores, pos_label=0)
@@ -195,7 +195,7 @@ def calculate_acc_rv(labels, scores):
     print('AUROC: {:.3f} and {:.3f} '.format(auroc(scores, labels), auc_min))
     print('fpr_at_95_tpr: {:.3f}'.format(fpr_at_95_tpr(scores, labels)))
     print('F1: {:.3f}'.format(f1))
-    print('F1_2: {:.3f}'.format(F1_rs))
+    #print('F1_2: {:.3f}'.format(F1_rs))
     print('Balanced accuracy: {:.3f}'.format(acc))
     print('='*45)
 
@@ -330,19 +330,36 @@ from sklearn.manifold import TSNE
 import seaborn as sns
 from matplotlib import pyplot as plt
 
-def plot_tsne(data, X_label=None, Y_label=None):
-    # 축소한 차원의 수를 정합니다.
-    n_components = 2
-    # TSNE 모델의 인스턴스를 만듭니다.
-    model = TSNE(n_components=n_components)
-    # data를 가지고 TSNE 모델을 훈련(적용) 합니다.
-    X_embedded = model.fit_transform(data.data)
-    # 훈련된(차원 축소된) 데이터의 첫번째 값을 출력해 봅니다.
-    print(X_embedded[0])
-    # [65.49378 -7.3817754]
 
-    # 차원 축소된 데이터를 그래프로 만들어서 화면에 출력해 봅니다.
-    palette = sns.color_palette("bright", 10)
-    sns.scatterplot(X_embedded[:,0], X_embedded[:,1], hue = data.target, legend='full', palette=palette)
-    plt.show()
+def tsne_visualization(data_list, label_list, dataset, vis_path):
 
+    x_rs = data_list.reshape(data_list.shape[0], -1)
+
+    # Original code for t-SNE
+    from sklearn.manifold import TSNE
+    import pandas as pd
+    import seaborn as sns
+
+    tsne = TSNE(n_components=2, verbose=1, random_state=123)
+    z = tsne.fit_transform(x_rs)
+    df = pd.DataFrame()
+    df["label"] = label_list   
+    df["tSNE_1"] = z[:, 0]
+    df["tSNE_2"] = z[:, 1]
+
+    # Create the scatter plot
+    num_classes = len(set(label_list))
+    colors = ['red' if item == 0 else 'black' for item in label_list]
+    plt.figure()
+    scatter = plt.scatter(x=z[:, 0], y=z[:, 1], c=colors)
+
+    # Customize the plot
+    plt.title(dataset + " data T-SNE projection")
+    plt.xlabel("tSNE_1")
+    plt.ylabel("tSNE_2")
+    # Create a legend separately
+    legend_labels = ['known' if item == 0 else 'new' for item in label_list]
+    print(legend_labels)
+    plt.legend(handles=scatter.legend_elements()[0], labels=legend_labels)
+
+    plt.savefig(vis_path)

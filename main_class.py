@@ -250,10 +250,7 @@ for num, args.one_class_idx in enumerate(class_num):
     auroc_rs = []
     seed_set = []
 
-    for made_mul in range((len(class_num)-1)*2):
-        seed_set.append(20 + made_mul * 20)
-        #seed_set = [20, 40, 60, 80, 100, 120, 140, 160, 180, 200]
-    for seed_n, test_num in enumerate(seed_set):
+    for seed_n, test_num in enumerate([20, 40, 60, 80, 100]):
     # Training for five seed
         
         # ##### fix random seeds for reproducibility ########
@@ -297,8 +294,7 @@ for num, args.one_class_idx in enumerate(class_num):
         if args.one_class_idx != -1: # one-class
             sup_class_idx = [x - 1 for x in num_classes]
             novel_class_idx = [args.one_class_idx]
-            known_class_idx = [item for item in sup_class_idx if item not in set(novel_class_idx)] 
-            
+            known_class_idx = [item for item in sup_class_idx if item not in set(novel_class_idx)]             
 
         else: # multi-class
             sup_class_idx   = [x - 1 for x in num_classes]            
@@ -405,7 +401,7 @@ for num, args.one_class_idx in enumerate(class_num):
             negative_list_f = strong_set_f[num]
 
             args.ood_score = ['NovelHD']
-            args.temp = 0.5
+            args.temp = 0.7
             args.training_mode = 'novelty_detection'
             args.K_shift = len(negative_list) + 1
             args.K_shift_f = len(negative_list_f) + 1

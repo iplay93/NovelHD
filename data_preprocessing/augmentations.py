@@ -30,14 +30,26 @@ def select_transformation(aug_method, seq_len):
         my_aug = (Reverse())
     elif(aug_method == 'TimeWarp'):
         my_aug = (TimeWarp(n_speed_change=5, max_speed_ratio=3))
-    elif(aug_method == 'AddNoise2'):
-        my_aug = (AddNoise(scale=0.05))
-    elif(aug_method == 'AddNoise3'):
-        my_aug = (AddNoise(scale=0.02))
-    elif(aug_method == 'AddNoise4'):
-        my_aug = (AddNoise(scale=0.03))
-    elif(aug_method == 'AddNoise5'):
-        my_aug = (AddNoise(scale=0.04))
+
+    elif(aug_method == 'Resize2'):
+        my_aug = SCALE(sigma=0.8, loc = 2.)
+    elif(aug_method == 'Resize3'):
+        my_aug = SCALE(sigma=1.2, loc = 2.)
+    elif(aug_method == 'Resize4'):
+        my_aug = SCALE(sigma=1.0, loc = 2.)
+    elif(aug_method == 'Resize5'):
+        my_aug = SCALE(sigma=1.4, loc = 2.0)
+    elif(aug_method == 'Resize6'):
+        my_aug = SCALE(sigma=1.1, loc = 0.8)
+    elif(aug_method == 'Resize7'):
+        my_aug = SCALE(sigma=1.1, loc = 0.5)
+    elif(aug_method == 'Resize8'):
+        my_aug = SCALE(sigma= 1.1, loc = 1.3)
+    elif(aug_method == 'Resize9'):
+        my_aug = SCALE(sigma=1.1, loc = 1.7 )
+    elif(aug_method == 'Resize10'):
+        my_aug = SCALE(sigma=1.5, loc = 0.8)
+
     else:
         return ValueError
         

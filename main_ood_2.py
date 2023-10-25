@@ -159,7 +159,7 @@ method = 'Test OOD-ness'
 training_mode = args.training_mode
 run_description = args.run_description
 
-pos_ths = 0.9
+pos_ths = 0.6
 neg_ths  = args.neg_ths
 
 

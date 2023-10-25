@@ -221,7 +221,7 @@ def create_batches(lst, n):
 def evaluate(anchor, seed, base_ind, ref_dataset, val_dataset, model, dataset_name, normal_class, model_name, indexes, criterion, alpha, num_ref_eval, device):
 
     model.eval()
-
+    starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
 
     #create loader for test dataset
     loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=True, num_workers=1, drop_last=False)
@@ -230,6 +230,7 @@ def evaluate(anchor, seed, base_ind, ref_dataset, val_dataset, model, dataset_na
     ind = list(range(0, num_ref_eval))
     np.random.shuffle(ind)
     #loop through the reference images and 1) get the reference image from the dataloader, 2) get the feature vector for the reference image and 3) initialise the values of the 'out' dictionary as a list.
+    
     for i in ind:
       img1, _, _, _ = ref_dataset.__getitem__(i)
       if (i == base_ind):
@@ -239,9 +240,6 @@ def evaluate(anchor, seed, base_ind, ref_dataset, val_dataset, model, dataset_na
 
       outs['outputs{}'.format(i)] =[]
 
-
-
-
     means = []
     minimum_dists=[]
     lst=[]
@@ -250,7 +248,9 @@ def evaluate(anchor, seed, base_ind, ref_dataset, val_dataset, model, dataset_na
     inf_times=[]
     total_times= []
     #loop through images in the dataloader
-
+    
+    total_time = 0
+    starter.record()
     with torch.no_grad():
         for i, data in enumerate(loader):
 
@@ -261,6 +261,7 @@ def evaluate(anchor, seed, base_ind, ref_dataset, val_dataset, model, dataset_na
             total =0
             mini=torch.Tensor([1e50])
             t1 = time.time()
+            
             out = model.forward(image.to(device).float()) #get feature vector (representation) for test image
             inf_times.append(time.time() - t1)
 
@@ -284,7 +285,15 @@ def evaluate(anchor, seed, base_ind, ref_dataset, val_dataset, model, dataset_na
             del euclidean_distance
             del total
             torch.cuda.empty_cache()
+    ender.record()
+    # WAIT FOR GPU SYNC
+    torch.cuda.synchronize()
+    curr_time = starter.elapsed_time(ender)
+    
 
+    total_time = curr_time/len(loader.dataset)
+
+    print("inference time", curr_time, total_time)
 
     #create dataframe of distances to each feature vector in the reference set for each test feature vector
     cols = ['label','minimum_dists', 'means']
@@ -326,7 +335,7 @@ def evaluate(anchor, seed, base_ind, ref_dataset, val_dataset, model, dataset_na
 
     # avg_loss = (loss_sum / num_ref_eval )/ val_dataset.__len__()
 
-    return auroc, fpr, f1, acc, scores, labels
+    return auroc, fpr, f1, acc, scores, labels, total_time
 
 
 
@@ -710,6 +719,7 @@ if __name__ == '__main__':
     final_aupr  = []
     final_fpr   = []
     final_de    = []  
+    final_time = []
 
     y_onehot_test=[]
     y_score = []
@@ -723,6 +733,7 @@ if __name__ == '__main__':
         aupr_a  = []
         fpr_a   = []
         de_a    = []
+        time_a = []
 
         testy_rs = []
         scores_rs = []
@@ -830,7 +841,7 @@ if __name__ == '__main__':
             train(model,args.lr, args.weight_decay, train_dataset, test_dataset, args.epochs, criterion, args.alpha, model_name, indexes, args.normal_class, args.dataset, args.smart_samp,args.k, args.eval_epoch, args.model_type, args.batch_size, num_ref_eval, num_ref_dist, args.device)
 
             # Testing
-            auroc_rs, aupr_rs, fpr_rs, de_re, scores, labels = evaluate(anchor, SEED, base_ind, train_dataset, test_dataset, model, args.dataset, args.normal_class, model_name, indexes, criterion, args.alpha, num_ref_eval, device)
+            auroc_rs, aupr_rs, fpr_rs, de_re, scores, labels, infer_time = evaluate(anchor, SEED, base_ind, train_dataset, test_dataset, model, args.dataset, args.normal_class, model_name, indexes, criterion, args.alpha, num_ref_eval, device)
 
             print('Validation AUC is {:.3f}'.format(auroc_rs))
 
@@ -838,6 +849,7 @@ if __name__ == '__main__':
             aupr_a.append(aupr_rs)   
             fpr_a.append(fpr_rs)
             de_a.append(de_re)
+            time_a.append(infer_time)
 
             testy_rs = testy_rs + labels
             scores_rs = scores_rs + scores
@@ -846,6 +858,7 @@ if __name__ == '__main__':
         final_aupr.append([np.mean(aupr_a), np.std(aupr_a)])
         final_fpr.append([np.mean(fpr_a), np.std(fpr_a)])
         final_de.append([np.mean(de_a), np.std(de_a)])
+        final_time.append([np.mean(time_a),np.std(time_a)])
 
         # for visualization
         onehot_encoded = list()        
@@ -858,7 +871,7 @@ if __name__ == '__main__':
         validation.append([auroc_rs,0])
 
 
-    print_rs(final_auroc, final_aupr, final_fpr, final_de, validation, store_path)
+    print_rs(final_auroc, final_aupr, final_fpr, final_de, final_time, store_path)
 
 
     # visualization    

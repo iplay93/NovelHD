@@ -194,22 +194,11 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
         elif ood_score == 'FCLS':
             loss = loss_shift_f
         elif ood_score == 'NovelHD':
-            loss = args.lam_a * (loss_t) +  (1 - args.lam_a) * loss_f 
+            loss = args.lam_a *(loss_sim + loss_sim_f) + loss_shift + loss_shift_f
         elif ood_score == 'CON':
             loss = loss_sim + loss_sim_f
         elif ood_score == 'CLS':
             loss = loss_shift + loss_shift_f
-        elif ood_score == 'NovelHD_TF':
-            nt_xent_criterion = NTXentLoss_poly(device, batch_size, 0.5, True)  
-
-            l_TF = nt_xent_criterion(simclr[:batch_size], simclr_f[:batch_size])
-            l_TF_2 = nt_xent_criterion(simclr[B_t:B_t+batch_size], simclr_f[B_f:B_f+batch_size])
-                
-            loss_t_TF = nt_xent_criterion(h_t[:batch_size], h_t[B_t:B_t+batch_size])
-                
-            loss_f_TF = nt_xent_criterion(h_f[:batch_size], h_f[B_f:B_f+batch_size])
-
-            loss = loss_t + loss_f + l_TF  +l_TF_2 #+ 0.2 *(loss_t_TF + loss_f_TF) 
         elif ood_score == 'CLAN':
             loss = loss_t + loss_sim_f # + l_TF
         else:
@@ -218,7 +207,7 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
         if epoch % 20 == 0 : 
             logger.debug(f'Temporal: {loss_sim.item():.4f}, {loss_shift.item():.4f}, {loss_t.item():.4f}')
             logger.debug(f'Frequency: {loss_sim_f.item():.4f},{loss_shift_f.item():.4f}, {loss_f.item():.4f}')
-            logger.debug(f'TF: {l_TF.item():.4f}')
+            logger.debug(f'TF: {loss.item():.4f}')
 
 
         total_loss.append(loss.item())
