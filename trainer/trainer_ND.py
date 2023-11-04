@@ -124,13 +124,13 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
         data_f = data_fft
 
         assert data.size(0) == shift_labels.size(0)
-        assert data_f.size(0) == shift_labels_f.size(0)
-
-
-            
+        assert data_f.size(0) == shift_labels_f.size(0)            
 
         # original data and augmented data 
-        h_t, z_t, s_t, h_f, z_f, s_f  = model(data, data_f)
+        if args.vis:
+            h_t, z_t, s_t, h_f, z_f, s_f, _, _  = model(data, data_f)
+        else:
+            h_t, z_t, s_t, h_f, z_f, s_f = model(data, data_f)        
             
             #Initialize loss
         loss_sim, loss_shift, loss_t = torch.tensor(0), torch.tensor(0), torch.tensor(0)
@@ -139,17 +139,14 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
 
             # for constructing loss functions
             # For temporal contrastive          
-
-        simclr = normalize(z_t)  # normalize
-        sim_matrix = get_similarity_matrix(simclr)            
-        loss_sim = NT_xent(sim_matrix, temperature = args.temp, chunk = args.K_pos+1) #* sim_lambda
-            
-        loss_shift = criterion(s_t, shift_labels)
-        #print(data.shape, z_t.shape, simclr.shape)
-        loss_t = loss_sim + loss_shift
-
-           
-        sim_lambda_f = 0.1
+        if ood_score in ['T', 'TCON' ,'TCLS' ,'CON' ,'CLS' ,'NovelHD_TF', 'NovelHD']:
+            simclr = normalize(z_t)  # normalize
+            sim_matrix = get_similarity_matrix(simclr)            
+            loss_sim = NT_xent(sim_matrix, temperature = args.temp, chunk = args.K_pos+1) #* sim_lambda
+                
+            loss_shift = criterion(s_t, shift_labels)
+            #print(data.shape, z_t.shape, simclr.shape)
+            loss_t = loss_sim + loss_shift
 
             
         # combined two latent space
@@ -165,8 +162,8 @@ def model_train(epoch, logger, model, model_optimizer, classifier, classifier_op
             # Select loss according to ood_score
             #loss
             
-        B_t = simclr.size(0) // (args.K_pos+1)
-        B_f = s_f.size(0) // (args.K_pos_f+1)
+            B_t = simclr.size(0) // (args.K_pos+1)
+            B_f = s_f.size(0) // (args.K_pos_f+1)
 
              # For frequency contrastive
             

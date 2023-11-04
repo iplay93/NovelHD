@@ -1,5 +1,5 @@
 import torch
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, random_split
 import numpy as np
 import torch.fft as fft
 from data_preprocessing.dataloader import count_label_labellist, select_transformation
@@ -161,8 +161,12 @@ def data_generator_nd(args, configs, training_mode, positive_list,
     print("Length of OOD test loader", len(ood_test_loader))
    
     # build data loader (N, T, C) -> (N, C, T)
-    dataset = Load_Dataset(train_list, train_label_list, args, training_mode, positive_list)    
-    train_loader = DataLoader(dataset, batch_size = configs.batch_size, shuffle=True)
+    dataset = Load_Dataset(train_list, train_label_list, args, training_mode, positive_list)
+    total_size = len(dataset)
+    split_size = int(args.data_size_ratio * total_size)
+    remaining_size = total_size - split_size
+    small_dataset, _ = random_split(dataset, [split_size, remaining_size])
+    train_loader = DataLoader(small_dataset, batch_size = configs.batch_size, shuffle=True)
 
     dataset = Load_Dataset(valid_list,valid_label_list, args, training_mode, positive_list)
     finetune_loader = DataLoader(dataset, batch_size = configs.batch_size, shuffle=True)

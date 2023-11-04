@@ -359,7 +359,11 @@ def tsne_visualization(data_list, label_list, dataset, vis_path):
     plt.ylabel("tSNE_2")
     # Create a legend separately
     legend_labels = ['known' if item == 0 else 'new' for item in label_list]
-    print(legend_labels)
+    #print(legend_labels)
     plt.legend(handles=scatter.legend_elements()[0], labels=legend_labels)
 
     plt.savefig(vis_path)
+    plt.close()
+
+
+ 

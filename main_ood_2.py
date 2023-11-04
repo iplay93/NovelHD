@@ -5,7 +5,7 @@ import argparse
 from utils import _logger
 #from trainer.trainer import Trainer, model_evaluate
 from trainer.trainer_OODness import Trainer, model_evaluate
-from models.TC import TC
+from models.CLAN_atten import TC
 from utils import _calc_metrics
 from models.TFC import TFC_one, target_classifier
 from data_preprocessing.dataloader import count_label_labellist

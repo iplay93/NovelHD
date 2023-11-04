@@ -13,6 +13,8 @@ from ood_metrics import auroc, aupr, fpr_at_95_tpr, detection_error
 from data_preprocessing.augmentations import select_transformation
 from sklearn.metrics import f1_score, roc_auc_score
 from util import tsne_visualization 
+import seaborn
+import matplotlib.pyplot as plt
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -57,31 +59,33 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
         'layers': ['simclr_t', 'shift_t','simclr_f', 'shift_f'],
     }
 
+#  tsne 1
+    # all_data = []
+    # all_labels = []
 
-# #   tsne 1
-#     all_data = []
-#     all_labels = []
+    # for batch_data, batch_labels, _, _, _ in id_loader:
+    #     all_data.append(batch_data)
+    #     all_labels.append(batch_labels)
 
-#     for batch_data, batch_labels, _, _, _ in id_loader:
-#         all_data.append(batch_data)
-#         all_labels.append(batch_labels)
-
-#     for ood, ood_loader in ood_loaders.items():
-#         for batch_data, batch_labels, _, _, _ in ood_loader:
-#             all_data.append(batch_data)
-#             all_labels.append(batch_labels)
+    # for ood, ood_loader in ood_loaders.items():
+    #     for batch_data, batch_labels, _, _, _ in ood_loader:
+    #         all_data.append(batch_data)
+    #         all_labels.append(batch_labels)
    
-#     # Concatenate the mini-batches to get the complete dataset
-#     all_data = torch.cat(all_data, dim=0)
-#     all_labels = torch.cat(all_labels, dim=0)
+    # # Concatenate the mini-batches to get the complete dataset
+    # all_data = torch.cat(all_data, dim=0)
+    # all_labels = torch.cat(all_labels, dim=0)
 
-#     tsne_visualization(all_data, all_labels, args.selected_dataset, 'figure/'+str(args.ood_score[0])+"-tsne-v1.png")
+    # st_pt = "feature_fig/"+args.selected_dataset+"/"+str(args.one_class_idx) +"/"+str(args.seed)
+    # os.makedirs(st_pt, exist_ok=True)
+
+    # tsne_visualization(all_data, all_labels, args.selected_dataset, st_pt+"/tsne-v1.png")
 
 
     
     print('Pre-compute global statistics...')
     feats_train = get_features(args, negative_list, negative_list_f, f'{args.selected_dataset}_train', 
-                               model, train_loader, prefix=prefix, **kwargs)  # (M, T, d)
+                               model, train_loader, ver='overall', prefix=prefix, **kwargs)  # (M, T, d)
 
     args.axis = []
     args.axis_f = []
@@ -118,7 +122,6 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
         shi_mean_f = f_shi_f[shi][:, shi]  # (M)
         weight_sim_f.append(1 / sim_norm_f.mean().item())
         weight_shi_f.append(1 / shi_mean_f.mean().item())
-
   
     if ood_score == 'T':
         args.weight_sim_t = weight_sim_t # weight_sim_t or [0,0]
@@ -180,21 +183,20 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
 
     # tsne 2
     # feats_train_id = get_features(args, negative_list, negative_list_f, f'{args.selected_dataset}_train', 
-    #                           model, id_loader, prefix=prefix, **kwargs) 
+    #                           model, id_loader, ver='id', prefix=prefix, **kwargs) 
     # feats_train_id_rs = get_feature_score(args, feats_train_id)
     
     # feats_train_ood_rs =[]
     # for ood, ood_loader in ood_loaders.items():
-    #    print(ood)
-    #    feats_train_ood = get_features(args, negative_list, negative_list_f, f'{args.selected_dataset}_train', 
-    #                            model, ood_loader, prefix=prefix, **kwargs)        
-    # feats_train_ood_rs = feats_train_ood_rs + get_feature_score(args, feats_train_ood).tolist()
+    #     print(ood)
+    #     feats_train_ood = get_features(args, negative_list, negative_list_f, f'{args.selected_dataset}_train', 
+    #                            model, ood_loader, ver='ood_'+str(ood), prefix=prefix, **kwargs)        
+    #     feats_train_ood_rs = feats_train_ood_rs + get_feature_score(args, feats_train_ood).tolist()
 
     # all_data = torch.cat([torch.Tensor(feats_train_id_rs), torch.Tensor(np.array(feats_train_ood_rs))], dim=0)
-    
-    # tsne_visualization(all_data, all_labels, args.selected_dataset, 'figure/'+str(args.ood_score[0])+"-tsne-v2.png")
 
-
+    # st_pt = "feature_fig/"+args.selected_dataset+"/"+str(args.one_class_idx) +"/"+str(args.seed)
+    # tsne_visualization(all_data, all_labels, args.selected_dataset, st_pt+"/tsne-v2.png") 
 
     starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
     total_time = 0
@@ -202,7 +204,7 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
     print('Compute known class features...')
     starter.record()
     feats_id = get_features(args, negative_list, negative_list_f, args.selected_dataset, 
-                            model, id_loader, prefix=prefix, **kwargs)  # (N, T, d)
+                            model, id_loader, ver='id', prefix=prefix, **kwargs)  # (N, T, d)
     ender.record()
         # WAIT FOR GPU SYNC
     torch.cuda.synchronize()
@@ -212,10 +214,10 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
 
     feats_ood = dict()    
     
-
+    print('Compute ood class features...')
     for ood, ood_loader in ood_loaders.items():
         starter.record()
-        feats_ood[ood] = get_features(args, negative_list, negative_list_f, ood, model, ood_loader, prefix=prefix, **kwargs)
+        feats_ood[ood] = get_features(args, negative_list, negative_list_f, ood, model, ood_loader, ver='ood_'+str(ood),prefix=prefix, **kwargs)
         ender.record()
         # WAIT FOR GPU SYNC
         torch.cuda.synchronize()
@@ -229,7 +231,7 @@ def eval_ood_detection(args, path, model, id_loader, ood_loaders, ood_scores, tr
     starter.record()
     scores_id = get_scores(args, feats_id, 'id').numpy()
     ender.record()
-        # WAIT FOR GPU SYNC
+    # WAIT FOR GPU SYNC
     torch.cuda.synchronize()
     curr_time = starter.elapsed_time(ender)
     total_time = total_time + curr_time/len(id_loader.dataset)
@@ -388,7 +390,7 @@ def get_scores(args, feats_dict, ver):
     return scores.cpu()
 
 
-def get_features(args, negative_list, negative_list_f, data_name, model, loader, prefix='',
+def get_features(args, negative_list, negative_list_f, data_name, model, loader, ver, prefix='',
                 sample_num=1, layers=('simclr_t', 'shift_t','simclr_f', 'shift_f')):
 
     if not isinstance(layers, (list, tuple)):
@@ -404,7 +406,7 @@ def get_features(args, negative_list, negative_list_f, data_name, model, loader,
     # pre-compute features and save to the path
     left = [layer for layer in layers if layer not in feats_dict.keys()]
     if len(left) > 0:
-        _feats_dict = _get_features(args, negative_list, negative_list_f, model, loader, sample_num, layers=left)
+        _feats_dict = _get_features(args, negative_list, negative_list_f, model, loader, ver, sample_num, layers=left)
 
         for layer, feats in _feats_dict.items():
             path = prefix + f'_{data_name}_{layer}.pth'
@@ -414,7 +416,7 @@ def get_features(args, negative_list, negative_list_f, data_name, model, loader,
     return feats_dict
 
 
-def _get_features(args, negative_list, negative_list_f, model, loader, sample_num=10, layers=('simclr_t', 'shift_t','simclr_f', 'shift_f')):
+def _get_features(args, negative_list, negative_list_f, model, loader, ver, sample_num=1, layers=('simclr_t', 'shift_t','simclr_f', 'shift_f')):
     output_aux = dict()
     if not isinstance(layers, (list, tuple)):
         layers = [layers]
@@ -424,7 +426,8 @@ def _get_features(args, negative_list, negative_list_f, model, loader, sample_nu
     feats_all = {layer: [] for layer in layers}  # initialize: empty list
 
     for i, (x, labels, _, _, _) in enumerate(loader):
-
+        
+        batch_x = x.shape[0]
         x    = x.to(device) 
         x_f  = x.to(device) 
         # compute features in one batch
@@ -450,18 +453,32 @@ def _get_features(args, negative_list, negative_list_f, model, loader, sample_nu
             for i in range(1, len(x_f)):
                 data_fft = torch.cat([data_fft, torch.fft.fftn(x_f[i], norm="forward").reshape(1, x_f[0].shape[0], x_f[0].shape[1])], 0)            
 
-
             x_f = data_fft    
 
             # compute augmented features
             with torch.no_grad():
                 kwargs = {layer: True for layer in layers}  # only forward selected layers
-                _, z_t, s_t, _, z_f, s_f  = model(x, x_f)
+                if args.vis:
+                    _, z_t, s_t, _, z_f, s_f, attention_maps_t, attention_maps_f = model(x, x_f)
+                else:
+                    _, z_t, s_t, _, z_f, s_f = model(x, x_f)
+                
                 output_aux['simclr_t'] = z_t
                 output_aux['shift_t'] = s_t
                 output_aux['simclr_f'] = z_f
                 output_aux['shift_f'] = s_f                     
 
+            if args.vis:
+                attention_maps_cpu = [tensor.cpu() for tensor in attention_maps_t]
+                numpy_arrays = [tensor.detach().numpy() for tensor in attention_maps_cpu]
+                st_pt = "feature_fig/"+args.selected_dataset+"/"+str(args.one_class_idx) +"/"+str(args.seed)
+                os.makedirs(st_pt, exist_ok=True)
+                draw(numpy_arrays, batch_x, st_pt+"/"+ver+"_T")
+
+                attention_maps_cpu = [tensor.cpu() for tensor in attention_maps_f]
+                numpy_arrays = [tensor.detach().numpy() for tensor in attention_maps_cpu]
+                st_pt = "feature_fig/"+args.selected_dataset+"/"+str(args.one_class_idx) +"/"+str(args.seed)
+                draw(numpy_arrays, batch_x, st_pt+"/"+ver+"_F")               
 
                 #for test
                 # shift_labels= torch.cat([torch.ones_like(labels) * k for k in range(2)], 0) 
@@ -478,7 +495,7 @@ def _get_features(args, negative_list, negative_list_f, model, loader, sample_nu
 
             for layer in ['simclr_f', 'shift_f']:
                 feats = output_aux[layer].cpu()
-                feats_batch[layer] += feats.chunk(args.K_shift_f)
+                feats_batch[layer] += feats.chunk(args.K_shift_f)       
 
         # concatenate features in one batch
         for key, val in feats_batch.items():
@@ -507,6 +524,22 @@ def _get_features(args, negative_list, negative_list_f, model, loader, sample_nu
         feats_all[key] = val
 
     return feats_all
+
+def draw(numpy_arrays, batch_x, file_name):
+    #https://nlp.seas.harvard.edu/2018/04/03/attention.html
+
+    layer_n = len(numpy_arrays)    
+
+    fig, axs = plt.subplots(1,layer_n, figsize=(20, 10))
+    for idx, arr in enumerate(numpy_arrays):          
+      #print(arr)        
+        arr = np.mean(arr, axis=0)
+        seaborn.heatmap(arr, square=True, cbar=False, ax=axs[idx], yticklabels=False, xticklabels=False)
+                        #xticklabels=list(range(1, arr[0].shape[0]+1)), yticklabels=list(range(1, arr[0].shape[1]+1)),           
+        
+    plt.savefig(file_name + ".png")
+    plt.close()
+
 
 def get_auroc(scores_id, scores_ood):
     scores = np.concatenate([scores_id, scores_ood])

@@ -5,7 +5,6 @@ import argparse
 from utils import _logger
 #from trainer.trainer import Trainer, model_evaluate
 from trainer.trainer_OODness import Trainer, model_evaluate
-from models.TC import TC
 from utils import _calc_metrics
 from models.TFC import TFC_one, target_classifier
 from data_preprocessing.dataloader import count_label_labellist
@@ -217,7 +216,7 @@ for args.one_class_idx in class_num:
     temp_strong_set = []
     temp_weak_set = []
 
-    for pos_num, positive_aug in enumerate([ 'Reverse']):
+    for pos_num, positive_aug in enumerate(['AddNoise','Convolve', 'Crop', 'Drift', 'Dropout', 'Pool', 'Quantize', 'Resize', 'Reverse', 'TimeWarp']):
         acc_rs = []
         f1_rs  = []
         auroc_rs = []

@@ -7,7 +7,8 @@ import argparse
 from data_preprocessing.dataloader import loading_data
 from utils import _logger
 from trainer.trainer_ND import Trainer
-from models.TFC import TFC, target_classifier
+
+from models.TFC import target_classifier
 from dataloader import data_generator_nd, data_generator_fold
 
 import pandas as pd
@@ -96,7 +97,7 @@ parser.add_argument('--neg_ths', type=float, default= 0.9, help='choose neg_thrs
 parser.add_argument('--loss', type=str, default='SupCon', help='choose one of them: crossentropy loss, contrastive loss')
 parser.add_argument('--optimizer', type=str, default='', help='choose one of them: adam')
 #parser.add_argument('--lr', type=float, default=3e-5, help='choose the number of learning rate')
-parser.add_argument('--temp', type=float, default=0.5, help='temperature for loss function')
+parser.add_argument('--temp', type=float, default=0.7, help='temperature for loss function')
 parser.add_argument('--warm', action='store_true',help='warm-up for large batch training')
 
 args = parser.parse_args()
@@ -176,28 +177,29 @@ for i in range(0, 4):
 # with open('./data/'+data_type+'_overall_f_'+str(neg_ths)+'.data', 'rb') as f:
 #     overall_rs_f = pickle.load(f)
 
+args.data_size_ratio = 1
 exec(f'from config_files.{data_type}_Configs import Config as Configs')
 configs = Configs()
 
 if data_type == 'lapras': 
     args.timespan = 10000
-    class_num = [0, 1, 2, 3]
+    class_num = [0, 1, 2, 3, -1]
     weak_transformation = ['AddNoise']
 elif data_type == 'casas':         
-    class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+    class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, -1] 
     args.aug_wise = 'Temporal2'
     #strong_transformation = ['Convolve', 'Dropout', 'Drift', 'Crop', 'Pool', 'Quantize', 'Resize'] 
     weak_transformation = ['AddNoise']
 elif data_type == 'opportunity': 
     args.timespan = 1000
-    class_num = [0, 1, 2, 3, 4]
+    class_num = [0, 1, 2, 3, 4, -1]
     #strong_transformation = ['Convolve', 'Drift', 'Quantize', 'Pool', 'Crop'] 
     weak_transformation = ['AddNoise']
 elif data_type == 'aras_a': 
     args.timespan = 1000
     #args.aug_wise = 'Temporal2'
     weak_transformation = ['AddNoise']
-    class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    class_num = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1]
 
 
 num_classes, datalist, labellist = loading_data(data_type, args)
@@ -209,8 +211,16 @@ num_classes, datalist, labellist = loading_data(data_type, args)
 aug_num = 9
 write_temp = False
 write_lam = False
-write_batch = True
+write_batch = False
 use_fold = False
+args.vis = False
+
+if args.vis:
+    from models.CLAN_atten import TFC 
+else:
+    from models.TFC import TFC 
+
+
 if args.training_ver == "Random":
     store_path = 'result_files/' + str(args.ood_score[0])+'_'+ \
                     data_type+'_'+str(neg_ths)+'_random.xlsx'

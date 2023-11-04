@@ -71,10 +71,10 @@ def model_train(model, model_optimizer, classifier, classifier_optimizer, criter
 
         elif training_mode == 'F':
 
-            normal_fft = torch.fft.fftn(data[0],norm="forward").reshape(1, data[0].shape[0], data[0].shape[1])
+            normal_fft = torch.fft.fftn(data[0], norm="forward").reshape(1, data[0].shape[0], data[0].shape[1])
             aug_fft = torch.fft.fftn(aug1[0],norm="forward").reshape(1, aug1[0].shape[0], aug1[0].shape[1])
             for i in range(1, len(data)):
-                normal_fft = torch.cat([normal_fft, torch.fft.fftn(data[i], norm="forward").reshape(1, data[0].shape[0], data[0].shape[1])], 0)
+                normal_fft = torch.cat([normal_fft, torch.fft.fftn(data[i],  norm="forward").reshape(1, data[0].shape[0], data[0].shape[1])], 0)
             
             #print(normal_fft.shape)
             for i in range(1, len(aug1)):
@@ -149,14 +149,14 @@ def model_evaluate(model, classifier, test_dl, device, training_mode, positive_a
 
             elif training_mode == 'F':
 
-                normal_fft = torch.fft.fftn(data[0],norm="forward").reshape(1, data[0].shape[0], data[0].shape[1])
-                aug_fft = torch.fft.fftn(aug1[0],norm="forward").reshape(1, aug1[0].shape[0], aug1[0].shape[1])
+                normal_fft = torch.fft.fftn(data[0],dim =1,norm="forward").reshape(1, data[0].shape[0], data[0].shape[1])
+                aug_fft = torch.fft.fftn(aug1[0],dim =1,norm="forward").reshape(1, aug1[0].shape[0], aug1[0].shape[1])
                 for i in range(1, len(data)):
-                    normal_fft = torch.cat([normal_fft, torch.fft.fftn(data[i],norm="forward").reshape(1, data[0].shape[0], data[0].shape[1])], 0)
+                    normal_fft = torch.cat([normal_fft, torch.fft.fftn(data[i],dim =1,norm="forward").reshape(1, data[0].shape[0], data[0].shape[1])], 0)
                 
                 #print(normal_fft.shape)
                 for i in range(1, len(aug1)):
-                    aug_fft = torch.cat([aug_fft, torch.fft.fftn(aug1[i],norm="forward").reshape(1, aug1[0].shape[0], aug1[0].shape[1])], 0)
+                    aug_fft = torch.cat([aug_fft, torch.fft.fftn(aug1[i],dim =1,norm="forward").reshape(1, aug1[0].shape[0], aug1[0].shape[1])], 0)
                 
                 #print(aug_fft.shape)
                 sensor_pair_f = torch.cat([normal_fft, aug_fft], dim=0) 
