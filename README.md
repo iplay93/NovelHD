@@ -1,5 +1,3 @@
-# NovelHD
+# CLAN
 
-This is the code for "Novel Human Activity Detection" with time series sensor data.
-
-Test file changes
+This is the code for 'Novelty Detection in Human Activities using Discriminative Representation Learning in IoT Sensing Environments', submitted to WWW 2024.
